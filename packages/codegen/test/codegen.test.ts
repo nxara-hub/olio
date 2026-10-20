@@ -233,6 +233,20 @@ describe("generate: Application", () => {
     expect(app).toContain("  scalars: {};");
   });
 
+  test("needs no placeholder root type when modules only extend it", () => {
+    const out = generate([
+      { name: "users", typeDefs: "extend type Query { user: Int }" },
+      { name: "posts", typeDefs: "extend type Query { post: Int }" }
+    ]);
+    expect(out).toContain('export type Query = {\n  __typename?: "Query";');
+    expect(application(out)).toContain(
+      'Query: { type: Query; fields: "post" };'
+    );
+    expect(application(out)).toContain(
+      'Query: { type: Query; fields: "user" };'
+    );
+  });
+
   test("quotes module keys that are not identifiers", () => {
     expect(gen("type Query { x: Int }", "app-timeline")).toContain(
       '  "app-timeline": {'

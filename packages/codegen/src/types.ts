@@ -1,4 +1,4 @@
-import type { SchemaDirective } from "@nxlab/directives";
+import type { SchemaDirective } from "@nxlab/schema";
 import type { DocumentNode } from "graphql";
 
 export type TypeSource = string | DocumentNode;
@@ -33,12 +33,6 @@ export const BUILTIN_SCALARS: ReadonlySet<string> = new Set([
   "Int",
   "Float",
   "Boolean"
-]);
-
-export const ROOT_TYPES: ReadonlySet<string> = new Set([
-  "Query",
-  "Mutation",
-  "Subscription"
 ]);
 
 /** Names the generated file declares itself; schema types can't use them. */

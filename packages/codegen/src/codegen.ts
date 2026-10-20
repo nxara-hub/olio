@@ -1,7 +1,5 @@
-import { applyDirectives } from "@nxlab/directives";
+import { compose } from "@nxlab/schema";
 import {
-  buildASTSchema,
-  concatAST,
   isEnumType,
   isInputObjectType,
   isInterfaceType,
@@ -10,13 +8,11 @@ import {
   isUnionType,
   parse,
   Source,
-  type DefinitionNode,
   type DocumentNode,
-  validateSchema,
   type GraphQLSchema
 } from "graphql";
 
-import { collectOwnership, emitApplication } from "./emit-application.js";
+import { emitApplication } from "./emit-application.js";
 import {
   emitEnum,
   emitInput,
@@ -51,36 +47,6 @@ export interface Compiled {
   schema: GraphQLSchema;
 }
 
-/**
- * Remember which module each definition came from. Directive transforms spread
- * the nodes they rewrite, so a definition keeps its `loc.source`.
- */
-function moduleTracker(
-  modules: readonly { name: string; docs: readonly DocumentNode[] }[]
-): (definition: DefinitionNode) => string {
-  const origin = new Map<object, string>();
-  for (const { name, docs } of modules) {
-    for (const doc of docs) {
-      for (const def of doc.definitions) {
-        origin.set(def, name);
-        if (def.loc) origin.set(def.loc.source, name);
-      }
-    }
-  }
-  return (definition) => {
-    const id =
-      origin.get(definition) ??
-      (definition.loc ? origin.get(definition.loc.source) : undefined);
-    if (id === undefined) {
-      const name = "name" in definition ? definition.name?.value : undefined;
-      throw new Error(
-        `Cannot tell which module declares "${name ?? definition.kind}"`
-      );
-    }
-    return id;
-  };
-}
-
 function assertSupported(schema: GraphQLSchema): void {
   const roots = {
     Query: schema.getQueryType(),
@@ -103,37 +69,26 @@ function assertSupported(schema: GraphQLSchema): void {
   }
 }
 
-/** Merge modules, apply directives once, and generate TypeScript. */
+/** Compose the modules (see `compose` in @nxlab/schema) and generate TypeScript. */
 export function compile(
   modules: readonly CodegenModule[],
   options: GenerateOptions = {}
 ): Compiled {
   // Same-named modules merge, so a module can be passed in pieces.
-  const byModule = new Map<string, DocumentNode[]>();
-  for (const m of modules) {
-    const docs = (Array.isArray(m.typeDefs) ? m.typeDefs : [m.typeDefs]).map(
-      (d) => toDocument(d, m.name)
-    );
-    byModule.set(m.name, [...(byModule.get(m.name) ?? []), ...docs]);
-  }
-  const grouped = [...byModule].map(([name, docs]) => ({ name, docs }));
-
-  const merged = concatAST(grouped.flatMap((m) => m.docs));
-  const document = applyDirectives(merged, options.directives ?? []);
-  const schema = buildASTSchema(document);
+  const { document, schema, ownership } = compose(
+    modules.map((m) => ({
+      id: m.name,
+      typeDefs: (Array.isArray(m.typeDefs) ? m.typeDefs : [m.typeDefs]).map(
+        (d) => toDocument(d, m.name)
+      )
+    })),
+    options.directives
+  );
   assertSupported(schema);
-  const [invalid] = validateSchema(schema);
-  if (invalid) throw new Error(`Invalid schema: ${invalid.message}`);
 
   const types = Object.values(schema.getTypeMap())
     .filter((t) => !t.name.startsWith("__") && !BUILTIN_SCALARS.has(t.name))
     .sort((a, b) => a.name.localeCompare(b.name));
-
-  const ownership = collectOwnership(
-    document,
-    moduleTracker(grouped),
-    grouped.map((m) => m.name)
-  );
 
   const scalars = Object.values(schema.getTypeMap())
     .filter(isScalarType)

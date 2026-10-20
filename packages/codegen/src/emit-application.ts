@@ -1,60 +1,7 @@
-import {
-  isAbstractType,
-  isObjectType,
-  Kind,
-  type DefinitionNode,
-  type DocumentNode,
-  type GraphQLSchema
-} from "graphql";
+import type { Ownership } from "@nxlab/schema";
+import { isAbstractType, isObjectType, type GraphQLSchema } from "graphql";
 
 import { inputMember } from "./type-map.js";
-import { ROOT_TYPES } from "./types.js";
-
-/** Module id -> type name -> what that module declares on it. */
-export type Ownership = Map<string, Map<string, Set<string>>>;
-
-/**
- * A module owns the fields it declares, whether in a definition or an
- * `extend`. The defining module also owns `__isTypeOf` (objects) or
- * `__resolveType` (interfaces and unions).
- */
-export function collectOwnership(
-  document: DocumentNode,
-  moduleOf: (definition: DefinitionNode) => string,
-  moduleIds: readonly string[]
-): Ownership {
-  const ownership: Ownership = new Map(moduleIds.map((id) => [id, new Map()]));
-  const own = (
-    definition: DefinitionNode,
-    type: string,
-    names: readonly string[]
-  ): void => {
-    if (names.length === 0) return;
-    const types = ownership.get(moduleOf(definition)) ?? new Map();
-    const fields = types.get(type) ?? new Set<string>();
-    for (const name of names) fields.add(name);
-    types.set(type, fields);
-  };
-
-  for (const def of document.definitions) {
-    if (
-      def.kind === Kind.OBJECT_TYPE_DEFINITION ||
-      def.kind === Kind.OBJECT_TYPE_EXTENSION
-    ) {
-      const type = def.name.value;
-      const fields = (def.fields ?? []).map((f) => f.name.value);
-      const definesObject =
-        def.kind === Kind.OBJECT_TYPE_DEFINITION && !ROOT_TYPES.has(type);
-      own(def, type, definesObject ? ["__isTypeOf", ...fields] : fields);
-    } else if (
-      def.kind === Kind.INTERFACE_TYPE_DEFINITION ||
-      def.kind === Kind.UNION_TYPE_DEFINITION
-    ) {
-      own(def, def.name.value, ["__resolveType"]);
-    }
-  }
-  return ownership;
-}
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 

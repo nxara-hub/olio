@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { copyDirective, implementsDirective } from "@nxlab/directives";
+import { copyDirective, implementsDirective } from "@nxlab/schema";
 
 import { codegen } from "../src/index.js";
 
