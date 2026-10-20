@@ -1,8 +1,7 @@
 {
   "name": "@nxlab/tools",
   "version": "0.0.0",
-  "private": false,
-  "description": "Utilities for loading GraphQL type definitions.",
+  "description": "Load olio modules, type definitions and resolvers from files.",
   "keywords": [
     "graphql",
     "nxara"
@@ -12,12 +11,11 @@
     "dist"
   ],
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "publishConfig": {
@@ -28,16 +26,15 @@
     "test": "bun test",
     "check-types": "tsc -p tsconfig.test.json"
   },
-  "dependencies": {
-    "@nxlab/olio": "workspace:*"
-  },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^26.6.2",
-    "graphql": "^16.13.1",
-    "typescript": "^7.0.2"
+    "@nxlab/olio": "workspace:*",
+    "graphql": "^17.0.2"
   },
   "peerDependencies": {
-    "graphql": "^16.0.0"
+    "@nxlab/olio": "workspace:*",
+    "graphql": "^16.0.0 || ^17.0.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

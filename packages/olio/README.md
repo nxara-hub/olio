@@ -160,6 +160,7 @@ Resolvers built with the builders are typed for you. For code outside them, such
 
 ```ts
 import type { Fields } from "@nxlab/olio";
+
 import type { LoginInput, Role, Scalars, User } from "./generated.js";
 
 type UserArgs = Fields["Query"]["user"]["args"]; // { id: string }

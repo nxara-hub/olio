@@ -13,11 +13,7 @@
     "@nxlab/olio": "workspace:*",
     "@nxlab/schema": "workspace:*",
     "@nxlab/tools": "workspace:*",
-    "graphql": "^16.13.1",
-    "graphql-scalars": "^2.0.0"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^7.0.2"
+    "graphql": "^17.0.2",
+    "graphql-scalars": "^2.0.1"
   }
 }
