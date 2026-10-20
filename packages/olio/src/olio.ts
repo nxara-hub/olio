@@ -156,11 +156,23 @@ interface Attach {
   resolved: Set<string>;
 }
 
+/** Coercion methods: graphql 16 names, then the graphql 17 renames. */
+const SCALAR_METHODS = [
+  "serialize",
+  "parseValue",
+  "parseLiteral",
+  "coerceOutputValue",
+  "coerceInputValue",
+  "coerceInputLiteral",
+  "valueToLiteral"
+] as const;
+
 function applyScalar(type: GraphQLScalarType, value: object): void {
-  const scalar = value as Partial<GraphQLScalarType>;
-  if (scalar.serialize) type.serialize = scalar.serialize;
-  if (scalar.parseValue) type.parseValue = scalar.parseValue;
-  if (scalar.parseLiteral) type.parseLiteral = scalar.parseLiteral;
+  const target = type as unknown as Record<string, unknown>;
+  const source = value as Record<string, unknown>;
+  for (const method of SCALAR_METHODS) {
+    if (typeof source[method] === "function") target[method] = source[method];
+  }
 }
 
 function isSubscriptionResolver(value: unknown): value is {

@@ -1,6 +1,6 @@
 # Nxara
 
-Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` v16 as a peer dependency.
+Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` 16 or 17 as a peer dependency (dev runs on 17; keep both working, e.g. scalars copy both coercion method names, defaults are read from the SDL node).
 
 ## Layout
 
