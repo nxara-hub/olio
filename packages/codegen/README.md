@@ -32,7 +32,7 @@ await codegen({
 
 ### Directives
 
-Pass `withDirectives` to apply `@nxlab/directives` transformations before generation:
+Pass `directives` to apply `@nxlab/directives` transformations before generation:
 
 ```ts
 import { codegen } from "@nxlab/codegen";
@@ -43,11 +43,11 @@ await codegen({
   typeDefs: "**/*.gql",
   output: "src/generated.ts",
   schema: "src/schema.graphql",
-  withDirectives: [implementsDirective(), copyDirective()]
+  directives: [implementsDirective(), copyDirective()]
 });
 ```
 
-Set `schema` to write the final (transformed) GraphQL SDL to a file. Omit it to generate only TypeScript.
+Set `schema` to write the final (transformed) GraphQL SDL to a file. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
 
 ## Modules
 

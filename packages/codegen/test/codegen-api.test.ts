@@ -128,7 +128,7 @@ describe("codegen", () => {
         modules,
         typeDefs: "**/*.gql",
         output,
-        withDirectives: [implementsDirective()]
+        directives: [implementsDirective()]
       });
 
       // @implements spliced Node's `id` into User.
@@ -155,7 +155,7 @@ describe("codegen", () => {
         modules,
         typeDefs: "**/*.gql",
         output,
-        withDirectives: [implementsDirective(), copyDirective()]
+        directives: [implementsDirective(), copyDirective()]
       });
 
       const out = await readFile(output, "utf8");
@@ -182,7 +182,7 @@ describe("codegen", () => {
         typeDefs: "**/*.gql",
         output,
         schema,
-        withDirectives: [implementsDirective()]
+        directives: [implementsDirective()]
       });
 
       const sdl = await readFile(schema, "utf8");

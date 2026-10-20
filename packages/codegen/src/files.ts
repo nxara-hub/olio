@@ -157,7 +157,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
     modules: modulesDir,
     typeDefs,
     output,
-    withDirectives = [],
+    directives = [],
     schema,
     watch = false,
     clear = false,
@@ -190,15 +190,15 @@ export async function codegen(options: CodegenOptions): Promise<void> {
           .join(dim(" · "))
       )
     );
-    if (withDirectives.length > 0) {
-      log(row("directives", withDirectives.map((d) => `@${d.name}`).join(" ")));
+    if (directives.length > 0) {
+      log(row("directives", directives.map((d) => `@${d.name}`).join(" ")));
     }
 
     const codegenModules: CodegenModule[] = modules.map((m) => ({
       name: m.id,
       typeDefs: m.typeDefs
     }));
-    const compiled = compile(codegenModules, { withDirectives });
+    const compiled = compile(codegenModules, { directives });
     const types = Object.keys(compiled.schema.getTypeMap()).filter(
       (name) => !name.startsWith("__") && !BUILTIN_SCALARS.has(name)
     ).length;

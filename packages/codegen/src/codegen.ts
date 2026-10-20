@@ -1,4 +1,4 @@
-import { withDirectives } from "@nxlab/directives";
+import { applyDirectives } from "@nxlab/directives";
 import {
   buildASTSchema,
   concatAST,
@@ -12,6 +12,7 @@ import {
   Source,
   type DefinitionNode,
   type DocumentNode,
+  validateSchema,
   type GraphQLSchema
 } from "graphql";
 
@@ -118,11 +119,11 @@ export function compile(
   const grouped = [...byModule].map(([name, docs]) => ({ name, docs }));
 
   const merged = concatAST(grouped.flatMap((m) => m.docs));
-  const directives = options.withDirectives ?? [];
-  const document =
-    directives.length > 0 ? withDirectives(merged, directives) : merged;
+  const document = applyDirectives(merged, options.directives ?? []);
   const schema = buildASTSchema(document);
   assertSupported(schema);
+  const [invalid] = validateSchema(schema);
+  if (invalid) throw new Error(`Invalid schema: ${invalid.message}`);
 
   const types = Object.values(schema.getTypeMap())
     .filter((t) => !t.name.startsWith("__") && !BUILTIN_SCALARS.has(t.name))

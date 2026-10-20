@@ -11,7 +11,7 @@ export interface CodegenModule {
 
 export interface GenerateOptions {
   /** Schema-design directives applied before generation. */
-  withDirectives?: readonly SchemaDirective[];
+  directives?: readonly SchemaDirective[];
 }
 
 export interface CodegenOptions {
@@ -23,7 +23,7 @@ export interface CodegenOptions {
   schema?: string;
   watch?: boolean;
   clear?: boolean;
-  withDirectives?: readonly SchemaDirective[];
+  directives?: readonly SchemaDirective[];
   logs?: boolean;
 }
 
