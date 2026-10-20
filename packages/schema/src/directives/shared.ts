@@ -34,14 +34,17 @@ const KINDS: Partial<Record<Kind, string>> = {
 const article = (kind: string): string =>
   /^[aeiou]/.test(kind) ? `an ${kind}` : `a ${kind}`;
 
-/** Throw with the node's location: `users/user.gql:3:5: message`. */
-export function fail(node: ASTNode, message: string): never {
-  if (!node.loc) throw new Error(message);
+/** Prefix a message with the node's location: `users/user.gql:3:5: message`. */
+export function located(node: ASTNode | undefined, message: string): string {
+  if (!node?.loc) return message;
   const { line, column } = getLocation(node.loc.source, node.loc.start);
   const file = node.loc.source.name;
-  throw new Error(
-    `${file === "GraphQL request" ? "" : `${file}:`}${line}:${column}: ${message}`
-  );
+  return `${file === "GraphQL request" ? "" : `${file}:`}${line}:${column}: ${message}`;
+}
+
+/** Throw with the node's location. */
+export function fail(node: ASTNode, message: string): never {
+  throw new Error(located(node, message));
 }
 
 /** A type definition or extension: anything with a name and directives. */

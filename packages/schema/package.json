@@ -1,9 +1,10 @@
 {
-  "name": "@nxlab/directives",
+  "name": "@nxlab/schema",
   "version": "0.0.0",
   "private": false,
-  "description": "GraphQL schema-design directives for SDL composition.",
+  "description": "Compose module SDL into one validated GraphQL schema, with schema-design directives.",
   "keywords": [
+    "compose",
     "directives",
     "graphql",
     "nxara",

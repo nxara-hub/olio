@@ -1,24 +1,47 @@
-# @nxlab/directives
+# @nxlab/schema
 
-Schema-design directives for GraphQL SDL.
+Compose module SDL into one validated GraphQL schema.
 
-`@nxlab/directives` rewrites a parsed `DocumentNode` before it reaches codegen or a schema. It provides `@implements` and `@copy`, which save repeating fields across types. The output is ordinary GraphQL: the directives, and their definitions if you declared them, are removed.
+`@nxlab/schema` is the step between your `.gql` files and a schema. Codegen and olio both go through it, so they always agree on the schema and on which module owns which field. It provides:
+
+- **`compose(modules, directives)`**: merges every module's SDL, adds root types that modules only extend, applies directives, validates, and reports which module declares each field.
+- **`@implements` and `@copy`**: schema-design directives that save repeating fields across types. The output is ordinary GraphQL: the directives, and their definitions if you declared them, are removed.
 
 ## Install
 
 ```sh
-bun add @nxlab/directives
+bun add @nxlab/schema
 ```
 
 `graphql` is a peer dependency.
 
-## Usage
+## compose
+
+```ts
+import { compose } from "@nxlab/schema";
+
+const { document, schema, ownership } = compose(
+  [
+    { id: "users", typeDefs: [usersDoc] },
+    { id: "posts", typeDefs: [postsDoc] }
+  ],
+  directives
+);
+```
+
+- **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
+- **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`.
+- **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name.
+
+You rarely call this yourself: codegen and olio call it with the `directives` you pass them.
+
+## Directives
 
 Pass the same list to codegen and to olio, so both see the same schema:
 
 ```ts
 // directives.ts
-import { copyDirective, implementsDirective } from "@nxlab/directives";
+import { copyDirective, implementsDirective } from "@nxlab/schema";
 
 export const directives = [implementsDirective(), copyDirective()];
 
@@ -37,7 +60,7 @@ export const app = olio({ modules, directives });
 Or apply them yourself:
 
 ```ts
-import { applyDirectives } from "@nxlab/directives";
+import { applyDirectives } from "@nxlab/schema";
 
 const document = applyDirectives(parse(sdl), directives);
 ```
