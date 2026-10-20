@@ -1,0 +1,40 @@
+{
+  "name": "@nxlab/tools",
+  "version": "0.0.0",
+  "private": false,
+  "description": "Utilities for loading GraphQL type definitions.",
+  "keywords": [
+    "graphql",
+    "nxara"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "tsc -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.6.2",
+    "graphql": "^16.13.1",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "graphql": "^16.0.0"
+  }
+}
