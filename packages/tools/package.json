@@ -28,6 +28,9 @@
     "test": "bun test",
     "check-types": "tsc -p tsconfig.test.json"
   },
+  "dependencies": {
+    "@nxlab/olio": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^26.6.2",

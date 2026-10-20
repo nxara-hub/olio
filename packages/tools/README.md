@@ -1,6 +1,6 @@
 # @nxlab/tools
 
-Load a module's type definitions and resolvers from files.
+Load modules, and a module's type definitions and resolvers, from files.
 
 ## Install
 
@@ -25,6 +25,16 @@ const resolvers = await loadResolvers(
   new URL("**/{query,mutation,subscription}.{js,ts}", import.meta.url),
   new URL("**/resolvers/*.{js,ts}", import.meta.url)
 );
+```
+
+**`loadModules(...patterns)`** imports each file (usually a module's `index.ts`) and collects every exported olio module, in file order. A file that exports no module throws.
+
+```ts
+export const app = olio({
+  modules: await loadModules(
+    new URL("modules/*/index.{js,ts}", import.meta.url)
+  )
+});
 ```
 
 **`loadTypeDefs(...patterns)`** returns parsed documents from `.graphql`/`.gql` files and from `.ts`/`.js` modules (their default export: SDL or a `DocumentNode`). Each file is parsed with its path, so syntax, directive and schema errors point at `file:line:column`. Files that hold only comments are skipped.

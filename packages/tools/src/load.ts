@@ -2,6 +2,7 @@ import { glob, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import type { OlioModule } from "@nxlab/olio";
 import { parse, Source, type DocumentNode } from "graphql";
 
 export type TypeSource = string | DocumentNode;
@@ -136,4 +137,39 @@ export async function loadResolvers(
     }
   }
   return merged;
+}
+
+/** An `OlioModule`, recognised by shape so any copy of olio works. */
+function isModule(value: unknown): value is OlioModule {
+  if (typeof value !== "object" || value === null) return false;
+  const m = value as Record<string, unknown>;
+  return (
+    typeof m.id === "string" &&
+    Array.isArray(m.typeDefs) &&
+    Array.isArray(m.resolvers) &&
+    typeof m.middleware === "object"
+  );
+}
+
+/**
+ * Load modules from files, usually each module's `index.ts`: every exported
+ * module (`export const usersModule = module.users({...})`) is collected, in
+ * file order. A file that exports no module throws.
+ */
+export async function loadModules(
+  ...patterns: Pattern[]
+): Promise<OlioModule[]> {
+  const files = await matchFiles(patterns);
+  const loaded = await Promise.all(
+    files.map(async (file) => {
+      const exports = (await import(pathToFileURL(file).href)) as Record<
+        string,
+        unknown
+      >;
+      const modules = Object.values(exports).filter(isModule);
+      if (modules.length === 0) throw new Error(`${file} exports no module`);
+      return modules;
+    })
+  );
+  return loaded.flat();
 }

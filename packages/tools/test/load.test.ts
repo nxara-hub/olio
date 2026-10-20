@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { print } from "graphql";
 
-import { loadResolvers, loadTypeDefs } from "../src/index.js";
+import { loadModules, loadResolvers, loadTypeDefs } from "../src/index.js";
 
 const sdl = (defs: readonly unknown[]): string[] =>
   defs.map((d) => print(d as Parameters<typeof print>[0]).trim());
@@ -153,6 +153,25 @@ describe("errors", () => {
     try {
       await expect(loadTypeDefs(`${dir}/*.gql`)).rejects.toThrow(
         /bad\.gql:3:1: Syntax Error/
+      );
+    } finally {
+      await clean();
+    }
+  });
+
+  test("loadModules collects exported modules in file order", async () => {
+    const mod = (id: string) =>
+      `export const ${id}Module = { id: "${id}", typeDefs: [], resolvers: [], middleware: {} };`;
+    const { dir, clean } = await withDir({
+      "b.ts": mod("b"),
+      "a.ts": `${mod("a")}\nexport const helper = 1;`,
+      "none.ts": "export const helper = 1;"
+    });
+    try {
+      const modules = await loadModules(`${dir}/{a,b}.ts`);
+      expect(modules.map((m) => m.id)).toEqual(["a", "b"]);
+      await expect(loadModules(`${dir}/none.ts`)).rejects.toThrow(
+        /none\.ts exports no module/
       );
     } finally {
       await clean();
