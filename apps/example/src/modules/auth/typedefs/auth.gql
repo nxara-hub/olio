@@ -1,0 +1,30 @@
+type A {
+  dataA: String!
+}
+
+type B {
+  dataB: String
+}
+
+type C {
+  dataC: User
+}
+
+union Data = A | B | C
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+extend type Query {
+  login(input: LoginInput!): Data!
+}
+
+extend type Mutation {
+  logout: Boolean
+}
+
+extend enum ReqErrorCode {
+  TEST123
+}

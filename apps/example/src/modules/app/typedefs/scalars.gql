@@ -1,0 +1,6 @@
+scalar Upload
+scalar DateTime
+scalar Date
+scalar ObjectID
+scalar JSON
+scalar Void

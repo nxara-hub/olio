@@ -1,0 +1,6 @@
+{
+  "deep": true,
+  "packageManager": "bun",
+  "interactive": true,
+  "mergeConfig": true
+}

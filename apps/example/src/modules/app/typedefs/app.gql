@@ -1,0 +1,236 @@
+# ***************** Types *****************
+
+type FieldError {
+  field: String!
+  message: String!
+}
+
+type FieldErrors {
+  fieldErrors: [FieldError!]!
+}
+
+type ReqError {
+  code: ReqErrorCode!
+  message: String!
+}
+
+type WorkHours {
+  opening: [String]!
+  closing: [String]!
+}
+
+type Store {
+  id: String!
+  brand: EBrands!
+  closed: Boolean!
+}
+
+type RamadanDate {
+  start: DateTime!
+  end: DateTime!
+}
+
+type AppointmentStatusLifeCycleByService {
+  serviceType: [String]!
+  lifeCycle: JSON!
+}
+
+type AppPropertiesPublic {
+  workshopHours: WorkHours!
+  appointmentsMonthsAhead: Int!
+}
+
+type MetaData {
+  key: String!
+  value: String!
+}
+
+type Remark {
+  _id: ObjectID!
+  mentionIds: [ObjectID!]!
+  json: JSON!
+  html: String!
+  userId: ObjectID
+  creator: String!
+  at: DateTime!
+  deletable: Boolean!
+  deleted: Boolean!
+  edited: Boolean!
+}
+
+type Phone {
+  alphaCode: String!
+  code: String!
+  country: String!
+  number: String!
+  fullNumber: String!
+}
+
+type AreaCode {
+  code: String!
+  alphaCode: String!
+  country: String!
+}
+
+type Pagination {
+  totalDocs: Int!
+  limit: Int!
+  page: Int
+  totalPages: Int!
+  nextPage: Int
+  prevPage: Int
+  pagingCounter: Int!
+  hasPrevPage: Boolean!
+  hasNextPage: Boolean!
+  meta: JSON
+}
+
+type SubNotificationData {
+  title: String!
+  message: String!
+}
+
+type Reason {
+  reason: String!
+  at: DateTime!
+  by: String!
+  byId: ObjectID!
+}
+
+# ***************** Enum Types *****************
+
+enum ReqErrorCode {
+  NOT_FOUND
+  APP_UNKNOWN
+  APP_INVALID_DTO
+  APP_RATE_LIMIT
+  APP_DUPLICATE_DATA
+  UNAUTHORIZED_ACTION
+  REMARK_NOT_FOUND
+}
+
+enum YesNo {
+  Yes
+  No
+  Unsure
+  Undefined
+}
+
+enum EBrands {
+  Rolex
+  Tudor
+}
+
+enum EGroups {
+  Boutique
+  Workshop
+  Administration
+}
+
+enum ESort {
+  asc
+  desc
+}
+
+enum EIdType {
+  CivilId
+  Passport
+}
+
+enum EHonorifics {
+  Mr
+  Mrs
+  Miss
+  Ms
+  Dr
+  Undefined
+}
+
+enum EGender {
+  Male
+  Female
+  Undefined
+}
+
+# ***************** Input Types *****************
+
+input RemarkInput {
+  mentionIds: [ObjectID!]!
+  json: JSON!
+  html: String!
+}
+
+input AddRemarkInput {
+  id: ObjectID!
+  mentionIds: [ObjectID!]!
+  json: JSON!
+  html: String!
+}
+
+input EditRemarkInput {
+  id: ObjectID!
+  remarkId: ObjectID!
+  mentionIds: [ObjectID!]!
+  json: JSON!
+  html: String!
+}
+
+input DeleteRemarkInput {
+  id: ObjectID!
+  remarkId: ObjectID!
+}
+
+input UpdateWorkHoursInput {
+  opening: [String]!
+  closing: [String]!
+}
+
+input UpdateAppPropertiesInput {
+  maxWishPerClient: Int!
+  appointmentsServiceDuration: Int!
+  appointmentApplyNoShowAfterDays: Int!
+  allowUpdateNoShowWithinDays: Int!
+  appointmentsMonthsAhead: Int!
+  maxAppointmentsPerSlot: Int!
+  maxAppointmentsPerDay: Int!
+  workshopHours: UpdateWorkHoursInput!
+}
+
+input MetaDataInput {
+  key: String!
+  value: String!
+}
+
+input AreaCodeInput {
+  code: String!
+  alphaCode: String!
+  country: String!
+}
+
+input PhoneInput {
+  alphaCode: String!
+  code: String!
+  country: String!
+  number: String!
+}
+
+# ***************** Payload Types *****************
+
+union AddRemarkPayload = Remark | ReqError
+
+type EditRemarkData {
+  _id: ObjectID!
+  remark: Remark!
+}
+
+union EditRemarkPayload = EditRemarkData | ReqError
+
+type DeleteRemarkData {
+  _id: ObjectID!
+  remark: Remark!
+}
+
+union DeleteRemarkPayload = DeleteRemarkData | ReqError
+
+# No root types here: modules `extend type Query` / `Mutation`, and the
+# missing base types are added when the schema is composed.

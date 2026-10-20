@@ -1,0 +1,43 @@
+{
+  "name": "@nxlab/olio",
+  "version": "0.0.0",
+  "private": false,
+  "description": "Modular, type-safe GraphQL applications.",
+  "keywords": [
+    "graphql",
+    "modules",
+    "nxara"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@nxlab/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "graphql": "^16.13.1",
+    "typescript": "^7.0.2"
+  },
+  "peerDependencies": {
+    "graphql": "^16.0.0"
+  }
+}

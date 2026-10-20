@@ -1,0 +1,19 @@
+# Dependencies
+node_modules
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Build & caches
+dist
+.turbo
+coverage
+
+# Logs
+*.log
+
+# Misc
+.DS_Store
+*.pem

@@ -1,0 +1,23 @@
+type AppType {
+  name: String
+}
+
+interface BasePagination {
+  totalDocs: Int!
+  limit: Int!
+  page: Int
+  totalPages: Int!
+  nextPage: Int
+  prevPage: Int
+  pagingCounter: Int!
+  hasPrevPage: Boolean!
+  hasNextPage: Boolean!
+}
+
+extend interface BasePagination {
+  abd: String
+}
+
+interface DocId {
+  _id: String!
+}

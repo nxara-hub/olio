@@ -1,0 +1,5 @@
+[tools]
+bun = "latest"
+
+[shell_alias]
+dev = "bbr dev"

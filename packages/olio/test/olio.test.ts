@@ -1,0 +1,415 @@
+import { describe, expect, test } from "bun:test";
+
+import { copyDirective } from "@nxlab/schema";
+import { graphql, GraphQLScalarType } from "graphql";
+
+import {
+  createModule,
+  module,
+  mw,
+  olio,
+  type MiddlewareFn,
+  type ModuleConfig
+} from "../src/index.js";
+
+const root = createModule("root", {
+  typeDefs: /* GraphQL */ `
+    type Query {
+      _empty: String
+    }
+    type Mutation {
+      _empty: String
+    }
+  `
+});
+
+const users = (extra: ModuleConfig<string> = {}) =>
+  createModule("users", {
+    typeDefs: /* GraphQL */ `
+      type User {
+        id: ID!
+        name(upper: Boolean): String!
+      }
+      extend type Query {
+        user(id: ID!): User
+        users: [User!]!
+      }
+    `,
+    resolvers: {
+      Query: {
+        user: (_: unknown, { id }: { id: string }) => ({ id, name: "ada" }),
+        users: () => []
+      },
+      User: {
+        name: (u: { name: string }, { upper }: { upper?: boolean }) =>
+          upper ? u.name.toUpperCase() : u.name
+      }
+    },
+    ...extra
+  });
+
+/** Middleware that records its label, then continues. */
+const trace =
+  (log: string[], label: string): MiddlewareFn =>
+  (_params, next) => {
+    log.push(label);
+    return next();
+  };
+
+const run = async (app: ReturnType<typeof olio>, source: string) =>
+  graphql({ schema: app.schema, source, contextValue: {} });
+
+describe("olio", () => {
+  test("composes modules and attaches resolvers", async () => {
+    const app = olio({ modules: [root, users()] });
+    const result = await run(app, `{ user(id: "1") { id name(upper: true) } }`);
+    expect(result).toEqual({
+      data: { user: { id: "1", name: "ADA" } }
+    });
+  });
+
+  test("runs middleware app-first, then module, most general first", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: {
+        "*": { "*": [trace(log, "app *.*")] },
+        Query: {
+          "*": [trace(log, "app Query.*")],
+          user: [trace(log, "app Query.user")]
+        }
+      },
+      modules: [
+        root,
+        users({
+          middleware: {
+            Query: {
+              "*": [trace(log, "mod Query.*")],
+              user: [trace(log, "mod Query.user")]
+            }
+          }
+        })
+      ]
+    });
+    await run(app, `{ user(id: "1") { id } }`);
+    expect(log).toEqual([
+      "app *.*",
+      "app Query.*",
+      "app Query.user",
+      "mod Query.*",
+      "mod Query.user"
+    ]);
+  });
+
+  test("a `-` key drops every upper layer for that target", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: { "*": { "*": [trace(log, "app *.*")] } },
+      modules: [
+        root,
+        users({
+          middleware: {
+            Query: {
+              "*": [trace(log, "mod Query.*")],
+              "-user": [trace(log, "only")]
+            }
+          }
+        })
+      ]
+    });
+    await run(app, `{ user(id: "1") { id } users { id } }`);
+    // Query.user: only its own; Query.users still inherits everything.
+    expect(log).toEqual(["only", "app *.*", "mod Query.*"]);
+  });
+
+  test("`-*` drops the app layer but keeps lower module layers", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: { Query: { "*": [trace(log, "app")] } },
+      modules: [
+        root,
+        users({
+          middleware: {
+            Query: {
+              "-*": [trace(log, "mod -*")],
+              user: [trace(log, "mod user")]
+            }
+          }
+        })
+      ]
+    });
+    await run(app, `{ user(id: "1") { id } }`);
+    expect(log).toEqual(["mod -*", "mod user"]);
+  });
+
+  test("merges middleware split across features, in order", async () => {
+    const log: string[] = [];
+    const app = olio({
+      modules: [
+        root,
+        users({
+          middleware: [
+            { Query: { user: [trace(log, "profile")] } },
+            {
+              Query: {
+                user: [trace(log, "admin")],
+                "*": [trace(log, "admin *")]
+              }
+            }
+          ]
+        })
+      ]
+    });
+    await run(app, `{ user(id: "1") { id } }`);
+    expect(log).toEqual(["admin *", "profile", "admin"]);
+  });
+
+  test("middleware can short-circuit and replace args", async () => {
+    const deny: MiddlewareFn = () => null;
+    const rename: MiddlewareFn = (params, next) => {
+      params.args = { ...params.args, id: "42" };
+      return next();
+    };
+    const app = olio({
+      modules: [root, users({ middleware: { Query: { user: [rename] } } })]
+    });
+    expect((await run(app, `{ user(id: "1") { id } }`)).data).toEqual({
+      user: { id: "42" }
+    });
+
+    const denied = olio({
+      modules: [root, users({ middleware: { Query: { user: [deny] } } })]
+    });
+    expect((await run(denied, `{ user(id: "1") { id } }`)).data).toEqual({
+      user: null
+    });
+  });
+
+  test("leaves fields without a resolver unwrapped", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: { "*": { "*": [trace(log, "app")] } },
+      modules: [root, users()]
+    });
+    await run(app, `{ user(id: "1") { id } }`);
+    expect(log).toEqual(["app"]); // Query.user only, not User.id
+  });
+
+  test("middleware naming a field without a resolver still runs", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: { "*": { "*": [trace(log, "app")] } },
+      modules: [
+        root,
+        users({ middleware: { User: { id: [trace(log, "User.id")] } } })
+      ]
+    });
+    const result = await run(app, `{ user(id: "7") { id } }`);
+    expect(result.data).toEqual({ user: { id: "7" } });
+    // The default resolver for User.id is wrapped, app layers included.
+    expect(log).toEqual(["app", "app", "User.id"]);
+  });
+
+  test("a module can resolve fields it adds to another module's type", async () => {
+    const posts = createModule("posts", {
+      typeDefs: "extend type User { posts: [String!]! }",
+      resolvers: { User: { posts: () => ["hello"] } }
+    });
+    const app = olio({ modules: [root, users(), posts] });
+    expect((await run(app, `{ user(id: "1") { posts } }`)).data).toEqual({
+      user: { posts: ["hello"] }
+    });
+
+    const thief = createModule("thief", {
+      typeDefs: "extend type User { stolen: Int }",
+      resolvers: { User: { name: () => "x" } }
+    });
+    expect(() => olio({ modules: [root, users(), thief] })).toThrow(
+      'Module "thief": "User.name" is declared by module "users"; only that module can resolve it'
+    );
+  });
+
+  test("modules can extend root types nobody defines", async () => {
+    const app = olio({
+      modules: [
+        createModule("hello", {
+          typeDefs: "extend type Query { hello: String! }",
+          resolvers: { Query: { hello: () => "hi" } }
+        })
+      ]
+    });
+    expect((await run(app, "{ hello }")).data).toEqual({ hello: "hi" });
+  });
+
+  test("rejects middleware keys that match nothing", () => {
+    const build = (config: Partial<Parameters<typeof olio>[0]>) => () =>
+      olio({ modules: [root, users()], ...config });
+    expect(build({ middleware: { User: { name: [] } } })).toThrow(
+      'Application middleware "User.name": the application can target "*" and root types only'
+    );
+    expect(build({ middleware: { Query: { nope: [] } } })).toThrow(
+      'Application middleware "Query.nope": unknown field'
+    );
+    expect(build({ middleware: { Query: { "-user": [] } } })).toThrow(
+      '"-" keys only apply to module middleware'
+    );
+    expect(
+      build({ modules: [root, users({ middleware: { User: { nmae: [] } } })] })
+    ).toThrow(
+      'Module "users": middleware "User.nmae" targets a field the module doesn\'t declare'
+    );
+    expect(
+      build({
+        modules: [root, users({ middleware: { Query: { "-_empty": [] } } })]
+      })
+    ).toThrow(
+      'middleware "Query.-_empty" targets a field the module doesn\'t declare'
+    );
+  });
+
+  test("supports __resolveType, __isTypeOf, scalars and subscriptions", async () => {
+    const shapes = createModule("shapes", {
+      typeDefs: /* GraphQL */ `
+        scalar Upper
+        type Circle {
+          r: Int!
+        }
+        type Square {
+          side: Int!
+        }
+        union Shape = Circle | Square
+        extend type Query {
+          shape: Shape!
+          shout: Upper!
+        }
+        type Subscription {
+          ticks: Int!
+        }
+      `,
+      resolvers: {
+        Query: { shape: () => ({ side: 2 }), shout: () => "hey" },
+        Shape: {
+          __resolveType: (s: object) => ("side" in s ? "Square" : "Circle")
+        },
+        Upper: new GraphQLScalarType({
+          name: "Upper",
+          serialize: (v) => String(v).toUpperCase()
+        }),
+        Subscription: {
+          ticks: {
+            async *subscribe() {
+              yield { ticks: 1 };
+            }
+          }
+        }
+      }
+    });
+    const app = olio({ modules: [root, shapes] });
+    expect(
+      (await run(app, `{ shape { ... on Square { side } } shout }`)).data
+    ).toEqual({ shape: { side: 2 }, shout: "HEY" });
+    expect(
+      app.schema.getSubscriptionType()?.getFields().ticks?.subscribe
+    ).toBeFunction();
+  });
+
+  test("applies schema-design directives", () => {
+    const app = olio({
+      directives: [copyDirective()],
+      modules: [
+        createModule("copy", {
+          typeDefs: /* GraphQL */ `
+            type Base {
+              id: ID!
+            }
+            type Query @copy(from: ["Base"]) {
+              name: String
+            }
+          `
+        })
+      ]
+    });
+    expect(Object.keys(app.schema.getQueryType()?.getFields() ?? {})).toEqual([
+      "id",
+      "name"
+    ]);
+  });
+
+  test("works without generated types: inline resolvers are loosely typed", async () => {
+    const greet = createModule("greet", {
+      typeDefs: "extend type Query { hello(name: String!): String! }",
+      // No annotations: root/args/ctx get fallback types, not implicit any.
+      resolvers: {
+        Query: { hello: (_root, args) => `hi ${String(args.name)}` }
+      }
+    });
+    const app = olio({ modules: [root, greet] });
+    expect((await run(app, `{ hello(name: "ada") }`)).data).toEqual({
+      hello: "hi ada"
+    });
+  });
+
+  test("module.<id> builds a module with that id", () => {
+    expect(module.users?.({}).id).toBe("users");
+  });
+
+  test("mw() is app middleware and mw.<id>() a module's; both pass through", () => {
+    const map = { Query: { "*": [] } };
+    expect(mw(map)).toBe(map);
+    expect(mw.users?.(map)).toBe(map);
+  });
+
+  test("rejects invalid configuration", () => {
+    expect(() => olio({ modules: [root, root] })).toThrow(
+      'Module "root" is registered twice'
+    );
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          users(),
+          createModule("other", { resolvers: { Query: { user: () => null } } })
+        ]
+      })
+    ).toThrow(
+      'Module "other": "Query.user" is declared by module "users"; only that module can resolve it'
+    );
+    const resolveNode = (id: string) =>
+      createModule(id, {
+        resolvers: { Node: { __resolveType: () => "X" } }
+      });
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          createModule("node", {
+            typeDefs:
+              "interface Node { id: ID! } type X implements Node { id: ID! }"
+          }),
+          resolveNode("a"),
+          resolveNode("b")
+        ]
+      })
+    ).toThrow(
+      'Module "a": "Node.__resolveType" is declared by module "node"; only that module can resolve it'
+    );
+    expect(() =>
+      olio({ modules: [root, createModule("x", { resolvers: { Nope: {} } })] })
+    ).toThrow('Module "x": unknown type "Nope"');
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          createModule("x", { resolvers: { Query: { nope: () => 1 } } })
+        ]
+      })
+    ).toThrow('Module "x": unknown field "Query.nope"');
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          users({ middleware: { Query: { user: [], "-user": [] } } })
+        ]
+      })
+    ).toThrow('Middleware "Query.user" cannot be combined with "Query.-user"');
+  });
+});

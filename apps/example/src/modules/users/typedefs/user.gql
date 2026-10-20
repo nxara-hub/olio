@@ -1,0 +1,22 @@
+# The module's core: shared by every feature folder.
+
+enum Role {
+  Admin
+  Guest
+}
+
+interface IA {
+  a: String
+}
+
+interface IB {
+  b: String
+}
+
+type User @implements(from: ["DocId", "IA", "IB"]) {
+  _id: String!
+  a: String
+  b: String
+  name(trim: Boolean): String
+  role: Role
+}

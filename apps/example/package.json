@@ -1,0 +1,23 @@
+{
+  "name": "@nxlab/example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "bun run ./codegen.ts",
+    "start": "bun run ./src/main.ts",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nxlab/codegen": "workspace:*",
+    "@nxlab/olio": "workspace:*",
+    "@nxlab/schema": "workspace:*",
+    "@nxlab/tools": "workspace:*",
+    "graphql": "^16.13.1",
+    "graphql-scalars": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7.0.2"
+  }
+}
