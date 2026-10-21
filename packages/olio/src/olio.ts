@@ -1,12 +1,14 @@
 import { compose, type Ownership, type SchemaDirective } from "@nxlab/schema";
 import {
   defaultFieldResolver,
+  isEnumType,
   isInterfaceType,
   isObjectType,
   isScalarType,
   isUnionType,
   parse,
   Source,
+  type GraphQLEnumType,
   type GraphQLFieldResolver,
   type GraphQLNamedType,
   type GraphQLScalarType,
@@ -154,16 +156,36 @@ interface Attach {
   declared: ReadonlyMap<string, string>;
   /** `Type.field` already given a resolver, to catch a module resolving twice. */
   resolved: Set<string>;
+  /** Enums given internal values, finished once every module is applied. */
+  enums: Set<GraphQLEnumType>;
 }
 
-/** Coercion methods: graphql 16 names, then the graphql 17 renames. */
+/** Only the module that declares `Type.field` (or an enum value) may resolve it. */
+function claim({ module, declared, resolved }: Attach, key: string): void {
+  const where = `Module "${module.id}"`;
+  const owner = declared.get(key);
+  if (owner !== module.id) {
+    throw new Error(
+      owner
+        ? `${where}: "${key}" is declared by module "${owner}"; only that module can resolve it`
+        : `${where}: "${key}" can't be resolved here`
+    );
+  }
+  if (resolved.has(key))
+    throw new Error(`${where}: "${key}" is resolved twice`);
+  resolved.add(key);
+}
+
+/**
+ * What graphql 17 calls on a scalar. A scalar written the older way
+ * (`serialize`, `parseValue`, as graphql-scalars does) gets the coerce methods
+ * from its constructor, and literals still fall back to `parseLiteral`.
+ */
 const SCALAR_METHODS = [
-  "serialize",
-  "parseValue",
-  "parseLiteral",
   "coerceOutputValue",
   "coerceInputValue",
   "coerceInputLiteral",
+  "parseLiteral",
   "valueToLiteral"
 ] as const;
 
@@ -176,32 +198,20 @@ function applyScalar(type: GraphQLScalarType, value: object): void {
 }
 
 function applyField(
-  { schema, module, appMiddleware, declared, resolved }: Attach,
+  attach: Attach,
   type: GraphQLNamedType,
   fieldName: string,
   resolver: unknown
 ): void {
+  const { schema, module, appMiddleware } = attach;
   const key = `${type.name}.${fieldName}`;
   const where = `Module "${module.id}"`;
-  const claim = (): void => {
-    const owner = declared.get(key);
-    if (owner !== module.id) {
-      throw new Error(
-        owner
-          ? `${where}: "${key}" is declared by module "${owner}"; only that module can resolve it`
-          : `${where}: "${key}" can't be resolved here`
-      );
-    }
-    if (resolved.has(key))
-      throw new Error(`${where}: "${key}" is resolved twice`);
-    resolved.add(key);
-  };
 
   if (fieldName === "__resolveType" || fieldName === "__isTypeOf") {
     if (typeof resolver !== "function") {
       throw new TypeError(`${where}: "${key}" must be a function`);
     }
-    claim();
+    claim(attach, key);
     const abstract = isUnionType(type) || isInterfaceType(type);
     if (fieldName === "__resolveType" && abstract) {
       type.resolveType = resolver as typeof type.resolveType;
@@ -220,7 +230,7 @@ function applyField(
   const field = type.getFields()[fieldName];
   if (!field) throw new Error(`${where}: unknown field "${key}"`);
 
-  claim();
+  claim(attach, key);
 
   const chain = chainFor(
     appMiddleware,
@@ -244,6 +254,46 @@ function applyField(
   field.resolve = wrap(resolver as Resolve, chain);
 }
 
+/** `Role: { ADMIN: 1 }`: internal values for an enum's values. */
+function applyEnum(
+  attach: Attach,
+  type: GraphQLEnumType,
+  values: object
+): void {
+  for (const [name, internal] of Object.entries(values)) {
+    const key = `${type.name}.${name}`;
+    const value = type.getValue(name);
+    if (!value) {
+      throw new Error(
+        `Module "${attach.module.id}": unknown enum value "${key}"`
+      );
+    }
+    claim(attach, key);
+    (value as { value: unknown }).value = internal;
+  }
+  attach.enums.add(type);
+}
+
+/**
+ * Reject enums whose values share an internal value. graphql builds its
+ * internal-value lookup lazily, on first use, so the values set above are the
+ * ones it sees; defaults are coerced when an operation runs.
+ */
+function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
+  for (const type of enums) {
+    const seen = new Map<unknown, string>();
+    for (const value of type.getValues()) {
+      const other = seen.get(value.value);
+      if (other !== undefined) {
+        throw new Error(
+          `Enum "${type.name}": ${other} and ${value.name} have the same internal value ${JSON.stringify(value.value)}`
+        );
+      }
+      seen.set(value.value, value.name);
+    }
+  }
+}
+
 function applyResolvers(attach: Attach): void {
   for (const map of attach.module.resolvers) {
     for (const [typeName, value] of Object.entries(map)) {
@@ -255,6 +305,10 @@ function applyResolvers(attach: Attach): void {
       }
       if (isScalarType(type)) {
         applyScalar(type, value);
+        continue;
+      }
+      if (isEnumType(type)) {
+        applyEnum(attach, type, value);
         continue;
       }
       if (!isObjectType(type) && !isInterfaceType(type) && !isUnionType(type)) {
@@ -323,11 +377,17 @@ function checkAppMiddleware(
 
 /** A module may target the fields it declares, plus `*` and the `-` forms. */
 function checkModuleMiddleware(
+  schema: GraphQLSchema,
   module: OlioModule,
   declared: ReadonlyMap<string, string>
 ): void {
   for (const [type, fields] of Object.entries(module.middleware)) {
     for (const key of Object.keys(fields ?? {})) {
+      if (!isObjectType(schema.getType(type))) {
+        throw new Error(
+          `Module "${module.id}": middleware "${type}.${key}" targets ${type}, which has no fields to wrap`
+        );
+      }
       const field = key.replace(/^-/, "");
       const owns =
         field === "*"
@@ -396,10 +456,19 @@ export function olio(config: OlioConfig): OlioApp {
   checkAppMiddleware(schema, appMiddleware);
 
   const resolved = new Set<string>();
+  const enums = new Set<GraphQLEnumType>();
   for (const module of config.modules) {
-    checkModuleMiddleware(module, declared);
-    applyResolvers({ schema, module, appMiddleware, declared, resolved });
+    checkModuleMiddleware(schema, module, declared);
+    applyResolvers({
+      schema,
+      module,
+      appMiddleware,
+      declared,
+      resolved,
+      enums
+    });
   }
+  checkEnums(enums);
   wrapDefaults(schema, config, declared);
 
   return { schema, modules: config.modules };

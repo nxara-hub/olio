@@ -13,7 +13,7 @@ Compose module SDL into one validated GraphQL schema.
 bun add @nxlab/schema
 ```
 
-`graphql` (16 or 17) is a peer dependency.
+`graphql` 17 is a peer dependency.
 
 ## compose
 
@@ -31,7 +31,7 @@ const { document, schema, ownership } = compose(
 
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
 - **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports them: `{ query: "RootQuery" }`.
-- **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`.
+- **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`. Enum values are owned the same way, so only the declaring module can give them internal values.
 - **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name.
 
 You rarely call this yourself: codegen and olio call it with the `directives` you pass them.

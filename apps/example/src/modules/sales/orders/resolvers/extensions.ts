@@ -3,7 +3,7 @@ import { resolvers } from "@nxlab/olio";
 import { orders } from "../../store.js";
 
 const confirmed = () =>
-  [...orders.values()].filter((o) => o.status === "CONFIRMED");
+  [...orders.values()].filter((o) => o.status === "confirmed");
 
 // Fields sales adds to other types: Product belongs to inventory, Customer to
 // the customers feature. Each module resolves only the fields it declares.

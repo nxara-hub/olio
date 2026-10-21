@@ -32,7 +32,7 @@
   },
   "peerDependencies": {
     "@nxlab/olio": "workspace:*",
-    "graphql": "^16.0.0 || ^17.0.0"
+    "graphql": "^17.0.0"
   },
   "engines": {
     "node": ">=22"

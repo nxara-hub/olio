@@ -146,6 +146,13 @@ await run(
   createContext(mia)
 );
 
+// OrderStatus is stored lowercase; the API and the status argument say CONFIRMED.
+await run(
+  "Confirmed orders",
+  "{ orders(status: CONFIRMED) { number status } }",
+  createContext(mia)
+);
+
 await run(
   "Carl tries to cancel the order",
   `mutation { cancelOrder(id: "o1") { status } }`,

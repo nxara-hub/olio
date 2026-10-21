@@ -39,6 +39,7 @@ export const BUILTIN_SCALARS: ReadonlySet<string> = new Set([
 export const RESERVED_NAMES: ReadonlySet<string> = new Set([
   "Application",
   "Maybe",
+  "ResolveEnum",
   "ResolveScalar",
   "Scalars"
 ]);

@@ -23,7 +23,7 @@ export function emitEnum(type: GraphQLEnumType): string {
     .join(",\n");
   return (
     `export const ${type.name} = {\n${values}\n} as const;\n` +
-    `export type ${type.name} = (typeof ${type.name})[keyof typeof ${type.name}];`
+    `export type ${type.name} = ResolveEnum<"${type.name}", (typeof ${type.name})[keyof typeof ${type.name}]>;`
   );
 }
 

@@ -26,7 +26,8 @@ function perModule<T>(make: (id: string) => T): Record<string, T> {
 const identity = <T>(value: T): T => value;
 
 export const module = perModule(
-  (id) => (config: ModuleConfig<ModuleId>) => createModule(id, config)
+  (id) => (config: ModuleConfig<ModuleId>) =>
+    createModule(id as ModuleId, config)
 ) as { [M in ModuleId]: (config: ModuleConfig<M>) => OlioModule };
 
 /** `mw({...})` is application middleware; `mw.<id>({...})` is a module's. */

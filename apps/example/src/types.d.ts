@@ -39,4 +39,8 @@ declare module "@nxlab/codegen" {
   interface CustomScalars {
     DateTime: Date;
   }
+  /** Stored lowercase; the API still says CONFIRMED / CANCELLED. */
+  interface CustomEnums {
+    OrderStatus: "confirmed" | "cancelled";
+  }
 }

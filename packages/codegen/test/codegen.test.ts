@@ -69,7 +69,7 @@ describe("generate: schema types", () => {
     );
     expect(out).toContain('  DateTime: ResolveScalar<"DateTime">;');
     expect(out).toContain(
-      'import type { ResolveScalar } from "@nxlab/codegen";'
+      'import type { ResolveEnum, ResolveScalar } from "@nxlab/codegen";'
     );
   });
 
@@ -84,7 +84,7 @@ describe("generate: schema types", () => {
   Admin: "Admin",
   Guest: "Guest"
 } as const;
-export type Role = (typeof Role)[keyof typeof Role];`
+export type Role = ResolveEnum<"Role", (typeof Role)[keyof typeof Role]>;`
     );
   });
 
@@ -247,6 +247,24 @@ describe("generate: Application", () => {
     );
     expect(application(out)).toContain(
       'Query: { type: Query; fields: "user"; root: "query" };'
+    );
+  });
+
+  test("lists enums with the values each module declares", () => {
+    const app = application(
+      generate([
+        {
+          name: "sales",
+          typeDefs: "enum Status { OPEN CLOSED } type Query { s: Status }"
+        },
+        { name: "legacy", typeDefs: "extend enum Status { ARCHIVED }" }
+      ])
+    );
+    expect(app).toContain(
+      'Status: { type: Status; fields: never; enum: "CLOSED" | "OPEN" };'
+    );
+    expect(app).toContain(
+      '  legacy: {\n    Status: { type: Status; fields: never; enum: "ARCHIVED" };'
     );
   });
 

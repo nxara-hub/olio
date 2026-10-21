@@ -57,6 +57,23 @@ const productType = {
 // @ts-expect-error a page holds ProductRows, not Product objects
 export const items: PageItems = [productType];
 
+// ---- Enums with internal values ------------------------------------------
+
+// OrderStatus is stored lowercase (CustomEnums in types.d.ts).
+// @ts-expect-error internal values are "confirmed" | "cancelled"
+resolvers.sales.OrderStatus({ CONFIRMED: "CONFIRMED", CANCELLED: "cancelled" });
+// Arguments arrive converted: status is "confirmed" | "cancelled".
+query.sales({
+  orders: (_root, { status }) => (status === "confirmed" ? [] : [])
+});
+
+// ---- Interfaces ------------------------------------------------------------
+
+// Node has no mapper, so its __resolveType sees every implementer's row.
+resolvers.core.Node({
+  __resolveType: (node) => ("sku" in node ? "Product" : null)
+});
+
 // ---- Subscriptions -----------------------------------------------------
 
 subscription.inventory({

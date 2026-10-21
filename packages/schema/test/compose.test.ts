@@ -50,6 +50,18 @@ describe("compose", () => {
     });
   });
 
+  test("enum values belong to the module that declares them", () => {
+    const { ownership } = compose([
+      mod(
+        "sales",
+        "enum Status { OPEN CLOSED } extend type Query { s: Status }"
+      ),
+      mod("legacy", "extend enum Status { ARCHIVED }")
+    ]);
+    expect(plain(ownership).sales?.Status).toEqual(["CLOSED", "OPEN"]);
+    expect(plain(ownership).legacy).toEqual({ Status: ["ARCHIVED"] });
+  });
+
   test("fields added by a directive belong to the module using it", () => {
     const { ownership } = compose(
       [

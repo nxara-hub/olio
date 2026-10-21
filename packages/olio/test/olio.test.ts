@@ -382,6 +382,127 @@ describe("olio", () => {
     );
   });
 
+  test("enums can have internal values, in and out", async () => {
+    const seen: unknown[] = [];
+    const roles = createModule("roles", {
+      typeDefs: /* GraphQL */ `
+        enum Role {
+          ADMIN
+          GUEST
+        }
+        input Filter {
+          role: Role = GUEST
+        }
+        type Query {
+          role: Role!
+          roles: [Role!]!
+          echo(role: Role!): Role!
+          byDefault(role: Role = ADMIN, filter: Filter = {}): Role!
+          nested(filter: Filter!): Role!
+        }
+      `,
+      resolvers: {
+        Role: { ADMIN: 1, GUEST: 2 },
+        Query: {
+          role: () => 1,
+          roles: () => [2, 1],
+          echo: (_: unknown, { role }: { role: unknown }) => {
+            seen.push(role);
+            return role;
+          },
+          byDefault: (
+            _: unknown,
+            args: { role: unknown; filter: { role: unknown } }
+          ) => {
+            seen.push(args.role, args.filter.role);
+            return args.role;
+          },
+          nested: (_: unknown, { filter }: { filter: { role: unknown } }) => {
+            seen.push(filter.role);
+            return filter.role;
+          }
+        }
+      }
+    });
+    const app = olio({ modules: [roles] });
+    const result = await graphql({
+      schema: app.schema,
+      source: `query ($r: Role!) {
+        role roles echo(role: GUEST) v: echo(role: $r) byDefault nested(filter: { role: ADMIN })
+      }`,
+      variableValues: { r: "ADMIN" }
+    });
+    expect(result.data).toEqual({
+      role: "ADMIN",
+      roles: ["GUEST", "ADMIN"],
+      echo: "GUEST",
+      v: "ADMIN",
+      byDefault: "ADMIN",
+      nested: "ADMIN"
+    });
+    // Resolvers only ever see internal values, defaults included.
+    expect(seen).toEqual([2, 1, 1, 2, 1]);
+    // A value with no internal mapping is an error, as for any bad enum value.
+    const bad = olio({
+      modules: [
+        createModule("roles", {
+          typeDefs: "enum Role { ADMIN GUEST } type Query { role: Role }",
+          resolvers: {
+            Role: { ADMIN: 1, GUEST: 2 },
+            Query: { role: () => "ADMIN" }
+          }
+        })
+      ]
+    });
+    expect((await run(bad, "{ role }")).errors?.[0]?.message).toContain(
+      'Enum "Role" cannot represent value'
+    );
+  });
+
+  test("rejects invalid enum mappings", () => {
+    const sdl = "enum Role { ADMIN GUEST } type Query { role: Role }";
+    const build =
+      (resolvers: Record<string, object>, extra = "") =>
+      () =>
+        olio({
+          modules: [
+            createModule("roles", { typeDefs: sdl + extra }),
+            createModule("other", {
+              typeDefs: "extend enum Role { BOT }",
+              resolvers
+            })
+          ]
+        });
+    expect(build({ Role: { NOPE: 1 } })).toThrow(
+      'Module "other": unknown enum value "Role.NOPE"'
+    );
+    expect(build({ Role: { ADMIN: 1 } })).toThrow(
+      'Module "other": "Role.ADMIN" is declared by module "roles"; only that module can resolve it'
+    );
+    expect(() =>
+      olio({
+        modules: [
+          createModule("roles", {
+            typeDefs: sdl,
+            resolvers: { Role: { ADMIN: 1, GUEST: 1 } }
+          })
+        ]
+      })
+    ).toThrow('Enum "Role": ADMIN and GUEST have the same internal value 1');
+    expect(() =>
+      olio({
+        modules: [
+          createModule("roles", {
+            typeDefs: sdl,
+            middleware: { Role: { ADMIN: [] } }
+          })
+        ]
+      })
+    ).toThrow(
+      'middleware "Role.ADMIN" targets Role, which has no fields to wrap'
+    );
+  });
+
   test("applies schema-design directives", () => {
     const app = olio({
       directives: [copyDirective()],

@@ -1,0 +1,38 @@
+# Fixture for the typed contract test: abstract types, mappers, enums.
+
+interface Node {
+  id: ID!
+}
+
+interface Named {
+  name: String!
+}
+
+enum Role {
+  ADMIN
+  GUEST
+}
+
+type User implements Node & Named {
+  id: ID!
+  name: String!
+  role: Role!
+}
+
+type Post implements Node {
+  id: ID!
+  title: String!
+}
+
+type Tag implements Named {
+  name: String!
+}
+
+union Item = User | Post
+
+type Query {
+  node(id: ID!): Node
+  items: [Item!]!
+  named: [Named!]!
+  usersByRole(role: Role!): [User!]!
+}

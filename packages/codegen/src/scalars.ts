@@ -20,3 +20,17 @@ export type ResolveScalar<
   : Name extends keyof Scalars
     ? Scalars[Name]
     : { input: unknown; output: unknown };
+
+/**
+ * Augment this interface to give an enum internal values, e.g.
+ * `{ Role: 1 | 2 }`. Resolvers and arguments then use those values; supply
+ * them at runtime with `resolvers.<module>.Role({ ADMIN: 1, GUEST: 2 })`.
+ */
+// oxlint-disable-next-line typescript/no-empty-interface -- augmented by apps
+export interface CustomEnums {}
+
+/** An enum's TypeScript type: its internal values if registered, else its names. */
+export type ResolveEnum<
+  Name extends keyof CustomEnums | (string & {}),
+  Names
+> = Name extends keyof CustomEnums ? CustomEnums[Name] : Names;

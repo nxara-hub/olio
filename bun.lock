@@ -35,7 +35,7 @@
         "graphql": "^17.0.2",
       },
       "peerDependencies": {
-        "graphql": "^16.0.0 || ^17.0.0",
+        "graphql": "^17.0.0",
       },
     },
     "packages/olio": {
@@ -45,10 +45,11 @@
         "@nxlab/schema": "workspace:*",
       },
       "devDependencies": {
+        "@nxlab/codegen": "workspace:*",
         "graphql": "^17.0.2",
       },
       "peerDependencies": {
-        "graphql": "^16.0.0 || ^17.0.0",
+        "graphql": "^17.0.0",
       },
     },
     "packages/schema": {
@@ -58,7 +59,7 @@
         "graphql": "^17.0.2",
       },
       "peerDependencies": {
-        "graphql": "^16.0.0 || ^17.0.0",
+        "graphql": "^17.0.0",
       },
     },
     "packages/tools": {
@@ -70,7 +71,7 @@
       },
       "peerDependencies": {
         "@nxlab/olio": "workspace:*",
-        "graphql": "^16.0.0 || ^17.0.0",
+        "graphql": "^17.0.0",
       },
     },
   },

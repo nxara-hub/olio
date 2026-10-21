@@ -9,8 +9,9 @@ import {
   type GraphQLSchema,
   type ObjectTypeDefinitionNode
 } from "graphql";
-// ponytail: internal since graphql v15, but the public buildASTSchema throws
-// one string without locations. Swap if graphql ever exports it.
+// ponytail: marked internal in graphql 17 (reachable through its "./*.js"
+// export), but the public buildASTSchema throws one string without
+// locations. Swap if graphql ever exports it.
 import { validateSDL } from "graphql/validation/validate.js";
 
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";
@@ -22,7 +23,7 @@ export interface ModuleSDL {
   typeDefs: readonly DocumentNode[];
 }
 
-/** Module id -> type name -> the fields that module declares on it. */
+/** Module id -> type name -> the fields (or enum values) that module declares on it. */
 export type Ownership = Map<string, Map<string, Set<string>>>;
 
 export type Operation = "query" | "mutation" | "subscription";
@@ -121,7 +122,8 @@ function moduleTracker(
 /**
  * A module owns the fields it declares, whether in a definition or an
  * `extend`. The defining module also owns `__isTypeOf` (objects) or
- * `__resolveType` (interfaces and unions).
+ * `__resolveType` (interfaces and unions). Enum values are owned the same
+ * way as fields.
  */
 function collectOwnership(
   document: DocumentNode,
@@ -160,6 +162,17 @@ function collectOwnership(
       def.kind === Kind.UNION_TYPE_DEFINITION
     ) {
       own(def, def.name.value, ["__resolveType"]);
+    } else if (
+      def.kind === Kind.ENUM_TYPE_DEFINITION ||
+      def.kind === Kind.ENUM_TYPE_EXTENSION
+    ) {
+      // Enum values work like fields: their internal values come from the
+      // module that declares them.
+      own(
+        def,
+        def.name.value,
+        (def.values ?? []).map((v) => v.name.value)
+      );
     }
   }
   return ownership;

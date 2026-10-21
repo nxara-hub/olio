@@ -8,7 +8,7 @@ Load modules, and a module's type definitions and resolvers, from files.
 bun add @nxlab/tools
 ```
 
-`graphql` (16 or 17) and `@nxlab/olio` are peer dependencies.
+`graphql` 17 and `@nxlab/olio` are peer dependencies.
 
 ## Usage
 

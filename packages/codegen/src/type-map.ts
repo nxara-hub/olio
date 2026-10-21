@@ -31,9 +31,6 @@ export function typeToTS(
 export function inputMember(
   input: GraphQLArgument | GraphQLInputField
 ): string {
-  // The SDL node holds the default in both graphql 16 and 17 (17 moved the
-  // field's own copy from `defaultValue` to `default`).
-  const optional =
-    !isNonNullType(input.type) && input.astNode?.defaultValue === undefined;
+  const optional = !isNonNullType(input.type) && input.default === undefined;
   return `${input.name}${optional ? "?" : ""}: ${typeToTS(input.type, "input")}`;
 }

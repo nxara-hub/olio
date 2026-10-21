@@ -12,7 +12,7 @@ It is deliberately small — SDL in, types out. Schema composition belongs to `@
 bun add @nxlab/codegen
 ```
 
-`graphql` (16 or 17) is a peer dependency.
+`graphql` 17 is a peer dependency.
 
 ## Usage
 
@@ -92,6 +92,7 @@ export type Application = {
 - **`type`** is the parent type. Resolvers receive it as `root` and return `type[field]`.
 - **`fields`** are the fields the module owns. A module owns every field it declares, whether in a definition or an `extend`, on root and non-root types alike. The defining module also owns `__isTypeOf` (objects) or `__resolveType` (interfaces and unions, which also list their possible types as `resolveType`).
 - **`args`** appears only for fields that take arguments.
+- **Enums** appear as `{ type; fields: never; enum: "A" | "B" }`, listing the values the module declares (an `extend enum` belongs to the extending module).
 - **`root`** marks a root type with its operation (`root: "query"`), so olio finds the roots whatever they're named. A hand-written `Application` needs it too.
 
 Middleware targets aren't emitted: a module's targets are its owned fields, and the application's are the root fields.
@@ -103,7 +104,7 @@ Middleware targets aren't emitted: a module's targets are its owned fields, and 
 - Type extensions (`extend type User { … }`)
 - Root operation types, under the default names or your own (`schema { query: RootQuery }`)
 
-A schema type can't be named `Application`, `Maybe`, `ResolveScalar` or `Scalars`, since the generated file declares those names itself.
+A schema type can't be named `Application`, `Maybe`, `ResolveEnum`, `ResolveScalar` or `Scalars`, since the generated file declares those names itself.
 
 ## Custom scalars
 
@@ -120,6 +121,27 @@ declare module "@nxlab/codegen" {
 ```
 
 Use the table directly when you need a scalar's type: `Scalars["DateTime"]["input"]`.
+
+## Enums with internal values
+
+Enums are their GraphQL names by default (`"ADMIN" | "GUEST"`). To store something else, such as a number or a lowercase string, register the internal type by augmenting `CustomEnums`:
+
+```ts
+declare module "@nxlab/codegen" {
+  interface CustomEnums {
+    OrderStatus: "confirmed" | "cancelled";
+  }
+}
+```
+
+Every generated position then uses it: object fields, arguments, and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime with olio's typed builder, which requires one for every value the module declares:
+
+```ts
+export const OrderStatus = resolvers.sales.OrderStatus({
+  CONFIRMED: "confirmed",
+  CANCELLED: "cancelled"
+});
+```
 
 ## Output
 

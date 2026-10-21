@@ -4,9 +4,12 @@
  * `bun run check-types`, which typechecks `test/` via tsconfig.test.json.
  */
 
-import type { ResolveScalar } from "../src/index.js";
+import type { ResolveEnum, ResolveScalar } from "../src/index.js";
 
 declare module "../src/scalars.js" {
+  interface CustomEnums {
+    Status: "open" | "closed";
+  }
   interface CustomScalars {
     /** Different input/output types. */
     JSON: { input: string; output: unknown };
@@ -61,6 +64,14 @@ type _Unknown = Expect<
   Equal<ResolveScalar<"Unknown">, { input: unknown; output: unknown }>
 >;
 
+// Enums: internal values when registered, the GraphQL names otherwise.
+type _Status = Expect<
+  Equal<ResolveEnum<"Status", "OPEN" | "CLOSED">, "open" | "closed">
+>;
+type _Role = Expect<
+  Equal<ResolveEnum<"Role", "ADMIN" | "GUEST">, "ADMIN" | "GUEST">
+>;
+
 /** Referenced so a failed assertion surfaces as a compile error. */
 export type ScalarTypeChecks = [
   _ID,
@@ -71,5 +82,7 @@ export type ScalarTypeChecks = [
   _JSON,
   _DateTime,
   _ObjectID,
-  _Unknown
+  _Unknown,
+  _Status,
+  _Role
 ];

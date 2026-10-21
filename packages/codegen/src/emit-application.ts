@@ -1,5 +1,10 @@
 import type { Ownership, RootTypes } from "@nxlab/schema";
-import { isAbstractType, isObjectType, type GraphQLSchema } from "graphql";
+import {
+  isAbstractType,
+  isEnumType,
+  isObjectType,
+  type GraphQLSchema
+} from "graphql";
 
 import { inputMember } from "./type-map.js";
 
@@ -25,6 +30,11 @@ function emitEntry(
 ): string {
   const type = schema.getType(name);
   const fields = [...owned].sort();
+  // An enum's entry lists the values the module declares; olio types their
+  // internal values from it.
+  if (isEnumType(type)) {
+    return `    ${name}: { type: ${name}; fields: never; enum: ${union(fields)} };`;
+  }
   const members = [`type: ${name}`, `fields: ${union(fields)}`];
   // Root types are found by operation, so their names can be anything.
   const operation = operations.get(name);

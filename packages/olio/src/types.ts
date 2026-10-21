@@ -31,6 +31,8 @@ interface TypeShape {
   args?: object;
   resolveType?: string;
   root?: Operation;
+  /** Enums: the values this module declares. */
+  enum?: string;
 }
 
 type Operation = "query" | "mutation" | "subscription";
@@ -80,24 +82,67 @@ type Entry<M extends ModuleId, T> = App[M] extends infer Types
   : never;
 
 type Owned<E> = E extends { fields: infer F extends string } ? F : never;
-/** Registered `mappers`: GraphQL object type name -> what resolvers use for it. */
+/** Registered `mappers`: object or interface type name -> what resolvers use for it. */
 type Mappers = Registered<"mappers", Record<never, never>>;
 
 /**
- * Swap mapped object types for their mapper, through lists, nulls, unions and
- * the fields of unmapped types (so `UserPage.data: User[]` takes rows too).
- * Generated object types carry `__typename`, which names them. With no
- * mappers registered, this is the identity.
+ * Swap mapped types for their mapper, through lists, nulls, unions and the
+ * fields of unmapped types (so `UserPage.data: User[]` takes rows too).
+ * Generated object types carry `__typename`, which names them. An interface
+ * maps to its own mapper, or else to any implementer (each as its mapper),
+ * since that's what graphql resolves. With no mappers registered, this is
+ * the identity.
  */
 type Mapped<X> = [keyof Mappers] extends [never] ? X : DeepMapped<X>;
 
-type DeepMapped<X> = X extends readonly (infer I)[]
-  ? DeepMapped<I>[]
-  : X extends { __typename?: infer N }
-    ? NonNullable<N> extends keyof Mappers
-      ? Mappers[NonNullable<N>]
-      : { [K in keyof X]: DeepMapped<X[K]> }
-    : X;
+type Primitive = string | number | boolean | bigint | symbol | null | undefined;
+
+type DeepMapped<X> = X extends Primitive
+  ? X
+  : X extends readonly (infer I)[]
+    ? DeepMapped<I>[]
+    : X extends { __typename?: infer N }
+      ? NonNullable<N> extends keyof Mappers
+        ? Mappers[NonNullable<N>]
+        : { [K in keyof X]: DeepMapped<X[K]> }
+      : [InterfaceEntry<X>] extends [never]
+        ? X
+        : MappedInterface<InterfaceEntry<X>>;
+
+/** Every entry of every module, tagged with its type name. */
+type AllEntries = {
+  [M in ModuleId]: {
+    [T in keyof App[M]]: App[M][T] & { name: T };
+  }[keyof App[M]];
+}[ModuleId];
+
+/** The interface (or union) entry whose TypeScript type is exactly `X`. */
+type InterfaceEntry<X> = AllEntries extends infer E
+  ? E extends { resolveType: string; type: infer T }
+    ? [X] extends [T]
+      ? [T] extends [X]
+        ? E
+        : never
+      : never
+    : never
+  : never;
+
+type MappedInterface<E> = E extends { name: infer N; resolveType: infer P }
+  ? N extends keyof Mappers
+    ? Mappers[N]
+    : MappedName<P>
+  : never;
+
+/** A GraphQL type by name, as resolvers see it. */
+type MappedName<P> = P extends keyof Mappers
+  ? Mappers[P]
+  : DeepMapped<
+      AllEntries extends infer E
+        ? E extends { name: P; type: infer T }
+          ? T
+          : never
+        : never
+    >;
 
 /** A type's `root` in its resolvers: its mapper, if it has one. */
 type Parent<E> = E extends { type: infer T } ? Mapped<T> : never;
@@ -247,17 +292,24 @@ type TypeHookResolver<E, F> = (
     : (E extends { resolveType: infer R } ? R : never) | null
 >;
 
-/** Resolvers for one type in a module, e.g. `User` in `users`. */
-export type TypeResolvers<M extends ModuleId, T extends ModuleTypeName<M>> = {
-  [F in Owned<Entry<M, T>>]?: F extends TypeHook
-    ? TypeHookResolver<Entry<M, T>, F>
-    : (
-        root: Parent<Entry<M, T>>,
-        args: Args<Entry<M, T>, F>,
-        ctx: Context,
-        info: GraphQLResolveInfo
-      ) => MaybePromise<Out<Entry<M, T>, F>>;
-};
+/**
+ * Resolvers for one type in a module, e.g. `User` in `users`. For an enum,
+ * the internal value of every value the module declares (see `CustomEnums`
+ * in @nxlab/codegen): `{ ADMIN: 1, GUEST: 2 }`.
+ */
+export type TypeResolvers<M extends ModuleId, T extends ModuleTypeName<M>> =
+  Entry<M, T> extends { enum: infer V extends string }
+    ? { [K in V]: Parent<Entry<M, T>> }
+    : {
+        [F in Owned<Entry<M, T>>]?: F extends TypeHook
+          ? TypeHookResolver<Entry<M, T>, F>
+          : (
+              root: Parent<Entry<M, T>>,
+              args: Args<Entry<M, T>, F>,
+              ctx: Context,
+              info: GraphQLResolveInfo
+            ) => MaybePromise<Out<Entry<M, T>, F>>;
+      };
 
 // ---------------------------------------------------------------------------
 // Field types, for code outside resolvers (services, loaders, tests)

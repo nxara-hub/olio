@@ -28,7 +28,7 @@ export const Mutation = mutation.sales({
       id: `o${orders.size + 1}`,
       number: nextOrderNumber(),
       customerId,
-      status: "CONFIRMED" as const,
+      status: "confirmed" as const,
       lines: lines.map(({ sku, quantity }) => ({
         sku,
         quantity,
@@ -44,7 +44,7 @@ export const Mutation = mutation.sales({
   cancelOrder: (_root, { id }) => {
     const order = orders.get(id);
     if (!order) return null;
-    order.status = "CANCELLED";
+    order.status = "cancelled";
     order.updatedAt = new Date();
     return order;
   }

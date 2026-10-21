@@ -30,7 +30,8 @@ import {
   type TypeSource
 } from "./types.js";
 
-const IMPORTS = 'import type { ResolveScalar } from "@nxlab/codegen";';
+const IMPORTS =
+  'import type { ResolveEnum, ResolveScalar } from "@nxlab/codegen";';
 const UTILS = "type Maybe<T> = T | null;";
 
 function toDocument(typeDef: TypeSource, name: string): DocumentNode {
