@@ -51,6 +51,7 @@
       "version": "0.0.0",
       "dependencies": {
         "graphql-http": "^1.23.1",
+        "graphql-sse": "2.6.3",
         "graphql-ws": "^6.4.1",
       },
       "devDependencies": {
@@ -389,6 +390,8 @@
     "graphql-http": ["graphql-http@1.23.1", "", { "peerDependencies": { "graphql": ">=0.11 <=17" } }, "sha512-h6AcykL7+xp22QvOnK0fu1eHk9AZG1ngF71rk0ZGuGupnjm1yqXRFrZ/eMv4Q1FTCWILJ5o6hVAxzt3S8/wPHQ=="],
 
     "graphql-scalars": ["graphql-scalars@2.0.1", "", { "dependencies": { "tslib": "^2.5.0" }, "peerDependencies": { "graphql": "^16.0.0 || ^17.0.0" } }, "sha512-/BkY0J5/1L9e+mTfCTzmpV78mNh95ZpiJWfAkaIYHE5B7hrvgRpB5//rXVTFD1aaKGcRUCHj/vpNcgtrenwZNA=="],
+
+    "graphql-sse": ["graphql-sse@2.6.3", "", { "peerDependencies": { "graphql": ">=0.11 <=17" } }, "sha512-UCSx3a+IklDOqJt8gpxGwDhnmWiZLJ5wNPMJ7TLGOQ68PhiKIDxLJBB2i+nKEGyWYLtiSLpTJ5fFEG5kkAxppA=="],
 
     "graphql-ws": ["graphql-ws@6.4.1", "", { "peerDependencies": { "@fastify/websocket": "^10 || ^11", "crossws": "~0.3 || ~0.4", "graphql": "^15.10.1 || ^16 || ^17", "ws": "^8" }, "optionalPeers": ["@fastify/websocket", "crossws", "ws"] }, "sha512-a3MzY5u+tCHHwuyimzxMAHZQ6TY7bOpkQURtKXE5kKIkBdsZ2axlb7sLzMpzGFO4guhws9FyMVB1onyX58pO4w=="],
 

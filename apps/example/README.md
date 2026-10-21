@@ -9,7 +9,7 @@ bun run --cwd apps/example check-types
 bun run --cwd apps/example serve     # the same app over HTTP + WebSocket: Hono on Node
 ```
 
-`serve` starts the ERP on `http://localhost:4000/graphql`, with subscriptions on the same URL over WebSocket. Sign in with `mutation { login(email: "mia@erp.test", password: "demo") { ... on Session { token } } }`, then send `authorization: Bearer <token>`, or `connectionParams: { token }` on a WebSocket.
+`serve` starts the ERP on `http://localhost:4000/graphql`, with subscriptions on the same URL as server-sent events (`Accept: text/event-stream`) or over WebSocket. Sign in with `mutation { login(email: "mia@erp.test", password: "demo") { ... on Session { token } } }`, then send `authorization: Bearer <token>`, or `connectionParams: { token }` on a WebSocket.
 
 `src/main.ts` walks through a day: sign in, search products, book stock, place orders (one too big), watch stock move, cancel an order and sign out. It prints each result and the middleware logs.
 
@@ -45,7 +45,7 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | `Fields[...]` types outside resolvers | [`inventory/service.ts`](src/modules/inventory/service.ts) |
 | A custom scalar from graphql-scalars | [`core/resolvers/scalars.ts`](src/modules/core/resolvers/scalars.ts) |
 | Compile-time contract checks | [`src/type-checks.ts`](src/type-checks.ts) |
-| Serving it: Hono on Node, subscriptions over WebSocket | [`src/server.ts`](src/server.ts) |
+| Serving it: Hono on Node, subscriptions as server-sent events and over WebSocket | [`src/server.ts`](src/server.ts) |
 | Errors clients may see (`GraphQLError` with a code) vs. hidden ones | [`src/errors.ts`](src/errors.ts) |
 
 The data lives in memory (`store.ts` per module), so the example runs with no setup. Passwords are plain text for the same reason; that's marked in [`auth/store.ts`](src/modules/auth/store.ts).

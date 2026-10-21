@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "graphql-http": "^1.23.1",
+    "graphql-sse": "2.6.3",
     "graphql-ws": "^6.4.1"
   },
   "devDependencies": {

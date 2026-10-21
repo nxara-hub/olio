@@ -10,14 +10,24 @@ import { createContext, createSubscriptionContext } from "./context.js";
 import { app } from "./index.js";
 
 // The ERP over HTTP: Hono on Node. Queries and mutations go through Hono
-// (the Fetch adapter); subscriptions ride a WebSocket on the same server.
+// (the Fetch adapter), which also streams subscriptions as server-sent
+// events; WebSocket subscriptions ride the same server.
 
 const bearer = (header: string | null): string | undefined =>
   header?.match(/^Bearer (.+)$/)?.[1];
 
+let streams = 0;
 const graphql = fetchHandler(app, {
   context: (request) =>
-    createContext(bearer(request.headers.get("authorization")))
+    createContext(bearer(request.headers.get("authorization"))),
+  // Server-sent events: `Accept: text/event-stream` on the same URL.
+  subscriptionContext: (request) => {
+    streams += 1;
+    return createSubscriptionContext(
+      `sse-${streams}`,
+      bearer(request.headers.get("authorization"))
+    );
+  }
 });
 
 const hono = new Hono();

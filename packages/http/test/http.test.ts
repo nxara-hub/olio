@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 
 import { createModule, olio } from "@nxlab/olio";
 import { GraphQLError } from "graphql";
+import { createClient as createSseClient } from "graphql-sse";
 import { createClient } from "graphql-ws/client";
 import { WebSocketServer } from "ws";
 
@@ -223,3 +224,94 @@ describe.each([
     expect(broken[0]?.errors?.[0]?.message).toBe("Unexpected error.");
   });
 });
+
+/** Every value a graphql-sse subscription emits; errors end the list. */
+function sseCollect(client: ReturnType<typeof createSseClient>, query: string) {
+  return new Promise<unknown[]>((resolve) => {
+    const values: unknown[] = [];
+    client.subscribe(
+      { query },
+      {
+        next: (value) => values.push(value),
+        error: (errors) => resolve([...values, { errors }]),
+        complete: () => resolve(values)
+      }
+    );
+  });
+}
+
+describe.each([
+  [
+    "fetch",
+    () => {
+      const handler = fetchHandler(app, {
+        context: () => ({ user: "http" }),
+        subscriptionContext: (request) => ({
+          user: `${request.headers.get("x-user")} over sse`
+        }),
+        onUnexpectedError: () => {}
+      });
+      return {
+        url: "http://localhost/graphql",
+        // graphql-sse's client calls fetchFn with a URL string.
+        fetchFn: ((input: string, init?: RequestInit) =>
+          handler(new Request(input, init))) as typeof fetch
+      };
+    }
+  ],
+  [
+    "node",
+    async () => {
+      const port = await listen(
+        createServer(
+          nodeHandler(app, {
+            context: () => ({ user: "http" }),
+            subscriptionContext: (req) => ({
+              user: `${String(req.headers["x-user"])} over sse`
+            }),
+            onUnexpectedError: () => {}
+          })
+        )
+      );
+      return { url: `http://localhost:${port}/graphql`, fetchFn: fetch };
+    }
+  ]
+])(
+  "%s: subscriptions over server-sent events, on the same URL",
+  (_name, start) => {
+    test("streams values with their own context, hides unexpected errors, still serves queries", async () => {
+      const { url, fetchFn } = await start();
+      const client = createSseClient({
+        url,
+        fetchFn,
+        headers: { "x-user": "ada" },
+        retryAttempts: 0
+      });
+      try {
+        expect(
+          await sseCollect(client, "subscription { ticks(upTo: 2) }")
+        ).toEqual([{ data: { ticks: 1 } }, { data: { ticks: 2 } }]);
+        expect(await sseCollect(client, "subscription { whoami }")).toEqual([
+          { data: { whoami: "ada over sse" } }
+        ]);
+        const [broken] = (await sseCollect(
+          client,
+          "subscription { broken }"
+        )) as {
+          errors?: { message: string }[];
+        }[];
+        expect(broken?.errors?.[0]?.message).toBe("Unexpected error.");
+      } finally {
+        client.dispose();
+      }
+
+      // A plain POST to the same URL is still GraphQL over HTTP, with `context`.
+      const response = await fetchFn(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ whoami }" })
+      });
+      expect(await response.json()).toEqual({ data: { whoami: "http" } });
+    });
+  }
+);
