@@ -1,5 +1,6 @@
 import type { Fields } from "@nxlab/olio";
 
+import { clientError } from "../../errors.js";
 import type { PubSub } from "../../pubsub.js";
 import { products, stock, warehouses, type ProductRow } from "./store.js";
 
@@ -8,7 +9,7 @@ import { products, stock, warehouses, type ProductRow } from "./store.js";
 
 export function productBySku(sku: string): ProductRow {
   const found = products.get(sku);
-  if (!found) throw new Error(`Unknown product "${sku}"`);
+  if (!found) throw clientError("BAD_USER_INPUT", `Unknown product "${sku}"`);
   return found;
 }
 
@@ -22,12 +23,13 @@ export function adjustStock(
 ): ProductRow {
   const row = productBySku(sku);
   if (!warehouses.some((w) => w.code === warehouse)) {
-    throw new Error(`Unknown warehouse "${warehouse}"`);
+    throw clientError("BAD_USER_INPUT", `Unknown warehouse "${warehouse}"`);
   }
   const levels = stock.get(sku) ?? new Map<string, number>();
   const next = (levels.get(warehouse) ?? 0) + delta;
   if (next < 0)
-    throw new Error(
+    throw clientError(
+      "BAD_USER_INPUT",
       `Only ${levels.get(warehouse) ?? 0} ${sku} in ${warehouse}`
     );
   levels.set(warehouse, next);

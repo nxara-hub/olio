@@ -8,6 +8,7 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 - `packages/codegen`: SDL → one `generated.ts` (schema types plus `Application`).
 - `packages/schema`: `compose()` (module SDL → validated schema + field ownership; adds root types that are only extended) and the `@implements` / `@copy` directives via `applyDirectives`. Codegen and olio both compose through it, so they can't disagree on ownership. Both use one field-copy engine (`src/directives/shared.ts`) that runs in passes, so chains work in any order. `@copy` overrides (later source, then local, wins); `@implements` throws on any redeclaration that changes a field.
 - `packages/tools`: `loadModules(...patterns)` / `loadFeatures(...patterns)` / `loadTypeDefs(...patterns)` / `loadResolvers(...patterns)` (globs or `new URL(..., import.meta.url)`). SDL is parsed with its file name so errors carry `file:line:col`; a pattern matching nothing throws.
+- `packages/http`: serving. A core (`core.ts`: context hooks, `errorMasker`) on graphql-http / graphql-ws, and adapters under subpath exports: `fetch`, `node`, `ws`, `bun`. Only `GraphQLError`s reach clients; everything else becomes "Unexpected error." and goes to `onUnexpectedError`.
 - `apps/example`: the reference app (a small ERP) and the integration test for the whole pipeline.
 - `TODO.md`: open work. Check it before starting something new.
 
@@ -39,6 +40,7 @@ bun run check                        # ultracite: oxlint + oxfmt; `bun run fix` 
 bun test                             # inside one package
 bun run --cwd apps/example codegen   # regenerate src/generated.ts + src/schema.gql
 bun run --cwd apps/example start     # run the example end to end
+bun run --cwd apps/example serve     # the example over HTTP + WebSocket (Hono on Node, via tsx)
 ```
 
 ## Gotchas

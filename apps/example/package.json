@@ -6,14 +6,23 @@
   "scripts": {
     "codegen": "bun run ./codegen.ts",
     "start": "bun run ./src/main.ts",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "serve": "tsx src/server.ts"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.5",
     "@nxlab/codegen": "workspace:*",
+    "@nxlab/http": "workspace:*",
     "@nxlab/olio": "workspace:*",
     "@nxlab/schema": "workspace:*",
     "@nxlab/tools": "workspace:*",
     "graphql": "^17.0.2",
-    "graphql-scalars": "^2.0.1"
+    "graphql-scalars": "^2.0.1",
+    "hono": "^4.13.13",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15"
   }
 }

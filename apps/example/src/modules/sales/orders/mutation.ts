@@ -1,12 +1,13 @@
 import { mutation } from "@nxlab/olio";
 
+import { clientError } from "../../../errors.js";
 import { onHand, productBySku, takeStock } from "../../inventory/service.js";
 import { customers, nextOrderNumber, orders } from "../store.js";
 
 export const Mutation = mutation.sales.orders({
   placeOrder: (_root, { customerId, lines }, ctx) => {
     if (!customers.has(customerId)) {
-      throw new Error(`Unknown customer "${customerId}"`);
+      throw clientError("BAD_USER_INPUT", `Unknown customer "${customerId}"`);
     }
     // Check every line before touching stock, so an order is all or nothing.
     for (const { sku, quantity } of lines) {

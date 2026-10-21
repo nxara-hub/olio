@@ -1,5 +1,6 @@
 import type { Context, MiddlewareFn, SubscriptionContext } from "@nxlab/olio";
 
+import { clientError } from "./errors.js";
 import type { Role } from "./generated.js";
 
 /** Runs on queries, mutations and subscriptions alike. */
@@ -26,7 +27,9 @@ export const requestLogger =
 export const requireAuth =
   (): AnyFn =>
   ({ ctx, info }, next) => {
-    if (!ctx.viewer) throw new Error(`Unauthorized: ${info.fieldName}`);
+    if (!ctx.viewer) {
+      throw clientError("UNAUTHENTICATED", `Unauthorized: ${info.fieldName}`);
+    }
     return next();
   };
 
@@ -34,7 +37,8 @@ export const requireRole =
   (...roles: Role[]): MiddlewareFn =>
   ({ ctx, info }, next) => {
     if (!ctx.viewer || !roles.includes(ctx.viewer.role)) {
-      throw new Error(
+      throw clientError(
+        "FORBIDDEN",
         `Forbidden: ${info.fieldName} needs ${roles.join(" or ")}`
       );
     }
