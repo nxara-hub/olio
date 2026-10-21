@@ -272,8 +272,6 @@ function applyResolvers(attach: Attach): void {
 // ---------------------------------------------------------------------------
 // Middleware targets
 
-const ROOT_TYPES = new Set(["Query", "Mutation", "Subscription"]);
-
 /** `Type.field` -> declaring module id, from `compose`'s ownership. */
 function declarations(ownership: Ownership): Map<string, string> {
   const declared = new Map<string, string>();
@@ -306,8 +304,12 @@ function checkAppMiddleware(
         }
         continue;
       }
-      const root = ROOT_TYPES.has(type) ? schema.getType(type) : undefined;
-      if (!isObjectType(root)) {
+      const root = [
+        schema.getQueryType(),
+        schema.getMutationType(),
+        schema.getSubscriptionType()
+      ].find((t) => t?.name === type);
+      if (!root) {
         throw new Error(
           `Application middleware ${target}: the application can target "*" and root types only`
         );

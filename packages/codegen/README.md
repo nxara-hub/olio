@@ -92,6 +92,7 @@ export type Application = {
 - **`type`** is the parent type. Resolvers receive it as `root` and return `type[field]`.
 - **`fields`** are the fields the module owns. A module owns every field it declares, whether in a definition or an `extend`, on root and non-root types alike. The defining module also owns `__isTypeOf` (objects) or `__resolveType` (interfaces and unions, which also list their possible types as `resolveType`).
 - **`args`** appears only for fields that take arguments.
+- **`root`** marks a root type with its operation (`root: "query"`), so olio finds the roots whatever they're named. A hand-written `Application` needs it too.
 
 Middleware targets aren't emitted: a module's targets are its owned fields, and the application's are the root fields.
 
@@ -100,7 +101,7 @@ Middleware targets aren't emitted: a module's targets are its owned fields, and 
 - Object types, interfaces, unions, enums, inputs, and scalars
 - Lists and nullability (`String`, `[String!]!`, …), mapped exactly
 - Type extensions (`extend type User { … }`)
-- Root operation types, which must be named `Query`, `Mutation` and `Subscription`
+- Root operation types, under the default names or your own (`schema { query: RootQuery }`)
 
 A schema type can't be named `Application`, `Maybe`, `ResolveScalar` or `Scalars`, since the generated file declares those names itself.
 

@@ -131,7 +131,7 @@ Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the 
 4. module `Type.*`
 5. module `Type.field`
 
-The application addresses root types only. A module addresses the fields it declares, including fields it adds to other modules' types with `extend`.
+The application addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`. A module addresses the fields it declares, including fields it adds to other modules' types with `extend`.
 
 A **`-` key** stops a target from inheriting middleware from the layers above it. `{ Query: { "-login": [rateLimit()] } }` runs only `rateLimit` for `Query.login`, and `"-*"` does the same for every field of the type, while lower layers still apply. `"x"` and `"-x"` can't be combined.
 

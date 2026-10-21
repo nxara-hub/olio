@@ -48,18 +48,6 @@ export interface Compiled {
 }
 
 function assertSupported(schema: GraphQLSchema): void {
-  const roots = {
-    Query: schema.getQueryType(),
-    Mutation: schema.getMutationType(),
-    Subscription: schema.getSubscriptionType()
-  };
-  for (const [expected, type] of Object.entries(roots)) {
-    if (type && type.name !== expected) {
-      throw new Error(
-        `Root type "${type.name}" must be named "${expected}" (custom root type names are not supported)`
-      );
-    }
-  }
   for (const name of Object.keys(schema.getTypeMap())) {
     if (RESERVED_NAMES.has(name)) {
       throw new Error(
@@ -75,7 +63,7 @@ export function compile(
   options: GenerateOptions = {}
 ): Compiled {
   // Same-named modules merge, so a module can be passed in pieces.
-  const { document, schema, ownership } = compose(
+  const { document, schema, ownership, roots } = compose(
     modules.map((m) => ({
       id: m.name,
       typeDefs: (Array.isArray(m.typeDefs) ? m.typeDefs : [m.typeDefs]).map(
@@ -104,7 +92,7 @@ export function compile(
     region("Inputs", types.filter(isInputObjectType).map(emitInput)),
     region("Unions", types.filter(isUnionType).map(emitUnion)),
     region("Interfaces", types.filter(isInterfaceType).map(emitInterface)),
-    emitApplication(schema, ownership)
+    emitApplication(schema, ownership, roots)
   ];
   return { document, code: `${parts.join("\n\n")}\n`, schema };
 }

@@ -240,6 +240,36 @@ describe("olio", () => {
     expect((await run(app, "{ hello }")).data).toEqual({ hello: "hi" });
   });
 
+  test("works with custom root type names", async () => {
+    const log: string[] = [];
+    const app = olio({
+      middleware: { RootQuery: { "*": [trace(log, "app RootQuery.*")] } },
+      modules: [
+        createModule("app", { typeDefs: "schema { query: RootQuery }" }),
+        createModule("hello", {
+          typeDefs: "extend type RootQuery { hello: String! }",
+          resolvers: { RootQuery: { hello: () => "hi" } },
+          middleware: { RootQuery: { hello: [trace(log, "hello")] } }
+        })
+      ]
+    });
+    expect((await run(app, "{ hello }")).data).toEqual({ hello: "hi" });
+    expect(log).toEqual(["app RootQuery.*", "hello"]);
+    expect(() =>
+      olio({
+        modules: [
+          createModule("x", {
+            typeDefs:
+              "schema { query: RootQuery } extend type RootQuery { a: Int }"
+          })
+        ],
+        middleware: { Query: { "*": [] } }
+      })
+    ).toThrow(
+      'Application middleware "Query.*": the application can target "*" and root types only'
+    );
+  });
+
   test("rejects middleware keys that match nothing", () => {
     const build = (config: Partial<Parameters<typeof olio>[0]>) => () =>
       olio({ modules: [root, users()], ...config });

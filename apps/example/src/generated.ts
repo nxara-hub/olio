@@ -230,11 +230,12 @@ export type Application = {
     Mutation: {
       type: Mutation;
       fields: "login" | "logout";
+      root: "mutation";
       args: {
         login: { email: Scalars["String"]["input"]; password: Scalars["String"]["input"] };
       };
     };
-    Query: { type: Query; fields: "me" };
+    Query: { type: Query; fields: "me"; root: "query" };
     Session: { type: Session; fields: "__isTypeOf" | "employee" | "token" };
   };
   core: {
@@ -248,6 +249,7 @@ export type Application = {
     Mutation: {
       type: Mutation;
       fields: "adjustStock";
+      root: "mutation";
       args: {
         adjustStock: { sku: Scalars["String"]["input"]; warehouse: Scalars["String"]["input"]; delta: Scalars["Int"]["input"] };
       };
@@ -257,6 +259,7 @@ export type Application = {
     Query: {
       type: Query;
       fields: "product" | "products";
+      root: "query";
       args: {
         product: { sku: Scalars["String"]["input"] };
         products: { filter?: Maybe<ProductFilter> };
@@ -266,6 +269,7 @@ export type Application = {
     Subscription: {
       type: Subscription;
       fields: "stockChanged";
+      root: "subscription";
       args: {
         stockChanged: { sku?: Maybe<Scalars["String"]["input"]> };
       };
@@ -278,6 +282,7 @@ export type Application = {
     Mutation: {
       type: Mutation;
       fields: "cancelOrder" | "createCustomer" | "placeOrder";
+      root: "mutation";
       args: {
         cancelOrder: { id: Scalars["ID"]["input"] };
         createCustomer: { input: NewCustomer };
@@ -290,6 +295,7 @@ export type Application = {
     Query: {
       type: Query;
       fields: "customer" | "customers" | "orders";
+      root: "query";
       args: {
         customer: { id: Scalars["ID"]["input"] };
         orders: { status?: Maybe<OrderStatus> };

@@ -1,4 +1,4 @@
-import type { Ownership } from "@nxlab/schema";
+import type { Ownership, RootTypes } from "@nxlab/schema";
 import { isAbstractType, isObjectType, type GraphQLSchema } from "graphql";
 
 import { inputMember } from "./type-map.js";
@@ -19,12 +19,16 @@ const union = (names: readonly string[]): string =>
  */
 function emitEntry(
   schema: GraphQLSchema,
+  operations: ReadonlyMap<string, string>,
   name: string,
   owned: ReadonlySet<string>
 ): string {
   const type = schema.getType(name);
   const fields = [...owned].sort();
   const members = [`type: ${name}`, `fields: ${union(fields)}`];
+  // Root types are found by operation, so their names can be anything.
+  const operation = operations.get(name);
+  if (operation) members.push(`root: "${operation}"`);
   if (isAbstractType(type)) {
     members.push(
       `resolveType: ${union(
@@ -58,14 +62,19 @@ function emitEntry(
 /** `Application`: every module and the types it declares fields on. */
 export function emitApplication(
   schema: GraphQLSchema,
-  ownership: Ownership
+  ownership: Ownership,
+  roots: RootTypes
 ): string {
+  /** Root type name -> its operation. */
+  const operations = new Map(
+    Object.entries(roots).map(([operation, name]) => [name, operation])
+  );
   const modules = [...ownership]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, types]) => {
       const entries = [...types]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([name, owned]) => emitEntry(schema, name, owned));
+        .map(([name, owned]) => emitEntry(schema, operations, name, owned));
       return entries.length
         ? `  ${moduleKey(id)}: {\n${entries.join("\n")}\n  };`
         : `  ${moduleKey(id)}: {};`;

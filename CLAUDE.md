@@ -13,7 +13,7 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 
 ## How the pieces connect
 
-1. Codegen discovers modules as the **direct child directories** of `modules/` and emits `Application`: `{ [id]: { [Type]: { type; fields; args?; resolveType? } } }`. A module owns the fields it declares, in a definition or an `extend`, on any type. The defining module also owns `__isTypeOf` / `__resolveType`. `args` lists only fields that take arguments.
+1. Codegen discovers modules as the **direct child directories** of `modules/` and emits `Application`: `{ [id]: { [Type]: { type; fields; args?; resolveType? } } }`. A module owns the fields it declares, in a definition or an `extend`, on any type. The defining module also owns `__isTypeOf` / `__resolveType`. `args` lists only fields that take arguments. Root types carry `root: "query" | "mutation" | "subscription"`; olio finds roots by that marker, never by name, so custom root names (`schema { query: RootQuery }`) work end to end.
 2. The app registers it: `declare module "@nxlab/olio" { interface Olio { application; ctx; sub_ctx; mappers? } }` (see `apps/example/src/types.d.ts`). `mappers` swaps object types for what resolvers return, deeply (`Mapped<>` in olio's `types.ts`).
 3. `packages/olio/src/types.ts` derives everything from that: resolver signatures (parent and return types come from `type`), middleware targets (owned fields plus `*` and the `-` forms), module ids. Builders are identity functions behind a Proxy; the safety is in the types.
 

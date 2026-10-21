@@ -22,14 +22,18 @@ type MaybePromise<T> = T | Promise<T>;
 /**
  * The shape of codegen's generated `Application`: module id -> type name ->
  * the fields that module declares on it, plus arguments for fields that take
- * any. Abstract types also list their possible types.
+ * any. Abstract types also list their possible types, and root types say
+ * which operation they serve (`root: "query"`), whatever they're named.
  */
 interface TypeShape {
   type: unknown;
   fields: string;
   args?: object;
   resolveType?: string;
+  root?: Operation;
 }
+
+type Operation = "query" | "mutation" | "subscription";
 
 type ApplicationShape = Record<string, Record<string, TypeShape>>;
 
@@ -46,7 +50,26 @@ export type ModuleId = keyof App & string;
 export type Context = Registered<"ctx", unknown>;
 export type SubscriptionContext = Registered<"sub_ctx", Context>;
 
-type RootType = "Query" | "Mutation" | "Subscription";
+type Untyped = string extends ModuleId ? true : false;
+
+/** GraphQL's default root names, used when no application is registered. */
+interface DefaultRoots {
+  query: "Query";
+  mutation: "Mutation";
+  subscription: "Subscription";
+}
+
+/** The root type serving an operation: `"Query"`, or your own name. */
+type RootName<Op extends Operation> = Untyped extends true
+  ? DefaultRoots[Op]
+  : {
+      [M in ModuleId]: {
+        [T in keyof App[M]]: App[M][T] extends { root: Op } ? T : never;
+      }[keyof App[M]];
+    }[ModuleId] &
+      string;
+
+type RootType = RootName<Operation>;
 type TypeHook = "__isTypeOf" | "__resolveType";
 
 /** A module's entry for one type (`never` when it declares nothing there). */
@@ -114,7 +137,7 @@ export type MiddlewareFn<Ctx = Context> = (
 /** The context middleware on type `T` receives. */
 type ContextOf<T> = T extends "*"
   ? Context | SubscriptionContext
-  : T extends "Subscription"
+  : T extends RootName<"subscription">
     ? SubscriptionContext
     : Context;
 
@@ -124,8 +147,6 @@ type Fns<T = string> = readonly MiddlewareFn<ContextOf<T>>[];
 export type MiddlewareMap = Partial<
   Record<string, Partial<Record<string, Fns>>>
 >;
-
-type Untyped = string extends ModuleId ? true : false;
 
 /** Fields any module declares on a root type. */
 type RootFields<R extends RootType> = {
@@ -187,10 +208,13 @@ type RootResolvers<M extends ModuleId, R extends RootType> = {
   ) => MaybePromise<Out<Entry<M, R>, F>>;
 };
 
-export type QueryResolvers<M extends ModuleId> = RootResolvers<M, "Query">;
+export type QueryResolvers<M extends ModuleId> = RootResolvers<
+  M,
+  RootName<"query">
+>;
 export type MutationResolvers<M extends ModuleId> = RootResolvers<
   M,
-  "Mutation"
+  RootName<"mutation">
 >;
 
 /**
@@ -199,12 +223,12 @@ export type MutationResolvers<M extends ModuleId> = RootResolvers<
  * filter events inside it; middleware runs once, when a client subscribes.
  */
 export type SubscriptionResolvers<M extends ModuleId> = {
-  [F in Owned<Entry<M, "Subscription">>]?: (
+  [F in Owned<Entry<M, RootName<"subscription">>>]?: (
     root: undefined,
-    args: Args<Entry<M, "Subscription">, F>,
+    args: Args<Entry<M, RootName<"subscription">>, F>,
     ctx: SubscriptionContext,
     info: GraphQLResolveInfo
-  ) => MaybePromise<AsyncIterable<Out<Entry<M, "Subscription">, F>>>;
+  ) => MaybePromise<AsyncIterable<Out<Entry<M, RootName<"subscription">>, F>>>;
 };
 
 /** Non-root types a module declares fields on, or defines. */

@@ -91,4 +91,28 @@ describe("compose", () => {
       /Invalid schema:\n {2}bad\.gql:1:\d+: Interface field Node\.id expected but U does not provide it/
     );
   });
+
+  test("uses custom root type names from the schema definition", () => {
+    const { schema, ownership, roots } = compose([
+      mod("app", "schema { query: RootQuery, mutation: RootMutation }"),
+      mod(
+        "users",
+        "type User { id: ID! } extend type RootQuery { user: User }"
+      ),
+      mod(
+        "audit",
+        "extend type RootMutation { log: Int } type Query { notRoot: Int }"
+      )
+    ]);
+    expect(roots).toEqual({ query: "RootQuery", mutation: "RootMutation" });
+    expect(schema.getQueryType()?.name).toBe("RootQuery");
+    expect(schema.getMutationType()?.name).toBe("RootMutation");
+    // Without a schema definition `Query` would be the root; here it's a
+    // plain type, so its defining module owns __isTypeOf.
+    expect(plain(ownership).audit).toEqual({
+      Query: ["__isTypeOf", "notRoot"],
+      RootMutation: ["log"]
+    });
+    expect(plain(ownership).users?.RootQuery).toEqual(["user"]);
+  });
 });

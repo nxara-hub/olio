@@ -77,7 +77,9 @@ describe("codegen", () => {
 
       const out = await readFile(output, "utf8");
       expect(out).toContain("export type Application = {\n  auth: {");
-      expect(out).toContain('Query: { type: Query; fields: "viewer" };');
+      expect(out).toContain(
+        'Query: { type: Query; fields: "viewer"; root: "query" };'
+      );
     });
   });
 
@@ -351,12 +353,13 @@ describe("generated Application", () => {
     Mutation: {
       type: Mutation;
       fields: "login";
+      root: "mutation";
       args: {
         login: { email: Scalars["String"]["input"]; password: Scalars["String"]["input"] };
       };
     };
     Node: { type: Node; fields: "__resolveType"; resolveType: "User" };
-    Query: { type: Query; fields: "viewer" };
+    Query: { type: Query; fields: "viewer"; root: "query" };
     User: { type: User; fields: "__isTypeOf" | "email" | "id" | "name" };
   };
 };`

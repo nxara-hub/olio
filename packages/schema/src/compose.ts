@@ -25,26 +25,56 @@ export interface ModuleSDL {
 /** Module id -> type name -> the fields that module declares on it. */
 export type Ownership = Map<string, Map<string, Set<string>>>;
 
+export type Operation = "query" | "mutation" | "subscription";
+
+/** Root type name per operation, e.g. `{ query: "Query" }`. */
+export type RootTypes = Partial<Record<Operation, string>>;
+
 export interface Composed {
   document: DocumentNode;
   schema: GraphQLSchema;
   ownership: Ownership;
+  roots: RootTypes;
 }
 
-const ROOT_TYPES = ["Query", "Mutation", "Subscription"] as const;
+/**
+ * The root types: from `schema { … }` and `extend schema { … }` when the SDL
+ * has them, else GraphQL's default names.
+ */
+function rootTypes(document: DocumentNode): RootTypes {
+  const declared: RootTypes = {};
+  let hasSchema = false;
+  for (const def of document.definitions) {
+    if (
+      def.kind !== Kind.SCHEMA_DEFINITION &&
+      def.kind !== Kind.SCHEMA_EXTENSION
+    ) {
+      continue;
+    }
+    hasSchema = true;
+    for (const { operation, type } of def.operationTypes ?? []) {
+      declared[operation as Operation] = type.name.value;
+    }
+  }
+  return hasSchema
+    ? declared
+    : { query: "Query", mutation: "Mutation", subscription: "Subscription" };
+}
 
 /**
- * Add `type Query` (and Mutation, Subscription) when modules only extend it,
- * so no module has to own a placeholder field.
+ * Add the root types modules only extend (`type Query`, or your names), so no
+ * module has to own a placeholder field.
  */
-function withRootTypes(document: DocumentNode): DocumentNode {
+function withRootTypes(document: DocumentNode, roots: RootTypes): DocumentNode {
   const defined = new Set<string>();
   const extended = new Set<string>();
   for (const def of document.definitions) {
     if (def.kind === Kind.OBJECT_TYPE_DEFINITION) defined.add(def.name.value);
     if (def.kind === Kind.OBJECT_TYPE_EXTENSION) extended.add(def.name.value);
   }
-  const missing = ROOT_TYPES.filter((t) => extended.has(t) && !defined.has(t));
+  const missing = Object.values(roots).filter(
+    (t) => extended.has(t) && !defined.has(t)
+  );
   return {
     ...document,
     definitions: [
@@ -96,8 +126,10 @@ function moduleTracker(
 function collectOwnership(
   document: DocumentNode,
   moduleOf: (definition: DefinitionNode) => string,
-  ids: readonly string[]
+  ids: readonly string[],
+  roots: RootTypes
 ): Ownership {
+  const rootNames = new Set(Object.values(roots));
   const ownership: Ownership = new Map(ids.map((id) => [id, new Map()]));
   const own = (
     definition: DefinitionNode,
@@ -121,8 +153,7 @@ function collectOwnership(
       const type = def.name.value;
       const fields = (def.fields ?? []).map((f) => f.name.value);
       const definesObject =
-        def.kind === Kind.OBJECT_TYPE_DEFINITION &&
-        !(ROOT_TYPES as readonly string[]).includes(type);
+        def.kind === Kind.OBJECT_TYPE_DEFINITION && !rootNames.has(type);
       own(def, type, definesObject ? ["__isTypeOf", ...fields] : fields);
     } else if (
       def.kind === Kind.INTERFACE_TYPE_DEFINITION ||
@@ -156,10 +187,9 @@ export function compose(
   }
   const grouped = [...merged].map(([id, typeDefs]) => ({ id, typeDefs }));
 
-  const document = applyDirectives(
-    withRootTypes(concatAST(grouped.flatMap((m) => m.typeDefs))),
-    directives
-  );
+  const sdl = concatAST(grouped.flatMap((m) => m.typeDefs));
+  const roots = rootTypes(sdl);
+  const document = applyDirectives(withRootTypes(sdl, roots), directives);
   assertNoErrors(validateSDL(document), "Invalid SDL");
   const schema = buildASTSchema(document, { assumeValidSDL: true });
   assertNoErrors(validateSchema(schema), "Invalid schema");
@@ -170,7 +200,9 @@ export function compose(
     ownership: collectOwnership(
       document,
       moduleTracker(grouped),
-      grouped.map((m) => m.id)
-    )
+      grouped.map((m) => m.id),
+      roots
+    ),
+    roots
   };
 }

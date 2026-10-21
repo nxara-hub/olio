@@ -30,6 +30,7 @@ const { document, schema, ownership } = compose(
 ```
 
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
+- **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports them: `{ query: "RootQuery" }`.
 - **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`.
 - **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name.
 

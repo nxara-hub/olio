@@ -152,6 +152,7 @@ describe("generate: Application", () => {
     Query: {
       type: Query;
       fields: "user" | "users";
+      root: "query";
       args: {
         user: { id: Scalars["ID"]["input"] };
       };
@@ -186,13 +187,13 @@ describe("generate: Application", () => {
     expect(app).toContain(
       `  posts: {
     Post: { type: Post; fields: "__isTypeOf" | "id" };
-    Query: { type: Query; fields: "post" };
+    Query: { type: Query; fields: "post"; root: "query" };
     User: { type: User; fields: "posts" };
   };`
     );
     expect(app).toContain(
       `  users: {
-    Query: { type: Query; fields: "user" };
+    Query: { type: Query; fields: "user"; root: "query" };
     User: { type: User; fields: "__isTypeOf" | "id" };
   };`
     );
@@ -229,7 +230,9 @@ describe("generate: Application", () => {
         { name: "scalars", typeDefs: "scalar DateTime" }
       ])
     );
-    expect(app).toContain('Query: { type: Query; fields: "x" | "y" };');
+    expect(app).toContain(
+      'Query: { type: Query; fields: "x" | "y"; root: "query" };'
+    );
     expect(app).toContain("  scalars: {};");
   });
 
@@ -240,10 +243,10 @@ describe("generate: Application", () => {
     ]);
     expect(out).toContain('export type Query = {\n  __typename?: "Query";');
     expect(application(out)).toContain(
-      'Query: { type: Query; fields: "post" };'
+      'Query: { type: Query; fields: "post"; root: "query" };'
     );
     expect(application(out)).toContain(
-      'Query: { type: Query; fields: "user" };'
+      'Query: { type: Query; fields: "user"; root: "query" };'
     );
   });
 
@@ -265,9 +268,16 @@ describe("generate: unsupported schemas", () => {
     }
   });
 
-  test("rejects custom root type names", () => {
-    expect(() => gen("schema { query: Root } type Root { x: Int }")).toThrow(
-      'Root type "Root" must be named "Query"'
+  test("supports custom root type names, marking roots by operation", () => {
+    const out = generate([
+      { name: "app", typeDefs: "schema { query: RootQuery }" },
+      { name: "users", typeDefs: "extend type RootQuery { me: Int }" }
+    ]);
+    expect(out).toContain(
+      'export type RootQuery = {\n  __typename?: "RootQuery";'
+    );
+    expect(application(out)).toContain(
+      'RootQuery: { type: RootQuery; fields: "me"; root: "query" };'
     );
   });
 });
