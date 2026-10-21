@@ -1,4 +1,9 @@
-import { compose, type Ownership, type SchemaDirective } from "@nxlab/schema";
+import {
+  compose,
+  SCALAR,
+  type Ownership,
+  type SchemaDirective
+} from "@nxlab/schema";
 import {
   defaultFieldResolver,
   isEnumType,
@@ -18,12 +23,14 @@ import {
 
 import type {
   FeatureConfig,
+  FeatureMiddleware,
   Middleware,
   MiddlewareFn,
   MiddlewareMap,
   MiddlewareParams,
   ModuleConfig,
   ModuleId,
+  ModuleMiddleware,
   OlioFeature,
   OlioModule,
   ResolverMap,
@@ -57,30 +64,30 @@ const parseAll = (
     typeof typeDef === "string" ? parse(new Source(typeDef, name)) : typeDef
   );
 
-export function createModule<M extends ModuleId>(
-  id: M,
-  config: ModuleConfig<M>
-): OlioModule {
+export function createModule<
+  M extends ModuleId,
+  const MW extends ModuleMiddleware<M> = ModuleMiddleware<M>
+>(id: M, config: ModuleConfig<M, MW>): OlioModule {
   return {
     id,
     typeDefs: parseAll(config.typeDefs, `module "${id}"`),
-    resolvers: toList(config.resolvers),
+    resolvers: toList(config.resolvers) as readonly ResolverMap[],
     middleware: (config.middleware ?? {}) as MiddlewareMap,
     features: config.features ?? []
   };
 }
 
 /** A feature of `module`, owning the fields its own SDL declares. */
-export function createFeature<M extends ModuleId, F extends string>(
-  module: M,
-  id: F,
-  config: FeatureConfig<M, F>
-): OlioFeature {
+export function createFeature<
+  M extends ModuleId,
+  F extends string,
+  const MW extends FeatureMiddleware<M, F> = FeatureMiddleware<M, F>
+>(module: M, id: F, config: FeatureConfig<M, F, MW>): OlioFeature {
   return {
     module,
     id,
     typeDefs: parseAll(config.typeDefs, `feature "${module}/${id}"`),
-    resolvers: toList(config.resolvers),
+    resolvers: toList(config.resolvers) as readonly ResolverMap[],
     middleware: (config.middleware ?? {}) as MiddlewareMap
   };
 }
@@ -354,14 +361,36 @@ function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
   }
 }
 
+/**
+ * A resolver map is keyed by type. Passing `query.users({...})` straight in
+ * keys it by field instead, so say so when the name is a root field.
+ */
+function unknownType({ schema, owner }: Attach, name: string): string {
+  const root = [
+    schema.getQueryType(),
+    schema.getMutationType(),
+    schema.getSubscriptionType()
+  ].find((t) => t?.getFields()[name]);
+  const hint = root
+    ? `. It's a ${root.name} field: key resolvers by type, e.g. { ${root.name}: { ${name}: ... } }`
+    : "";
+  return `${owner.label}: unknown type "${name}"${hint}`;
+}
+
 function applyResolvers(attach: Attach): void {
   for (const map of attach.owner.resolvers) {
     for (const [typeName, value] of Object.entries(map)) {
       const type = attach.schema.getType(typeName);
-      if (!type) {
-        throw new Error(`${attach.owner.label}: unknown type "${typeName}"`);
-      }
+      if (!type) throw new Error(unknownType(attach, typeName));
       if (isScalarType(type)) {
+        const definer = attach.declared.get(`${typeName}.${SCALAR}`);
+        if (definer !== attach.owner.id) {
+          throw new Error(
+            definer
+              ? `${attach.owner.label}: scalar "${typeName}" is defined by "${definer}"; only it can implement the scalar`
+              : `${attach.owner.label}: scalar "${typeName}" isn't defined in any module's SDL`
+          );
+        }
         applyScalar(type, value);
         continue;
       }

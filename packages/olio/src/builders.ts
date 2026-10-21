@@ -1,5 +1,6 @@
 import { createFeature, createModule } from "./olio.js";
 import type {
+  CheckedMiddleware,
   FeatureConfig,
   FeatureId,
   FeatureMiddleware,
@@ -34,10 +35,19 @@ const nested = new Proxy(identity, { get: () => identity });
 
 type Builder<T> = (value: T) => T;
 
+/** A middleware builder that also rejects `x` with `-x` (see `CheckedMiddleware`). */
+type Checked<Shape> = <const T extends Shape>(
+  middleware: T & CheckedMiddleware<T, Shape>
+) => T;
+
 export const module = perModule(
   (id) => (config: ModuleConfig<ModuleId>) =>
     createModule(id as ModuleId, config)
-) as { [M in ModuleId]: (config: ModuleConfig<M>) => OlioModule };
+) as {
+  [M in ModuleId]: <const MW extends ModuleMiddleware<M> = ModuleMiddleware<M>>(
+    config: ModuleConfig<M, MW>
+  ) => OlioModule;
+};
 
 /** `feature.<module>.<id>({...})`: one per feature folder. */
 export const feature = perModule((m) =>
@@ -47,7 +57,11 @@ export const feature = perModule((m) =>
   )
 ) as {
   [M in ModuleId]: {
-    [F in FeatureId<M>]: (config: FeatureConfig<M, F>) => OlioFeature;
+    [F in FeatureId<M>]: <
+      const MW extends FeatureMiddleware<M, F> = FeatureMiddleware<M, F>
+    >(
+      config: FeatureConfig<M, F, MW>
+    ) => OlioFeature;
   };
 };
 
@@ -58,8 +72,8 @@ export const feature = perModule((m) =>
 export const mw = new Proxy(identity, {
   get: () => nested
 }) as unknown as Builder<Middleware> & {
-  [M in ModuleId]: Builder<ModuleMiddleware<M>> & {
-    [F in FeatureId<M>]: Builder<FeatureMiddleware<M, F>>;
+  [M in ModuleId]: Checked<ModuleMiddleware<M>> & {
+    [F in FeatureId<M>]: Checked<FeatureMiddleware<M, F>>;
   };
 };
 

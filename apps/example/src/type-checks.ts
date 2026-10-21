@@ -30,6 +30,14 @@ mw.sales.orders({ Product: { unitsSold: [] } });
 // @ts-expect-error
 query.sales.customers({ orders: () => [] });
 
+// "x" and "-x" for one field contradict each other.
+// @ts-expect-error "-logout" can't be combined with "logout"
+mw.auth({ Mutation: { "-logout": [], logout: [] } });
+// Inline middleware still gets a typed ctx.
+mw.auth({
+  Mutation: { logout: [({ ctx }, next) => (ctx.viewer ? next() : null)] }
+});
+
 // ---- Resolvers ---------------------------------------------------------
 
 // orders is a sales Query field.

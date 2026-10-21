@@ -227,13 +227,13 @@ describe("generate: Application", () => {
       generate([
         { name: "a", typeDefs: "type Query { x: Int }" },
         { name: "a", typeDefs: "extend type Query { y: Int }" },
-        { name: "scalars", typeDefs: "scalar DateTime" }
+        { name: "empty", typeDefs: "directive @tag on FIELD_DEFINITION" }
       ])
     );
     expect(app).toContain(
       'Query: { type: Query; fields: "x" | "y"; root: "query" };'
     );
-    expect(app).toContain("  scalars: {};");
+    expect(app).toContain("  empty: {};");
   });
 
   test("needs no placeholder root type when modules only extend it", () => {
@@ -266,6 +266,22 @@ describe("generate: Application", () => {
     expect(app).toContain(
       '  legacy: {\n    Status: { type: Status; fields: never; enum: "ARCHIVED" };'
     );
+  });
+
+  test("lists scalars under the module that defines them", () => {
+    const app = application(
+      generate([
+        {
+          name: "core",
+          typeDefs: "scalar DateTime type Query { now: DateTime }"
+        },
+        { name: "users", typeDefs: "extend type Query { since: DateTime }" }
+      ])
+    );
+    expect(app).toContain(
+      '  core: {\n    DateTime: { type: Scalars["DateTime"]["output"]; fields: never; scalar: true };'
+    );
+    expect(app).not.toContain("users: {\n    DateTime");
   });
 
   test("quotes module keys that are not identifiers", () => {

@@ -1,4 +1,8 @@
-import type { DocumentNode, GraphQLResolveInfo } from "graphql";
+import type {
+  DocumentNode,
+  GraphQLResolveInfo,
+  GraphQLScalarType
+} from "graphql";
 
 /**
  * Register your app by augmenting this interface:
@@ -33,6 +37,8 @@ interface TypeShape {
   root?: Operation;
   /** Enums: the values this module declares. */
   enum?: string;
+  /** Scalars: this module defines it, so it supplies the implementation. */
+  scalar?: true;
 }
 
 type Operation = "query" | "mutation" | "subscription";
@@ -272,6 +278,33 @@ export type FeatureMiddleware<
   F extends string
 > = Untyped extends true ? MiddlewareMap : MiddlewareFor<`${M}/${F}` & Owner>;
 
+/** The keys of `T` that are actually present (not optional). */
+type PresentKeys<T> = {
+  [K in keyof T]-?: object extends Pick<T, K> ? never : K;
+}[keyof T];
+
+/**
+ * A middleware map checked against what its owner may target: unknown types
+ * and keys, and `x` together with `-x` (opposite instructions for one field),
+ * are compile errors with a message on the offending key. The builders take
+ * the map as a generic `T`, so this replaces the excess-property check too.
+ */
+export type CheckedMiddleware<T, Shape> = {
+  [Type in keyof T]: Type extends keyof Shape
+    ? {
+        [K in keyof T[Type]]: K extends keyof NonNullable<Shape[Type]>
+          ? K extends `-${infer F}`
+            ? F extends PresentKeys<T[Type]>
+              ? K extends PresentKeys<T[Type]>
+                ? `"${K}" can't be combined with "${F}"`
+                : T[Type][K]
+              : T[Type][K]
+            : T[Type][K]
+          : `"${Type & string}.${K & string}" isn't a field this module or feature declares`;
+      }
+    : `"${Type & string}" has no fields this module or feature declares`;
+};
+
 // ---------------------------------------------------------------------------
 // Resolvers
 
@@ -328,18 +361,20 @@ type TypeHookResolver<E, F> = (
  * in @nxlab/codegen): `{ ADMIN: 1, GUEST: 2 }`.
  */
 export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
-  Entry<M, T> extends { enum: infer V extends string }
-    ? { [K in V]: Parent<Entry<M, T>> }
-    : {
-        [F in Owned<Entry<M, T>>]?: F extends TypeHook
-          ? TypeHookResolver<Entry<M, T>, F>
-          : (
-              root: Parent<Entry<M, T>>,
-              args: Args<Entry<M, T>, F>,
-              ctx: Context,
-              info: GraphQLResolveInfo
-            ) => MaybePromise<Out<Entry<M, T>, F>>;
-      };
+  Entry<M, T> extends { scalar: true }
+    ? GraphQLScalarType
+    : Entry<M, T> extends { enum: infer V extends string }
+      ? { [K in V]: Parent<Entry<M, T>> }
+      : {
+          [F in Owned<Entry<M, T>>]?: F extends TypeHook
+            ? TypeHookResolver<Entry<M, T>, F>
+            : (
+                root: Parent<Entry<M, T>>,
+                args: Args<Entry<M, T>, F>,
+                ctx: Context,
+                info: GraphQLResolveInfo
+              ) => MaybePromise<Out<Entry<M, T>, F>>;
+        };
 
 // ---------------------------------------------------------------------------
 // Field types, for code outside resolvers (services, loaders, tests)
@@ -385,7 +420,7 @@ export type TypeSource = string | DocumentNode;
 /** Type name -> field resolvers (or a scalar). What `loadResolvers` returns. */
 export type ResolverMap = Record<string, object>;
 
-/** Loose types for resolver maps written inline, without the builders. */
+/** Loose types for resolver maps written inline when no application is registered. */
 type InlineResolvers = Record<
   string,
   Record<
@@ -399,23 +434,57 @@ type InlineResolvers = Record<
   >
 >;
 
-type Resolvers = ResolverMap | InlineResolvers;
+declare const loaded: unique symbol;
 
-export interface ModuleConfig<M extends ModuleId> {
+/**
+ * What `loadResolvers` returns. Files are typed where they're written (with
+ * the builders), so a loaded map isn't checked again; the brand keeps inline
+ * maps from slipping through as one.
+ */
+export type LoadedResolvers = ResolverMap & { readonly [loaded]: true };
+
+/**
+ * An owner's resolver map, typed from the application: root types take their
+ * field resolvers, other types theirs, enums their internal values, scalars a
+ * `GraphQLScalarType`. Loose without a registered application.
+ */
+export type OwnerResolvers<O extends string> = Untyped extends true
+  ? ResolverMap | InlineResolvers
+  : O extends Owner
+    ? {
+        [T in keyof App[O] & string]?: T extends RootName<"query">
+          ? QueryResolvers<O>
+          : T extends RootName<"mutation">
+            ? MutationResolvers<O>
+            : T extends RootName<"subscription">
+              ? SubscriptionResolvers<O>
+              : TypeResolvers<O, T & ModuleTypeName<O>>;
+      }
+    : never;
+
+type ResolversInput<O extends string> = OwnerResolvers<O> | LoadedResolvers;
+
+export interface ModuleConfig<M extends ModuleId, MW = ModuleMiddleware<M>> {
   typeDefs?: TypeSource | readonly TypeSource[];
-  /** Typed per file via `query.<id>`, `resolvers.<id>.<Type>`, etc. */
-  resolvers?: Resolvers | readonly Resolvers[];
+  /** Inline maps are typed from the module; loaded ones pass through. */
+  resolvers?: ResolversInput<M> | readonly ResolversInput<M>[];
   /** Module-wide: may target any field the module or its features declare. */
-  middleware?: ModuleMiddleware<M>;
+  middleware?: MW & CheckedMiddleware<MW, ModuleMiddleware<M>>;
   /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
   features?: readonly OlioFeature[];
 }
 
-export interface FeatureConfig<M extends ModuleId, F extends string> {
+export interface FeatureConfig<
+  M extends ModuleId,
+  F extends string,
+  MW = FeatureMiddleware<M, F>
+> {
   typeDefs?: TypeSource | readonly TypeSource[];
-  /** Typed per file via `query.<id>.<feature>`, etc. */
-  resolvers?: Resolvers | readonly Resolvers[];
-  middleware?: FeatureMiddleware<M, F>;
+  /** Inline maps are typed from the feature; loaded ones pass through. */
+  resolvers?:
+    | ResolversInput<`${M}/${F}`>
+    | readonly ResolversInput<`${M}/${F}`>[];
+  middleware?: MW & CheckedMiddleware<MW, FeatureMiddleware<M, F>>;
 }
 
 /** A feature: part of a module, owning the fields its own SDL declares. */

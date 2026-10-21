@@ -30,7 +30,10 @@ type Tag implements Named {
 
 union Item = User | Post
 
+scalar Upper
+
 type Query {
+  shout: Upper
   node(id: ID!): Node
   items: [Item!]!
   named: [Named!]!

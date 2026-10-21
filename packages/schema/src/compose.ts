@@ -31,6 +31,9 @@ export type Operation = "query" | "mutation" | "subscription";
 /** Root type name per operation, e.g. `{ query: "Query" }`. */
 export type RootTypes = Partial<Record<Operation, string>>;
 
+/** Ownership marker for a scalar: its defining module implements it. */
+export const SCALAR = "__scalar";
+
 export interface Composed {
   document: DocumentNode;
   schema: GraphQLSchema;
@@ -162,6 +165,9 @@ function collectOwnership(
       def.kind === Kind.UNION_TYPE_DEFINITION
     ) {
       own(def, def.name.value, ["__resolveType"]);
+    } else if (def.kind === Kind.SCALAR_TYPE_DEFINITION) {
+      // The defining module supplies the scalar's implementation.
+      own(def, def.name.value, [SCALAR]);
     } else if (
       def.kind === Kind.ENUM_TYPE_DEFINITION ||
       def.kind === Kind.ENUM_TYPE_EXTENSION

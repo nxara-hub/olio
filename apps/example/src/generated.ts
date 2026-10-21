@@ -241,6 +241,7 @@ export type Application = {
   };
   core: {
     Currency: { type: Currency; fields: never; enum: "EUR" | "GBP" | "USD" };
+    DateTime: { type: Scalars["DateTime"]["output"]; fields: never; scalar: true };
     Money: { type: Money; fields: "__isTypeOf" | "amount" | "currency" };
     Node: { type: Node; fields: "__resolveType"; resolveType: "Customer" | "Employee" | "Product" | "SalesOrder" | "Warehouse" };
     PageInfo: { type: PageInfo; fields: "__isTypeOf" | "hasNextPage" | "page" | "pageSize" | "total" };

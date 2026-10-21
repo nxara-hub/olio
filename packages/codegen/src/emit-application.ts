@@ -3,6 +3,7 @@ import {
   isAbstractType,
   isEnumType,
   isObjectType,
+  isScalarType,
   type GraphQLSchema
 } from "graphql";
 
@@ -34,6 +35,10 @@ function emitEntry(
   // internal values from it.
   if (isEnumType(type)) {
     return `    ${name}: { type: ${name}; fields: never; enum: ${union(fields)} };`;
+  }
+  // A scalar's entry marks the module that implements it.
+  if (isScalarType(type)) {
+    return `    ${name}: { type: Scalars["${name}"]["output"]; fields: never; scalar: true };`;
   }
   const members = [`type: ${name}`, `fields: ${union(fields)}`];
   // Root types are found by operation, so their names can be anything.

@@ -50,6 +50,22 @@ export const User = resolvers.users.User({
 
 `mutation.<id>` and `subscription.<id>` work the same way. See [Subscriptions](#subscriptions) for what a subscription field looks like.
 
+Or write the map inline, with no builders: it's typed from the module just the same.
+
+```ts
+export const usersModule = module.users({
+  typeDefs,
+  resolvers: {
+    Query: { user: (root, { id }) => findUser(id) }, // id: string
+    User: { name: (user) => user.name }, // user: what User maps to
+    Role: { ADMIN: 1, GUEST: 2 }, // enum internal values
+    DateTime: DateTimeResolver // a scalar this module defines
+  }
+});
+```
+
+Unknown types and fields, other modules' fields and wrong return types are compile errors. Maps from `loadResolvers` pass through unchecked, since each file was typed where it was written. A scalar's implementation comes from the module whose SDL defines it, and only from that module.
+
 ## Features: splitting a large module
 
 When a module grows, split it into features: subfolders that each own part of the module's schema.
@@ -145,7 +161,7 @@ Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the 
 
 The application addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`. A module addresses the fields it and its features declare, including fields they add to other modules' types with `extend`; a feature, only its own.
 
-A **`-` key** stops a target from inheriting middleware from the layers above it. `{ Query: { "-login": [rateLimit()] } }` runs only `rateLimit` for `Query.login`, and `"-*"` does the same for every field of the type, while lower layers still apply. `"x"` and `"-x"` can't be combined.
+A **`-` key** stops a target from inheriting middleware from the layers above it. `{ Query: { "-login": [rateLimit()] } }` runs only `rateLimit` for `Query.login`, and `"-*"` does the same for every field of the type, while lower layers still apply. `"x"` and `"-x"` can't be combined in one map: they're opposite instructions for the same field, so it's a compile error (`"-logout" can't be combined with "logout"`), and `olio()` throws if it gets past the types. Across layers it's fine: a feature's `-logout` simply drops its module's `logout` layer.
 
 Middleware wraps the resolvers modules define, and any field it names explicitly. `"*"` keys only reach fields with a resolver, but naming a field (`User: { email: [redact()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs.
 
@@ -211,25 +227,36 @@ type When = Scalars["DateTime"]["input"]; // a scalar, by direction
 - Object, input, enum, union and interface types are exported by name from `generated.ts`.
 - `Fields` covers every field a module declares, whichever module that is. It's plain indexed access, so your editor completes the type, then the field, then `args` / `result`.
 
-## Without codegen
+## Without codegen or tools
 
-Codegen is optional. Without a registered `application`, olio behaves the same at runtime, only with looser types:
+Olio needs neither `@nxlab/codegen` nor `@nxlab/tools`. Write SDL as strings, resolvers as plain maps keyed by type, and build modules with `createModule` / `createFeature`. Everything works the same at runtime (middleware layers, features, enum values, subscriptions), only with looser types:
 
 ```ts
-import { createModule, mw, olio } from "@nxlab/olio";
+import { createFeature, createModule, mw, olio } from "@nxlab/olio";
 
-const greet = createModule("greet", {
-  typeDefs: "type Query { hello(name: String!): String! }",
+const users = createModule("users", {
+  typeDefs:
+    "type User { id: ID! name: String! } extend type Query { user(id: ID!): User }",
   // root: unknown, args: Record<string, unknown>, ctx: your registered ctx
-  resolvers: { Query: { hello: (_root, args) => `hi ${String(args.name)}` } }
+  resolvers: {
+    Query: { user: (_root, args) => ({ id: String(args.id), name: "Ada" }) }
+  },
+  middleware: { Query: { "*": [audit()] } },
+  features: [
+    createFeature("users", "admin", {
+      typeDefs: "extend type Mutation { ban(id: ID!): Boolean! }",
+      resolvers: { Mutation: { ban: () => true } }
+    })
+  ]
 });
 
 export const app = olio({
   middleware: mw({ Query: { "*": [requireAuth()] } }),
-  modules: [greet]
+  modules: [users]
 });
 ```
 
-- Use `createModule(id, config)` instead of `module.<id>`. Without an `Application` there are no known module ids, so `module.<id>`, `query.<id>` and `resolvers.<id>.<Type>` have nothing to check against.
+- Use `createModule(id, config)` and `createFeature(module, id, config)`. Without an `Application` there are no known ids, so `module.<id>`, `query.<id>` and friends have nothing to check against.
+- Key resolver maps by type: `{ Query: { user } }`. The builders (`query.users({ user })`) return the _inner_ map, so wrap them the same way: `{ Query: query.users({ user }) }`. `loadResolvers` does this for you, using export names.
 - You can still register `ctx` (and `sub_ctx`) on their own, so middleware and resolvers get a typed context.
-- To get the full typed builders without running codegen, write the `Application` type by hand. It is a plain type.
+- To get the fully typed builders without running codegen, write the `Application` type by hand. It's a plain type: per module (and `"module/feature"`), each type's `{ type; fields; args? }`, root types with `root: "query" | "mutation" | "subscription"`, abstract types with `resolveType`, enums with `fields: never; enum: "A" | "B"`. Codegen's README shows the format.

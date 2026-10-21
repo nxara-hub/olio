@@ -23,7 +23,7 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 
 - Nested only: `{ Type: { field | "*": MiddlewareFn[] } }`. `mw()` (app) accepts `"*"` and the root types. `mw.<id>()` accepts the fields the module declares, per type.
 - The chain for a resolver runs top-down: app `*.*` → app `Type.*` → app `Type.field` → module `Type.*` → module `Type.field` → (for a feature's field) feature `Type.*` → feature `Type.field`. `mw.<id>` reaches the module's and all its features' fields; `mw.<id>.<feature>` only that feature's.
-- A `-` key (`"-user"`, `"-*"`) drops every layer above it; lower layers still apply. `x` together with `-x` throws.
+- A `-` key (`"-user"`, `"-*"`) drops every layer above it; lower layers still apply. `x` together with `-x` in one map is a compile error (`CheckedMiddleware`, via generic middleware builders and module/feature configs) and throws at runtime.
 - Middleware wraps the resolvers modules define, plus any field named explicitly (its default resolver gets wrapped). `"*"` only reaches fields with a resolver. A subscription field is a function returning `AsyncIterable<field value>` (only form); olio sets an identity `resolve`, and middleware wraps `subscribe` (runs once per subscription). `Subscription` middleware gets `sub_ctx`; `"*"` gets `ctx | sub_ctx`.
 - `olio()` checks every middleware key at runtime and enforces ownership: a module resolves only fields it declares (`compose` ownership), the same rule codegen types.
 - Features (`feature.<id>.<name>`, loaded with `loadFeatures`) are isolated owners like modules: each resolves only what its SDL declares. In olio's runtime, modules and features flatten into `Owner`s (`olio.ts`), each with the middleware layers above it.
@@ -48,6 +48,7 @@ bun run --cwd apps/example start     # run the example end to end
 - Relative imports use `.js` specifiers (`nodenext`). `noUncheckedIndexedAccess` is on.
 - Olio must work with and without codegen. `packages/olio/test` registers nothing, so its type-check covers the untyped mode (`createModule` and inline resolver maps, no implicit `any`).
 - `packages/olio/test/typed/` is olio's typed contract test: `check-types` regenerates `generated.ts` from its fixture SDL with codegen, then type-checks `contract.ts` against `src/` (it augments `src/types.ts`, not the build). Add an `@ts-expect-error` there for any new type behaviour.
+- Inline resolver maps in `module.<id>({ resolvers })` / `feature…({ resolvers })` are typed (`OwnerResolvers`). `loadResolvers` returns the branded `LoadedResolvers`, which passes through unchecked; the brand is what keeps inline maps from matching the loose type.
 - Enum internal values: types via codegen's `CustomEnums` (they affect args and inputs too), values via `resolvers.<id>.<Enum>({...})`. At runtime olio sets each `GraphQLEnumValue.value` before the schema is used; graphql 17 builds its value lookup lazily and coerces defaults per operation.
 - `apps/example/src/type-checks.ts` holds `@ts-expect-error` lines that must keep failing. A passing type-check is what proves the type contract.
 - A Claude Code hook runs `bun run fix` after every edit.

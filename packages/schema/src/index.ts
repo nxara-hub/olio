@@ -1,6 +1,6 @@
 export { applyDirectives } from "./apply-directives.js";
 export type { DirectiveContext, SchemaDirective } from "./apply-directives.js";
-export { compose } from "./compose.js";
+export { compose, SCALAR } from "./compose.js";
 export type {
   Composed,
   ModuleSDL,

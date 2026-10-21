@@ -594,6 +594,27 @@ describe("olio", () => {
     );
   });
 
+  test("only the module defining a scalar implements it", () => {
+    const upper = new GraphQLScalarType({ name: "Upper" });
+    const core = createModule("core", {
+      typeDefs: "scalar Upper extend type Query { shout: Upper }"
+    });
+    expect(() =>
+      olio({
+        modules: [core, createModule("x", { resolvers: { Upper: upper } })]
+      })
+    ).toThrow(
+      'Module "x": scalar "Upper" is defined by "core"; only it can implement the scalar'
+    );
+    expect(() =>
+      olio({
+        modules: [root, createModule("x", { resolvers: { String: upper } })]
+      })
+    ).toThrow(
+      'Module "x": scalar "String" isn\'t defined in any module\'s SDL'
+    );
+  });
+
   test("applies schema-design directives", () => {
     const app = olio({
       directives: [copyDirective()],
@@ -628,6 +649,13 @@ describe("olio", () => {
     expect((await run(app, `{ hello(name: "ada") }`)).data).toEqual({
       hello: "hi ada"
     });
+  });
+
+  test("middleware maps with `x` and `-x` don't compile, even untyped", () => {
+    const conflicting = { Query: { a: [], "-a": [] } } as const;
+    // @ts-expect-error "-a" can't be combined with "a"
+    const build = () => createModule("x", { middleware: conflicting });
+    expect(build).toBeFunction();
   });
 
   test("module.<id> builds a module with that id", () => {
@@ -677,6 +705,18 @@ describe("olio", () => {
     expect(() =>
       olio({ modules: [root, createModule("x", { resolvers: { Nope: {} } })] })
     ).toThrow('Module "x": unknown type "Nope"');
+    // A root field map passed without its type key gets a hint.
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          users(),
+          createModule("x", { resolvers: [{ user: () => null }] })
+        ]
+      })
+    ).toThrow(
+      'Module "x": unknown type "user". It\'s a Query field: key resolvers by type, e.g. { Query: { user: ... } }'
+    );
     expect(() =>
       olio({
         modules: [

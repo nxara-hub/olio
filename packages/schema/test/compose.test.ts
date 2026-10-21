@@ -80,6 +80,18 @@ describe("compose", () => {
     ]);
   });
 
+  test("a scalar belongs to the module that defines it", () => {
+    const { ownership } = compose([
+      mod("core", "scalar DateTime type Query { now: DateTime }"),
+      mod(
+        "other",
+        'extend scalar DateTime @specifiedBy(url: "https://example.com")'
+      )
+    ]);
+    expect(plain(ownership).core?.DateTime).toEqual(["__scalar"]);
+    expect(plain(ownership).other).toEqual({});
+  });
+
   test("merges modules that share an id", () => {
     const { ownership } = compose([
       mod("a", "extend type Query { x: Int }"),

@@ -2,7 +2,7 @@ import { glob, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { OlioFeature, OlioModule } from "@nxlab/olio";
+import type { LoadedResolvers, OlioFeature, OlioModule } from "@nxlab/olio";
 import { parse, Source, type DocumentNode } from "graphql";
 
 export type TypeSource = string | DocumentNode;
@@ -94,7 +94,7 @@ const isPlainObject = (value: object): boolean =>
  */
 export async function loadResolvers(
   ...patterns: Pattern[]
-): Promise<ResolverMap> {
+): Promise<LoadedResolvers> {
   const files = await matchFiles(patterns);
   const modules = await Promise.all(
     files.map(
@@ -136,7 +136,8 @@ export async function loadResolvers(
       merged[type] = target;
     }
   }
-  return merged;
+  // Each file is typed where it's written, with olio's builders.
+  return merged as LoadedResolvers;
 }
 
 /** Shared by modules and features. */

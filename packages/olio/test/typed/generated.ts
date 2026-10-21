@@ -11,6 +11,7 @@ export type Scalars = {
   ID: ResolveScalar<"ID">;
   Int: ResolveScalar<"Int">;
   String: ResolveScalar<"String">;
+  Upper: ResolveScalar<"Upper">;
 };
 
 /* #region Enums */
@@ -39,6 +40,7 @@ export type Post = {
 
 export type Query = {
   __typename?: "Query";
+  shout: Maybe<Scalars["Upper"]["output"]>;
   node: Maybe<Node>;
   items: Item[];
   named: Named[];
@@ -91,7 +93,7 @@ export type Application = {
     Post: { type: Post; fields: "__isTypeOf" | "id" | "title" };
     Query: {
       type: Query;
-      fields: "items" | "named" | "node" | "usersByRole";
+      fields: "items" | "named" | "node" | "shout" | "usersByRole";
       root: "query";
       args: {
         node: { id: Scalars["ID"]["input"] };
@@ -100,6 +102,7 @@ export type Application = {
     };
     Role: { type: Role; fields: never; enum: "ADMIN" | "GUEST" };
     Tag: { type: Tag; fields: "__isTypeOf" | "name" };
+    Upper: { type: Scalars["Upper"]["output"]; fields: never; scalar: true };
     User: { type: User; fields: "__isTypeOf" | "id" | "name" | "role" };
   };
   "content/blog": {
