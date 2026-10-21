@@ -8,448 +8,293 @@ type Maybe<T> = T | null;
 /** Every scalar's TypeScript types. Remap one through `CustomScalars`. */
 export type Scalars = {
   Boolean: ResolveScalar<"Boolean">;
-  Date: ResolveScalar<"Date">;
   DateTime: ResolveScalar<"DateTime">;
   ID: ResolveScalar<"ID">;
   Int: ResolveScalar<"Int">;
-  JSON: ResolveScalar<"JSON">;
-  ObjectID: ResolveScalar<"ObjectID">;
   String: ResolveScalar<"String">;
-  Upload: ResolveScalar<"Upload">;
-  Void: ResolveScalar<"Void">;
 };
 
 /* #region Enums */
 
-export const EBrands = {
-  Rolex: "Rolex",
-  Tudor: "Tudor"
+export const Currency = {
+  EUR: "EUR",
+  USD: "USD",
+  GBP: "GBP"
 } as const;
-export type EBrands = (typeof EBrands)[keyof typeof EBrands];
+export type Currency = (typeof Currency)[keyof typeof Currency];
 
-export const EGender = {
-  Male: "Male",
-  Female: "Female",
-  Undefined: "Undefined"
+export const OrderStatus = {
+  CONFIRMED: "CONFIRMED",
+  CANCELLED: "CANCELLED"
 } as const;
-export type EGender = (typeof EGender)[keyof typeof EGender];
-
-export const EGroups = {
-  Boutique: "Boutique",
-  Workshop: "Workshop",
-  Administration: "Administration"
-} as const;
-export type EGroups = (typeof EGroups)[keyof typeof EGroups];
-
-export const EHonorifics = {
-  Mr: "Mr",
-  Mrs: "Mrs",
-  Miss: "Miss",
-  Ms: "Ms",
-  Dr: "Dr",
-  Undefined: "Undefined"
-} as const;
-export type EHonorifics = (typeof EHonorifics)[keyof typeof EHonorifics];
-
-export const EIdType = {
-  CivilId: "CivilId",
-  Passport: "Passport"
-} as const;
-export type EIdType = (typeof EIdType)[keyof typeof EIdType];
-
-export const ESort = {
-  asc: "asc",
-  desc: "desc"
-} as const;
-export type ESort = (typeof ESort)[keyof typeof ESort];
-
-export const ReqErrorCode = {
-  NOT_FOUND: "NOT_FOUND",
-  APP_UNKNOWN: "APP_UNKNOWN",
-  APP_INVALID_DTO: "APP_INVALID_DTO",
-  APP_RATE_LIMIT: "APP_RATE_LIMIT",
-  APP_DUPLICATE_DATA: "APP_DUPLICATE_DATA",
-  UNAUTHORIZED_ACTION: "UNAUTHORIZED_ACTION",
-  REMARK_NOT_FOUND: "REMARK_NOT_FOUND",
-  TEST123: "TEST123"
-} as const;
-export type ReqErrorCode = (typeof ReqErrorCode)[keyof typeof ReqErrorCode];
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
 
 export const Role = {
-  Admin: "Admin",
-  Guest: "Guest"
+  ADMIN: "ADMIN",
+  MANAGER: "MANAGER",
+  CLERK: "CLERK"
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
-
-export const YesNo = {
-  Yes: "Yes",
-  No: "No",
-  Unsure: "Unsure",
-  Undefined: "Undefined"
-} as const;
-export type YesNo = (typeof YesNo)[keyof typeof YesNo];
 
 /* #endregion Enums */
 
 /* #region Types */
 
-export type A = {
-  __typename?: "A";
-  dataA: Scalars["String"]["output"];
+export type Customer = {
+  __typename?: "Customer";
+  id: Scalars["ID"]["output"];
+  createdAt: Scalars["DateTime"]["output"];
+  updatedAt: Scalars["DateTime"]["output"];
+  name: Scalars["String"]["output"];
+  email: Maybe<Scalars["String"]["output"]>;
+  creditLimit: Money;
+  orders: SalesOrder[];
 };
 
-export type AppointmentStatusLifeCycleByService = {
-  __typename?: "AppointmentStatusLifeCycleByService";
-  serviceType: Maybe<Scalars["String"]["output"]>[];
-  lifeCycle: Scalars["JSON"]["output"];
+export type Employee = {
+  __typename?: "Employee";
+  id: Scalars["ID"]["output"];
+  name: Scalars["String"]["output"];
+  email: Scalars["String"]["output"];
+  role: Role;
 };
 
-export type AppPropertiesPublic = {
-  __typename?: "AppPropertiesPublic";
-  workshopHours: WorkHours;
-  appointmentsMonthsAhead: Scalars["Int"]["output"];
+export type InsufficientStock = {
+  __typename?: "InsufficientStock";
+  message: Scalars["String"]["output"];
+  sku: Scalars["String"]["output"];
+  requested: Scalars["Int"]["output"];
+  available: Scalars["Int"]["output"];
 };
 
-export type AppType = {
-  __typename?: "AppType";
-  name: Maybe<Scalars["String"]["output"]>;
-};
-
-export type AreaCode = {
-  __typename?: "AreaCode";
-  code: Scalars["String"]["output"];
-  alphaCode: Scalars["String"]["output"];
-  country: Scalars["String"]["output"];
-};
-
-export type B = {
-  __typename?: "B";
-  dataB: Maybe<Scalars["String"]["output"]>;
-};
-
-export type C = {
-  __typename?: "C";
-  dataC: Maybe<User>;
-};
-
-export type DeleteRemarkData = {
-  __typename?: "DeleteRemarkData";
-  _id: Scalars["ObjectID"]["output"];
-  remark: Remark;
-};
-
-export type EditRemarkData = {
-  __typename?: "EditRemarkData";
-  _id: Scalars["ObjectID"]["output"];
-  remark: Remark;
-};
-
-export type FieldError = {
-  __typename?: "FieldError";
-  field: Scalars["String"]["output"];
+export type InvalidCredentials = {
+  __typename?: "InvalidCredentials";
   message: Scalars["String"]["output"];
 };
 
-export type FieldErrors = {
-  __typename?: "FieldErrors";
-  fieldErrors: FieldError[];
-};
-
-export type MetaData = {
-  __typename?: "MetaData";
-  key: Scalars["String"]["output"];
-  value: Scalars["String"]["output"];
+export type Money = {
+  __typename?: "Money";
+  amount: Scalars["Int"]["output"];
+  currency: Currency;
 };
 
 export type Mutation = {
   __typename?: "Mutation";
-  logout: Maybe<Scalars["Boolean"]["output"]>;
-  setRole: Maybe<User>;
+  login: LoginResult;
+  logout: Scalars["Boolean"]["output"];
+  adjustStock: Product;
+  createCustomer: Customer;
+  placeOrder: PlaceOrderResult;
+  cancelOrder: Maybe<SalesOrder>;
 };
 
-export type Pagination = {
-  __typename?: "Pagination";
-  totalDocs: Scalars["Int"]["output"];
-  limit: Scalars["Int"]["output"];
-  page: Maybe<Scalars["Int"]["output"]>;
-  totalPages: Scalars["Int"]["output"];
-  nextPage: Maybe<Scalars["Int"]["output"]>;
-  prevPage: Maybe<Scalars["Int"]["output"]>;
-  pagingCounter: Scalars["Int"]["output"];
-  hasPrevPage: Scalars["Boolean"]["output"];
+export type OrderLine = {
+  __typename?: "OrderLine";
+  product: Product;
+  quantity: Scalars["Int"]["output"];
+  unitPrice: Money;
+  lineTotal: Money;
+};
+
+export type PageInfo = {
+  __typename?: "PageInfo";
+  page: Scalars["Int"]["output"];
+  pageSize: Scalars["Int"]["output"];
+  total: Scalars["Int"]["output"];
   hasNextPage: Scalars["Boolean"]["output"];
-  meta: Maybe<Scalars["JSON"]["output"]>;
 };
 
-export type Phone = {
-  __typename?: "Phone";
-  alphaCode: Scalars["String"]["output"];
-  code: Scalars["String"]["output"];
-  country: Scalars["String"]["output"];
-  number: Scalars["String"]["output"];
-  fullNumber: Scalars["String"]["output"];
+export type Product = {
+  __typename?: "Product";
+  id: Scalars["ID"]["output"];
+  createdAt: Scalars["DateTime"]["output"];
+  updatedAt: Scalars["DateTime"]["output"];
+  sku: Scalars["String"]["output"];
+  name: Scalars["String"]["output"];
+  price: Money;
+  stock: StockLevel[];
+  onHand: Scalars["Int"]["output"];
+  unitsSold: Scalars["Int"]["output"];
+};
+
+export type ProductPage = {
+  __typename?: "ProductPage";
+  pageInfo: PageInfo;
+  items: Product[];
 };
 
 export type Query = {
   __typename?: "Query";
-  login: Data;
-  users: UserPagination;
-  user: Maybe<User>;
+  me: Maybe<Employee>;
+  product: Maybe<Product>;
+  products: ProductPage;
+  customer: Maybe<Customer>;
+  customers: Customer[];
+  orders: SalesOrder[];
 };
 
-export type RamadanDate = {
-  __typename?: "RamadanDate";
-  start: Scalars["DateTime"]["output"];
-  end: Scalars["DateTime"]["output"];
+export type SalesOrder = {
+  __typename?: "SalesOrder";
+  id: Scalars["ID"]["output"];
+  createdAt: Scalars["DateTime"]["output"];
+  updatedAt: Scalars["DateTime"]["output"];
+  number: Scalars["String"]["output"];
+  customer: Customer;
+  status: OrderStatus;
+  lines: OrderLine[];
+  total: Money;
 };
 
-export type Reason = {
-  __typename?: "Reason";
-  reason: Scalars["String"]["output"];
-  at: Scalars["DateTime"]["output"];
-  by: Scalars["String"]["output"];
-  byId: Scalars["ObjectID"]["output"];
+export type Session = {
+  __typename?: "Session";
+  token: Scalars["String"]["output"];
+  employee: Employee;
 };
 
-export type Remark = {
-  __typename?: "Remark";
-  _id: Scalars["ObjectID"]["output"];
-  mentionIds: Scalars["ObjectID"]["output"][];
-  json: Scalars["JSON"]["output"];
-  html: Scalars["String"]["output"];
-  userId: Maybe<Scalars["ObjectID"]["output"]>;
-  creator: Scalars["String"]["output"];
-  at: Scalars["DateTime"]["output"];
-  deletable: Scalars["Boolean"]["output"];
-  deleted: Scalars["Boolean"]["output"];
-  edited: Scalars["Boolean"]["output"];
+export type StockLevel = {
+  __typename?: "StockLevel";
+  warehouse: Warehouse;
+  quantity: Scalars["Int"]["output"];
 };
 
-export type ReqError = {
-  __typename?: "ReqError";
-  code: ReqErrorCode;
-  message: Scalars["String"]["output"];
+export type Subscription = {
+  __typename?: "Subscription";
+  stockChanged: Product;
 };
 
-export type Store = {
-  __typename?: "Store";
-  id: Scalars["String"]["output"];
-  brand: EBrands;
-  closed: Scalars["Boolean"]["output"];
-};
-
-export type SubNotificationData = {
-  __typename?: "SubNotificationData";
-  title: Scalars["String"]["output"];
-  message: Scalars["String"]["output"];
-};
-
-export type User = {
-  __typename?: "User";
-  _id: Scalars["String"]["output"];
-  a: Maybe<Scalars["String"]["output"]>;
-  b: Maybe<Scalars["String"]["output"]>;
-  name: Maybe<Scalars["String"]["output"]>;
-  role: Maybe<Role>;
-};
-
-export type UserPagination = {
-  __typename?: "UserPagination";
-  totalDocs: Scalars["Int"]["output"];
-  limit: Scalars["Int"]["output"];
-  page: Maybe<Scalars["Int"]["output"]>;
-  totalPages: Scalars["Int"]["output"];
-  nextPage: Maybe<Scalars["String"]["output"]>;
-  prevPage: Maybe<Scalars["Int"]["output"]>;
-  pagingCounter: Scalars["Int"]["output"];
-  hasPrevPage: Scalars["Boolean"]["output"];
-  hasNextPage: Scalars["Boolean"]["output"];
-  abd: Maybe<Scalars["String"]["output"]>;
-  data: User[];
-};
-
-export type WorkHours = {
-  __typename?: "WorkHours";
-  opening: Maybe<Scalars["String"]["output"]>[];
-  closing: Maybe<Scalars["String"]["output"]>[];
+export type Warehouse = {
+  __typename?: "Warehouse";
+  id: Scalars["ID"]["output"];
+  code: Scalars["String"]["output"];
+  name: Scalars["String"]["output"];
 };
 
 /* #endregion Types */
 
 /* #region Inputs */
 
-export type AddRemarkInput = {
-  id: Scalars["ObjectID"]["input"];
-  mentionIds: Scalars["ObjectID"]["input"][];
-  json: Scalars["JSON"]["input"];
-  html: Scalars["String"]["input"];
-};
-
-export type AreaCodeInput = {
-  code: Scalars["String"]["input"];
-  alphaCode: Scalars["String"]["input"];
-  country: Scalars["String"]["input"];
-};
-
-export type DeleteRemarkInput = {
-  id: Scalars["ObjectID"]["input"];
-  remarkId: Scalars["ObjectID"]["input"];
-};
-
-export type EditRemarkInput = {
-  id: Scalars["ObjectID"]["input"];
-  remarkId: Scalars["ObjectID"]["input"];
-  mentionIds: Scalars["ObjectID"]["input"][];
-  json: Scalars["JSON"]["input"];
-  html: Scalars["String"]["input"];
-};
-
-export type LoginInput = {
+export type NewCustomer = {
+  name: Scalars["String"]["input"];
   email: Scalars["String"]["input"];
-  password: Scalars["String"]["input"];
+  creditLimit: Scalars["Int"]["input"];
 };
 
-export type MetaDataInput = {
-  key: Scalars["String"]["input"];
-  value: Scalars["String"]["input"];
+export type OrderLineInput = {
+  sku: Scalars["String"]["input"];
+  quantity: Scalars["Int"]["input"];
 };
 
-export type PhoneInput = {
-  alphaCode: Scalars["String"]["input"];
-  code: Scalars["String"]["input"];
-  country: Scalars["String"]["input"];
-  number: Scalars["String"]["input"];
+export type PageArgs = {
+  page: Maybe<Scalars["Int"]["input"]>;
+  pageSize: Maybe<Scalars["Int"]["input"]>;
 };
 
-export type RemarkInput = {
-  mentionIds: Scalars["ObjectID"]["input"][];
-  json: Scalars["JSON"]["input"];
-  html: Scalars["String"]["input"];
-};
-
-export type UpdateAppPropertiesInput = {
-  maxWishPerClient: Scalars["Int"]["input"];
-  appointmentsServiceDuration: Scalars["Int"]["input"];
-  appointmentApplyNoShowAfterDays: Scalars["Int"]["input"];
-  allowUpdateNoShowWithinDays: Scalars["Int"]["input"];
-  appointmentsMonthsAhead: Scalars["Int"]["input"];
-  maxAppointmentsPerSlot: Scalars["Int"]["input"];
-  maxAppointmentsPerDay: Scalars["Int"]["input"];
-  workshopHours: UpdateWorkHoursInput;
-};
-
-export type UpdateWorkHoursInput = {
-  opening: Maybe<Scalars["String"]["input"]>[];
-  closing: Maybe<Scalars["String"]["input"]>[];
+export type ProductFilter = {
+  page: Maybe<Scalars["Int"]["input"]>;
+  pageSize: Maybe<Scalars["Int"]["input"]>;
+  search?: Maybe<Scalars["String"]["input"]>;
 };
 
 /* #endregion Inputs */
 
 /* #region Unions */
 
-export type AddRemarkPayload = Remark | ReqError;
+export type LoginResult = Session | InvalidCredentials;
 
-export type Data = A | B | C;
-
-export type DeleteRemarkPayload = DeleteRemarkData | ReqError;
-
-export type EditRemarkPayload = EditRemarkData | ReqError;
+export type PlaceOrderResult = SalesOrder | InsufficientStock;
 
 /* #endregion Unions */
 
 /* #region Interfaces */
 
-export type BasePagination = {
-  totalDocs: Scalars["Int"]["output"];
-  limit: Scalars["Int"]["output"];
-  page: Maybe<Scalars["Int"]["output"]>;
-  totalPages: Scalars["Int"]["output"];
-  nextPage: Maybe<Scalars["Int"]["output"]>;
-  prevPage: Maybe<Scalars["Int"]["output"]>;
-  pagingCounter: Scalars["Int"]["output"];
-  hasPrevPage: Scalars["Boolean"]["output"];
-  hasNextPage: Scalars["Boolean"]["output"];
-  abd: Maybe<Scalars["String"]["output"]>;
+export type Node = {
+  id: Scalars["ID"]["output"];
 };
 
-export type DocId = {
-  _id: Scalars["String"]["output"];
+export type Timestamped = {
+  createdAt: Scalars["DateTime"]["output"];
+  updatedAt: Scalars["DateTime"]["output"];
 };
 
-export type IA = {
-  a: Maybe<Scalars["String"]["output"]>;
-};
-
-export type IB = {
-  b: Maybe<Scalars["String"]["output"]>;
+export type UserError = {
+  message: Scalars["String"]["output"];
 };
 
 /* #endregion Interfaces */
 
 export type Application = {
-  app: {
-    AddRemarkPayload: { type: AddRemarkPayload; fields: "__resolveType"; resolveType: "Remark" | "ReqError" };
-    AppointmentStatusLifeCycleByService: { type: AppointmentStatusLifeCycleByService; fields: "__isTypeOf" | "lifeCycle" | "serviceType" };
-    AppPropertiesPublic: { type: AppPropertiesPublic; fields: "__isTypeOf" | "appointmentsMonthsAhead" | "workshopHours" };
-    AppType: { type: AppType; fields: "__isTypeOf" | "name" };
-    AreaCode: { type: AreaCode; fields: "__isTypeOf" | "alphaCode" | "code" | "country" };
-    BasePagination: { type: BasePagination; fields: "__resolveType"; resolveType: never };
-    DeleteRemarkData: { type: DeleteRemarkData; fields: "__isTypeOf" | "_id" | "remark" };
-    DeleteRemarkPayload: { type: DeleteRemarkPayload; fields: "__resolveType"; resolveType: "DeleteRemarkData" | "ReqError" };
-    DocId: { type: DocId; fields: "__resolveType"; resolveType: "User" };
-    EditRemarkData: { type: EditRemarkData; fields: "__isTypeOf" | "_id" | "remark" };
-    EditRemarkPayload: { type: EditRemarkPayload; fields: "__resolveType"; resolveType: "EditRemarkData" | "ReqError" };
-    FieldError: { type: FieldError; fields: "__isTypeOf" | "field" | "message" };
-    FieldErrors: { type: FieldErrors; fields: "__isTypeOf" | "fieldErrors" };
-    MetaData: { type: MetaData; fields: "__isTypeOf" | "key" | "value" };
-    Pagination: { type: Pagination; fields: "__isTypeOf" | "hasNextPage" | "hasPrevPage" | "limit" | "meta" | "nextPage" | "page" | "pagingCounter" | "prevPage" | "totalDocs" | "totalPages" };
-    Phone: { type: Phone; fields: "__isTypeOf" | "alphaCode" | "code" | "country" | "fullNumber" | "number" };
-    RamadanDate: { type: RamadanDate; fields: "__isTypeOf" | "end" | "start" };
-    Reason: { type: Reason; fields: "__isTypeOf" | "at" | "by" | "byId" | "reason" };
-    Remark: { type: Remark; fields: "__isTypeOf" | "_id" | "at" | "creator" | "deletable" | "deleted" | "edited" | "html" | "json" | "mentionIds" | "userId" };
-    ReqError: { type: ReqError; fields: "__isTypeOf" | "code" | "message" };
-    Store: { type: Store; fields: "__isTypeOf" | "brand" | "closed" | "id" };
-    SubNotificationData: { type: SubNotificationData; fields: "__isTypeOf" | "message" | "title" };
-    WorkHours: { type: WorkHours; fields: "__isTypeOf" | "closing" | "opening" };
-  };
   auth: {
-    A: { type: A; fields: "__isTypeOf" | "dataA" };
-    B: { type: B; fields: "__isTypeOf" | "dataB" };
-    C: { type: C; fields: "__isTypeOf" | "dataC" };
-    Data: { type: Data; fields: "__resolveType"; resolveType: "A" | "B" | "C" };
-    Mutation: { type: Mutation; fields: "logout" };
-    Query: {
-      type: Query;
-      fields: "login";
-      args: {
-        login: { input: LoginInput };
-      };
-    };
-  };
-  users: {
-    IA: { type: IA; fields: "__resolveType"; resolveType: "User" };
-    IB: { type: IB; fields: "__resolveType"; resolveType: "User" };
+    Employee: { type: Employee; fields: "__isTypeOf" | "email" | "id" | "name" | "role" };
+    InvalidCredentials: { type: InvalidCredentials; fields: "__isTypeOf" | "message" };
+    LoginResult: { type: LoginResult; fields: "__resolveType"; resolveType: "InvalidCredentials" | "Session" };
     Mutation: {
       type: Mutation;
-      fields: "setRole";
+      fields: "login" | "logout";
       args: {
-        setRole: { id: Scalars["ID"]["input"]; role: Role };
+        login: { email: Scalars["String"]["input"]; password: Scalars["String"]["input"] };
       };
     };
+    Query: { type: Query; fields: "me" };
+    Session: { type: Session; fields: "__isTypeOf" | "employee" | "token" };
+  };
+  core: {
+    Money: { type: Money; fields: "__isTypeOf" | "amount" | "currency" };
+    Node: { type: Node; fields: "__resolveType"; resolveType: "Customer" | "Employee" | "Product" | "SalesOrder" | "Warehouse" };
+    PageInfo: { type: PageInfo; fields: "__isTypeOf" | "hasNextPage" | "page" | "pageSize" | "total" };
+    Timestamped: { type: Timestamped; fields: "__resolveType"; resolveType: "Customer" | "Product" | "SalesOrder" };
+    UserError: { type: UserError; fields: "__resolveType"; resolveType: "InsufficientStock" | "InvalidCredentials" };
+  };
+  inventory: {
+    Mutation: {
+      type: Mutation;
+      fields: "adjustStock";
+      args: {
+        adjustStock: { sku: Scalars["String"]["input"]; warehouse: Scalars["String"]["input"]; delta: Scalars["Int"]["input"] };
+      };
+    };
+    Product: { type: Product; fields: "__isTypeOf" | "createdAt" | "id" | "name" | "onHand" | "price" | "sku" | "stock" | "updatedAt" };
+    ProductPage: { type: ProductPage; fields: "__isTypeOf" | "items" | "pageInfo" };
     Query: {
       type: Query;
-      fields: "user" | "users";
+      fields: "product" | "products";
       args: {
-        user: { id: Scalars["ID"]["input"] };
+        product: { sku: Scalars["String"]["input"] };
+        products: { filter?: Maybe<ProductFilter> };
       };
     };
-    User: {
-      type: User;
-      fields: "__isTypeOf" | "_id" | "a" | "b" | "name" | "role";
+    StockLevel: { type: StockLevel; fields: "__isTypeOf" | "quantity" | "warehouse" };
+    Subscription: {
+      type: Subscription;
+      fields: "stockChanged";
       args: {
-        name: { trim?: Maybe<Scalars["Boolean"]["input"]> };
+        stockChanged: { sku?: Maybe<Scalars["String"]["input"]> };
       };
     };
-    UserPagination: { type: UserPagination; fields: "__isTypeOf" | "abd" | "data" | "hasNextPage" | "hasPrevPage" | "limit" | "nextPage" | "page" | "pagingCounter" | "prevPage" | "totalDocs" | "totalPages" };
+    Warehouse: { type: Warehouse; fields: "__isTypeOf" | "code" | "id" | "name" };
+  };
+  sales: {
+    Customer: { type: Customer; fields: "__isTypeOf" | "createdAt" | "creditLimit" | "email" | "id" | "name" | "orders" | "updatedAt" };
+    InsufficientStock: { type: InsufficientStock; fields: "__isTypeOf" | "available" | "message" | "requested" | "sku" };
+    Mutation: {
+      type: Mutation;
+      fields: "cancelOrder" | "createCustomer" | "placeOrder";
+      args: {
+        cancelOrder: { id: Scalars["ID"]["input"] };
+        createCustomer: { input: NewCustomer };
+        placeOrder: { customerId: Scalars["ID"]["input"]; lines: OrderLineInput[] };
+      };
+    };
+    OrderLine: { type: OrderLine; fields: "__isTypeOf" | "lineTotal" | "product" | "quantity" | "unitPrice" };
+    PlaceOrderResult: { type: PlaceOrderResult; fields: "__resolveType"; resolveType: "InsufficientStock" | "SalesOrder" };
+    Product: { type: Product; fields: "unitsSold" };
+    Query: {
+      type: Query;
+      fields: "customer" | "customers" | "orders";
+      args: {
+        customer: { id: Scalars["ID"]["input"] };
+        orders: { status?: Maybe<OrderStatus> };
+      };
+    };
+    SalesOrder: { type: SalesOrder; fields: "__isTypeOf" | "createdAt" | "customer" | "id" | "lines" | "number" | "status" | "total" | "updatedAt" };
   };
 };

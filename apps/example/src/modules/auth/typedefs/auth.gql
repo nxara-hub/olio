@@ -1,30 +1,31 @@
-type A {
-  dataA: String!
+enum Role {
+  ADMIN
+  MANAGER
+  CLERK
 }
 
-type B {
-  dataB: String
-}
-
-type C {
-  dataC: User
-}
-
-union Data = A | B | C
-
-input LoginInput {
+type Employee @implements(from: ["Node"]) {
+  name: String!
   email: String!
-  password: String!
+  role: Role!
 }
+
+type Session {
+  token: String!
+  employee: Employee!
+}
+
+"Takes its message field from UserError."
+type InvalidCredentials @implements(from: ["UserError"])
+
+union LoginResult = Session | InvalidCredentials
 
 extend type Query {
-  login(input: LoginInput!): Data!
+  "The signed-in employee, or null."
+  me: Employee
 }
 
 extend type Mutation {
-  logout: Boolean
-}
-
-extend enum ReqErrorCode {
-  TEST123
+  login(email: String!, password: String!): LoginResult!
+  logout: Boolean!
 }

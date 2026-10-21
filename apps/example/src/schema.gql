@@ -2,342 +2,214 @@ type Query
 
 type Mutation
 
-type FieldError {
-  field: String!
+type Subscription
+
+enum Role {
+  ADMIN
+  MANAGER
+  CLERK
+}
+
+type Employee implements Node {
+  id: ID!
+  name: String!
+  email: String!
+  role: Role!
+}
+
+type Session {
+  token: String!
+  employee: Employee!
+}
+
+"Takes its message field from UserError."
+type InvalidCredentials implements UserError {
   message: String!
 }
 
-type FieldErrors {
-  fieldErrors: [FieldError!]!
+union LoginResult = Session | InvalidCredentials
+
+extend type Query {
+  "The signed-in employee, or null."
+  me: Employee
 }
 
-type ReqError {
-  code: ReqErrorCode!
+extend type Mutation {
+  login(email: String!, password: String!): LoginResult!
+  logout: Boolean!
+}
+
+"Anything with a stable id."
+interface Node {
+  id: ID!
+}
+
+"Audit timestamps."
+interface Timestamped {
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"A problem the caller can fix, returned in a result union instead of thrown."
+interface UserError {
   message: String!
 }
 
-type WorkHours {
-  opening: [String]!
-  closing: [String]!
+enum Currency {
+  EUR
+  USD
+  GBP
 }
 
-type Store {
-  id: String!
-  brand: EBrands!
-  closed: Boolean!
+"An amount in minor units (cents), so totals never round."
+type Money {
+  amount: Int!
+  currency: Currency!
 }
 
-type RamadanDate {
-  start: DateTime!
-  end: DateTime!
-}
-
-type AppointmentStatusLifeCycleByService {
-  serviceType: [String]!
-  lifeCycle: JSON!
-}
-
-type AppPropertiesPublic {
-  workshopHours: WorkHours!
-  appointmentsMonthsAhead: Int!
-}
-
-type MetaData {
-  key: String!
-  value: String!
-}
-
-type Remark {
-  _id: ObjectID!
-  mentionIds: [ObjectID!]!
-  json: JSON!
-  html: String!
-  userId: ObjectID
-  creator: String!
-  at: DateTime!
-  deletable: Boolean!
-  deleted: Boolean!
-  edited: Boolean!
-}
-
-type Phone {
-  alphaCode: String!
-  code: String!
-  country: String!
-  number: String!
-  fullNumber: String!
-}
-
-type AreaCode {
-  code: String!
-  alphaCode: String!
-  country: String!
-}
-
-type Pagination {
-  totalDocs: Int!
-  limit: Int!
-  page: Int
-  totalPages: Int!
-  nextPage: Int
-  prevPage: Int
-  pagingCounter: Int!
-  hasPrevPage: Boolean!
-  hasNextPage: Boolean!
-  meta: JSON
-}
-
-type SubNotificationData {
-  title: String!
-  message: String!
-}
-
-type Reason {
-  reason: String!
-  at: DateTime!
-  by: String!
-  byId: ObjectID!
-}
-
-enum ReqErrorCode {
-  NOT_FOUND
-  APP_UNKNOWN
-  APP_INVALID_DTO
-  APP_RATE_LIMIT
-  APP_DUPLICATE_DATA
-  UNAUTHORIZED_ACTION
-  REMARK_NOT_FOUND
-}
-
-enum YesNo {
-  Yes
-  No
-  Unsure
-  Undefined
-}
-
-enum EBrands {
-  Rolex
-  Tudor
-}
-
-enum EGroups {
-  Boutique
-  Workshop
-  Administration
-}
-
-enum ESort {
-  asc
-  desc
-}
-
-enum EIdType {
-  CivilId
-  Passport
-}
-
-enum EHonorifics {
-  Mr
-  Mrs
-  Miss
-  Ms
-  Dr
-  Undefined
-}
-
-enum EGender {
-  Male
-  Female
-  Undefined
-}
-
-input RemarkInput {
-  mentionIds: [ObjectID!]!
-  json: JSON!
-  html: String!
-}
-
-input AddRemarkInput {
-  id: ObjectID!
-  mentionIds: [ObjectID!]!
-  json: JSON!
-  html: String!
-}
-
-input EditRemarkInput {
-  id: ObjectID!
-  remarkId: ObjectID!
-  mentionIds: [ObjectID!]!
-  json: JSON!
-  html: String!
-}
-
-input DeleteRemarkInput {
-  id: ObjectID!
-  remarkId: ObjectID!
-}
-
-input UpdateWorkHoursInput {
-  opening: [String]!
-  closing: [String]!
-}
-
-input UpdateAppPropertiesInput {
-  maxWishPerClient: Int!
-  appointmentsServiceDuration: Int!
-  appointmentApplyNoShowAfterDays: Int!
-  allowUpdateNoShowWithinDays: Int!
-  appointmentsMonthsAhead: Int!
-  maxAppointmentsPerSlot: Int!
-  maxAppointmentsPerDay: Int!
-  workshopHours: UpdateWorkHoursInput!
-}
-
-input MetaDataInput {
-  key: String!
-  value: String!
-}
-
-input AreaCodeInput {
-  code: String!
-  alphaCode: String!
-  country: String!
-}
-
-input PhoneInput {
-  alphaCode: String!
-  code: String!
-  country: String!
-  number: String!
-}
-
-union AddRemarkPayload = Remark | ReqError
-
-type EditRemarkData {
-  _id: ObjectID!
-  remark: Remark!
-}
-
-union EditRemarkPayload = EditRemarkData | ReqError
-
-type DeleteRemarkData {
-  _id: ObjectID!
-  remark: Remark!
-}
-
-union DeleteRemarkPayload = DeleteRemarkData | ReqError
-
-type AppType {
-  name: String
-}
-
-interface BasePagination {
-  totalDocs: Int!
-  limit: Int!
-  page: Int
-  totalPages: Int!
-  nextPage: Int
-  prevPage: Int
-  pagingCounter: Int!
-  hasPrevPage: Boolean!
+type PageInfo {
+  page: Int!
+  pageSize: Int!
+  total: Int!
   hasNextPage: Boolean!
 }
 
-extend interface BasePagination {
-  abd: String
+"Paging arguments, copied into every list filter with @copy."
+input PageArgs {
+  page: Int = 1
+  pageSize: Int = 20
 }
-
-interface DocId {
-  _id: String!
-}
-
-scalar Upload
 
 scalar DateTime
 
-scalar Date
-
-scalar ObjectID
-
-scalar JSON
-
-scalar Void
-
-type A {
-  dataA: String!
+type Warehouse implements Node {
+  id: ID!
+  code: String!
+  name: String!
 }
 
-type B {
-  dataB: String
+type StockLevel {
+  warehouse: Warehouse!
+  quantity: Int!
 }
 
-type C {
-  dataC: User
+type Product implements Node & Timestamped {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  sku: String!
+  name: String!
+  price: Money!
+  "Units on hand, per warehouse."
+  stock: [StockLevel!]!
+  "Units on hand across every warehouse."
+  onHand: Int!
 }
 
-union Data = A | B | C
+type ProductPage {
+  pageInfo: PageInfo!
+  items: [Product!]!
+}
 
-input LoginInput {
+input ProductFilter {
+  page: Int = 1
+  pageSize: Int = 20
+  "Matches SKU or name, case-insensitively."
+  search: String
+}
+
+extend type Query {
+  product(sku: String!): Product
+  products(filter: ProductFilter): ProductPage!
+}
+
+extend type Mutation {
+  "Book stock in (positive delta) or out (negative). Managers only."
+  adjustStock(sku: String!, warehouse: String!, delta: Int!): Product!
+}
+
+extend type Subscription {
+  "Fires whenever stock moves, for one SKU or all of them."
+  stockChanged(sku: String): Product!
+}
+
+type Customer implements Node & Timestamped {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  name: String!
+  "Personal data: managers and admins only."
+  email: String
+  creditLimit: Money!
+}
+
+input NewCustomer {
+  name: String!
   email: String!
-  password: String!
+  creditLimit: Int!
 }
 
 extend type Query {
-  login(input: LoginInput!): Data!
+  customer(id: ID!): Customer
+  customers: [Customer!]!
 }
 
 extend type Mutation {
-  logout: Boolean
+  createCustomer(input: NewCustomer!): Customer!
 }
 
-extend enum ReqErrorCode {
-  TEST123
+enum OrderStatus {
+  CONFIRMED
+  CANCELLED
 }
 
-type UserPagination {
-  totalDocs: Int!
-  limit: Int!
-  page: Int
-  totalPages: Int!
-  nextPage: String
-  prevPage: Int
-  pagingCounter: Int!
-  hasPrevPage: Boolean!
-  hasNextPage: Boolean!
-  abd: String
-  data: [User!]!
+type OrderLine {
+  product: Product!
+  quantity: Int!
+  unitPrice: Money!
+  lineTotal: Money!
+}
+
+type SalesOrder implements Node & Timestamped {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  number: String!
+  customer: Customer!
+  status: OrderStatus!
+  lines: [OrderLine!]!
+  total: Money!
+}
+
+type InsufficientStock implements UserError {
+  message: String!
+  sku: String!
+  requested: Int!
+  available: Int!
+}
+
+union PlaceOrderResult = SalesOrder | InsufficientStock
+
+input OrderLineInput {
+  sku: String!
+  quantity: Int!
+}
+
+extend type Product {
+  "Units on confirmed orders."
+  unitsSold: Int!
+}
+
+extend type Customer {
+  orders: [SalesOrder!]!
 }
 
 extend type Query {
-  users: UserPagination!
+  orders(status: OrderStatus): [SalesOrder!]!
 }
 
 extend type Mutation {
-  setRole(id: ID!, role: Role!): User
-}
-
-extend type Query {
-  user(id: ID!): User
-}
-
-enum Role {
-  Admin
-  Guest
-}
-
-interface IA {
-  a: String
-}
-
-interface IB {
-  b: String
-}
-
-type User implements DocId & IA & IB {
-  _id: String!
-  a: String
-  b: String
-  name(trim: Boolean): String
-  role: Role
+  placeOrder(customerId: ID!, lines: [OrderLineInput!]!): PlaceOrderResult!
+  "Managers only."
+  cancelOrder(id: ID!): SalesOrder
 }

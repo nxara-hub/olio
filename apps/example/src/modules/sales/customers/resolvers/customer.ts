@@ -1,0 +1,7 @@
+import { resolvers } from "@nxlab/olio";
+
+import { money } from "../../../core/money.js";
+
+export const Customer = resolvers.sales.Customer({
+  creditLimit: (row) => money(row.creditLimitCents)
+});

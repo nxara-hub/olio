@@ -1,0 +1,42 @@
+# Shared building blocks. Other modules implement, copy and reference these.
+
+"Anything with a stable id."
+interface Node {
+  id: ID!
+}
+
+"Audit timestamps."
+interface Timestamped {
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"A problem the caller can fix, returned in a result union instead of thrown."
+interface UserError {
+  message: String!
+}
+
+enum Currency {
+  EUR
+  USD
+  GBP
+}
+
+"An amount in minor units (cents), so totals never round."
+type Money {
+  amount: Int!
+  currency: Currency!
+}
+
+type PageInfo {
+  page: Int!
+  pageSize: Int!
+  total: Int!
+  hasNextPage: Boolean!
+}
+
+"Paging arguments, copied into every list filter with @copy."
+input PageArgs {
+  page: Int = 1
+  pageSize: Int = 20
+}

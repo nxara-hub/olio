@@ -1,0 +1,44 @@
+type Warehouse @implements(from: ["Node"]) {
+  code: String!
+  name: String!
+}
+
+type StockLevel {
+  warehouse: Warehouse!
+  quantity: Int!
+}
+
+type Product @implements(from: ["Node", "Timestamped"]) {
+  sku: String!
+  name: String!
+  price: Money!
+  "Units on hand, per warehouse."
+  stock: [StockLevel!]!
+  "Units on hand across every warehouse."
+  onHand: Int!
+}
+
+type ProductPage {
+  pageInfo: PageInfo!
+  items: [Product!]!
+}
+
+input ProductFilter @copy(from: ["PageArgs"]) {
+  "Matches SKU or name, case-insensitively."
+  search: String
+}
+
+extend type Query {
+  product(sku: String!): Product
+  products(filter: ProductFilter): ProductPage!
+}
+
+extend type Mutation {
+  "Book stock in (positive delta) or out (negative). Managers only."
+  adjustStock(sku: String!, warehouse: String!, delta: Int!): Product!
+}
+
+extend type Subscription {
+  "Fires whenever stock moves, for one SKU or all of them."
+  stockChanged(sku: String): Product!
+}

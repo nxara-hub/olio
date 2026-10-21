@@ -1,0 +1,52 @@
+enum OrderStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+type OrderLine {
+  product: Product!
+  quantity: Int!
+  unitPrice: Money!
+  lineTotal: Money!
+}
+
+type SalesOrder @implements(from: ["Node", "Timestamped"]) {
+  number: String!
+  customer: Customer!
+  status: OrderStatus!
+  lines: [OrderLine!]!
+  total: Money!
+}
+
+type InsufficientStock @implements(from: ["UserError"]) {
+  sku: String!
+  requested: Int!
+  available: Int!
+}
+
+union PlaceOrderResult = SalesOrder | InsufficientStock
+
+input OrderLineInput {
+  sku: String!
+  quantity: Int!
+}
+
+# Sales adds fields to types other modules and features own.
+extend type Product {
+  "Units on confirmed orders."
+  unitsSold: Int!
+}
+
+extend type Customer {
+  orders: [SalesOrder!]!
+}
+
+extend type Query {
+  orders(status: OrderStatus): [SalesOrder!]!
+}
+
+extend type Mutation {
+  placeOrder(customerId: ID!, lines: [OrderLineInput!]!): PlaceOrderResult!
+  "Managers only."
+  cancelOrder(id: ID!): SalesOrder
+}

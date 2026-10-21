@@ -1,54 +1,81 @@
 // Compile-time only: each @ts-expect-error proves the generated types close
 // that door. Checked by `bun run check-types`.
-import { mw, query, resolvers, type Fields } from "@nxlab/olio";
+import { mw, query, resolvers, subscription, type Fields } from "@nxlab/olio";
 
-// User belongs to the users module; the application cannot target it.
+// ---- Middleware targets ------------------------------------------------
+
+// The application targets "*" and root types, not module types.
 // @ts-expect-error
-mw({ User: { name: [] } });
+mw({ Product: { name: [] } });
 
-// createUser is not a users Mutation field.
+// placeOrder belongs to sales, not inventory.
 // @ts-expect-error
-mw.users({ Mutation: { createUser: [] } });
+mw.inventory({ Mutation: { placeOrder: [] } });
 
-// The exclusive form only exists for real targets.
+// The "-" form exists only for real fields.
 // @ts-expect-error
-mw.auth({ Query: { "-nope": [] } });
+mw.auth({ Mutation: { "-nope": [] } });
 
-// Not a users Query field.
+// A module targets fields it declares: unitsSold is sales', not inventory's.
 // @ts-expect-error
-query.users({ login: () => null });
+mw.inventory({ Product: { unitsSold: [] } });
+mw.sales({ Product: { unitsSold: [] } });
 
-// Wrong return type for User.name.
+// ---- Resolvers ---------------------------------------------------------
+
+// orders is a sales Query field.
 // @ts-expect-error
-resolvers.users.User({ name: () => 42 });
+query.inventory({ orders: () => [] });
 
-// auth does not define User.
+// Wrong return type for Product.name.
 // @ts-expect-error
-resolvers.auth.User({});
+resolvers.inventory.Product({ name: () => 42 });
 
-// Field types outside resolvers: arguments and results by type and field.
-export const userArgs: Fields["Query"]["user"]["args"] = { id: "1" };
-export const role: Fields["Mutation"]["setRole"]["args"]["role"] = "Admin";
-export const name: Fields["User"]["name"]["result"] = null;
+// Inventory can't resolve the field sales added to its type.
+// @ts-expect-error
+resolvers.inventory.Product({ unitsSold: () => 0 });
 
-// @ts-expect-error id is a string
-export const badArgs: Fields["Query"]["user"]["args"] = { id: 1 };
+// __resolveType returns one of the union's members.
+// @ts-expect-error
+resolvers.sales.PlaceOrderResult({ __resolveType: () => "Customer" });
 
+// ---- Mappers -----------------------------------------------------------
+
+// Product is mapped to ProductRow: resolvers return rows and read rows.
+resolvers.sales.Product({ unitsSold: (row) => row.priceCents });
+// @ts-expect-error a ProductRow needs priceCents, currency and timestamps
+query.inventory({ product: () => ({ id: "p", sku: "X", name: "X" }) });
+
+// The mapping reaches into unmapped types: StockLevel and pages hold rows.
+type PageItems = Fields["Query"]["products"]["result"]["items"];
+const productType = {
+  id: "p",
+  sku: "X",
+  name: "X",
+  price: { amount: 1, currency: "EUR" }
+};
+// @ts-expect-error a page holds ProductRows, not Product objects
+export const items: PageItems = [productType];
+
+// ---- Subscriptions -----------------------------------------------------
+
+subscription.inventory({
+  // @ts-expect-error yields must be ProductRows
+  async *stockChanged() {
+    yield { sku: "X" };
+  }
+});
+subscription.inventory({
+  // @ts-expect-error a subscription field is an iterable, not { subscribe }
+  stockChanged: { subscribe: () => null }
+});
+
+// ---- Field types outside resolvers --------------------------------------
+
+type Lines = Fields["Mutation"]["placeOrder"]["args"]["lines"];
+export const lines: Lines = [{ sku: "CHAIR-01", quantity: 2 }];
+const badLine = { sku: "X", quantity: "2" };
+// @ts-expect-error quantity is an Int
+export const badLines: Lines = [badLine];
 // @ts-expect-error not a Query field
 export type NoField = Fields["Query"]["nope"];
-
-// @ts-expect-error hooks are not fields
-export type NoHook = Fields["User"]["__isTypeOf"];
-
-// Mappers: User is mapped to UserRow, so resolvers return rows.
-query.users({ user: () => ({ _id: "1", name: "Ada", role: "Admin" }) });
-// @ts-expect-error a UserRow needs a role
-query.users({ user: () => ({ _id: "1", name: "Ada" }) });
-// The mapping reaches into unmapped types: UserPagination.data takes rows.
-type PageRows = NonNullable<Fields["Query"]["users"]["result"]>["data"];
-export const page: PageRows = [{ _id: "1", name: "Ada", role: "Admin" }];
-const notARow = { _id: "1", name: null, role: null };
-// @ts-expect-error User-shaped objects are not rows (name may be null)
-export const notRows: PageRows = [notARow];
-// A User field resolver's root is the row.
-resolvers.users.User({ role: (row) => row.role });

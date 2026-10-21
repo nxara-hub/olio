@@ -1,8 +1,7 @@
 import { query } from "@nxlab/olio";
 
+import { employee } from "./store.js";
+
 export const Query = query.auth({
-  login: (_root, { input }) => ({
-    __typename: "A",
-    dataA: `token-for-${input.email}`
-  })
+  me: (_root, _args, ctx) => (ctx.viewer && employee(ctx.viewer.id)) ?? null
 });

@@ -1,0 +1,21 @@
+type Customer @implements(from: ["Node", "Timestamped"]) {
+  name: String!
+  "Personal data: managers and admins only."
+  email: String
+  creditLimit: Money!
+}
+
+input NewCustomer {
+  name: String!
+  email: String!
+  creditLimit: Int!
+}
+
+extend type Query {
+  customer(id: ID!): Customer
+  customers: [Customer!]!
+}
+
+extend type Mutation {
+  createCustomer(input: NewCustomer!): Customer!
+}

@@ -22,27 +22,35 @@ modules/*/typedefs/*.gql ─→ @nxlab/schema ─→ @nxlab/codegen ─→ gener
 ## At a glance
 
 ```ts
-// modules/users/query.ts — typed from the generated Application
-export const Query = query.users({
-  user: (root, { id }, ctx, info) => store.get(id) ?? null
+// modules/inventory/query.ts: typed from the generated Application
+export const Query = query.inventory({
+  product: (root, { sku }, ctx, info) => products.get(sku) ?? null
 });
 
-// modules/users/index.ts
-export const usersModule = module.users({
-  typeDefs: await loadTypeDefs(new URL("**/typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(new URL("**/query.ts", import.meta.url)),
-  middleware: mw.users({ Query: { user: [audit()] } })
+// modules/inventory/index.ts
+export const inventoryModule = module.inventory({
+  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+  resolvers: await loadResolvers(
+    new URL("{query,mutation}.ts", import.meta.url)
+  ),
+  middleware: mw.inventory({
+    Mutation: { adjustStock: [requireRole("MANAGER")] }
+  })
 });
 
 // index.ts
 export const app = olio({
-  middleware: mw({ "*": { "*": [requestLogger()] } }),
-  modules: [usersModule, authModule]
+  middleware: mw({
+    "*": { "*": [requestLogger()] },
+    Query: { "*": [requireAuth()] }
+  }),
+  modules: await loadModules(new URL("modules/*/index.ts", import.meta.url)),
+  directives
 });
 // app.schema → any GraphQL server
 ```
 
-[`apps/example`](./apps/example) is a runnable app with modules split into features, middleware layering and opt-outs, and compile-time checks.
+[`apps/example`](./apps/example) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows every feature, with a map of where each one lives.
 
 ## Development
 
