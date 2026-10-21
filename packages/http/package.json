@@ -1,0 +1,68 @@
+{
+  "name": "@nxlab/http",
+  "version": "0.0.0",
+  "description": "Serve an olio app over HTTP and WebSocket, on any framework.",
+  "keywords": [
+    "graphql",
+    "graphql-ws",
+    "http",
+    "nxara",
+    "websocket"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch.d.ts",
+      "default": "./dist/fetch.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./ws": {
+      "types": "./dist/ws.d.ts",
+      "default": "./dist/ws.js"
+    },
+    "./bun": {
+      "types": "./dist/bun.d.ts",
+      "default": "./dist/bun.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "graphql-http": "^1.23.1",
+    "graphql-ws": "^6.4.1"
+  },
+  "devDependencies": {
+    "@nxlab/olio": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "graphql": "^17.0.2",
+    "ws": "^8.18.3"
+  },
+  "peerDependencies": {
+    "@nxlab/olio": "workspace:*",
+    "graphql": "^17.0.0",
+    "ws": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ws": {
+      "optional": true
+    }
+  }
+}
