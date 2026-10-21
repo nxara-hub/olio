@@ -3,6 +3,7 @@ import { makeHandler } from "graphql-ws/use/bun";
 
 import {
   errorMasker,
+  guardContext,
   type Servable,
   type SubscriptionOptions
 } from "./core.js";
@@ -32,7 +33,7 @@ export function bunWebSocket(
   websocket: ReturnType<typeof makeHandler>;
 } {
   const mask = errorMasker(options);
-  const { context } = options;
+  const context = guardContext(mask, options.context);
   return {
     upgrade: (request, server) =>
       request.headers.get("upgrade")?.toLowerCase() === "websocket" &&

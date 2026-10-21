@@ -6,6 +6,7 @@ import type { WebSocketServer } from "ws";
 
 import {
   errorMasker,
+  guardContext,
   type Servable,
   type SubscriptionOptions
 } from "./core.js";
@@ -27,7 +28,7 @@ export function wsServer(
   options: SubscriptionOptions<IncomingMessage> = {}
 ): () => Promise<void> {
   const mask = errorMasker(options);
-  const { context } = options;
+  const context = guardContext(mask, options.context);
   const { dispose } = useServer(
     {
       schema: app.schema,

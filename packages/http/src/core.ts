@@ -4,6 +4,7 @@ import {
   type ExecutionResult,
   type GraphQLSchema
 } from "graphql";
+import type { Response as HttpResponse } from "graphql-http";
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -112,6 +113,8 @@ export interface SubscriptionOptions<Request> extends ErrorOptions {
 export function errorMasker(options: ErrorOptions): {
   error: (error: GraphQLError) => GraphQLError;
   result: (result: ExecutionResult) => ExecutionResult;
+  /** A failure before execution (a throwing `context` hook), as a GraphQLError. */
+  thrown: (error: unknown) => GraphQLError;
 } {
   const { maskErrors = true, onUnexpectedError = console.error } = options;
   const mask = (error: GraphQLError): GraphQLError => {
@@ -128,6 +131,86 @@ export function errorMasker(options: ErrorOptions): {
   return {
     error: mask,
     result: (result) =>
-      result.errors ? { ...result, errors: result.errors.map(mask) } : result
+      result.errors ? { ...result, errors: result.errors.map(mask) } : result,
+    thrown: (error) => {
+      if (error instanceof GraphQLError) return error;
+      onUnexpectedError(error);
+      return new GraphQLError(
+        maskErrors || !(error instanceof Error)
+          ? "Unexpected error."
+          : error.message
+      );
+    }
+  };
+}
+
+/**
+ * Run a `context` hook so that a failure in it is handled like any other
+ * error: GraphQLErrors pass through, anything else is hidden and reported.
+ * Without this, the protocol libraries would send its raw message (SSE,
+ * WebSocket in development) or an empty 500, and report nothing.
+ */
+export function guardContext<A, R>(
+  mask: ReturnType<typeof errorMasker>,
+  hook: ((arg: A) => MaybePromise<R>) | undefined
+): ((arg: A) => Promise<R>) | undefined {
+  if (!hook) return undefined;
+  return async (arg) => {
+    try {
+      return await hook(arg);
+    } catch (error) {
+      throw mask.thrown(error);
+    }
+  };
+}
+
+/**
+ * graphql-http's response for a context hook that failed: a GraphQL error
+ * body. 200 for a deliberate GraphQLError (e.g. UNAUTHENTICATED), so clients
+ * read it like any error; 500 for an unexpected one.
+ */
+export function contextFailure(
+  mask: ReturnType<typeof errorMasker>,
+  error: unknown
+): HttpResponse {
+  const deliberate = error instanceof GraphQLError;
+  const graphqlError = mask.thrown(error);
+  return [
+    JSON.stringify({ errors: [graphqlError.toJSON()] }),
+    {
+      status: deliberate ? 200 : 500,
+      statusText: deliberate ? "OK" : "Internal Server Error",
+      headers: { "content-type": "application/json; charset=utf-8" }
+    }
+  ];
+}
+
+/**
+ * graphql-sse lets an error from `context` escape its handler. This is the
+ * response to send instead: for a stream, one `next` event with the error
+ * and `complete`, which the client reads as an ordinary GraphQL error;
+ * otherwise (single-connection mode's requests) a JSON error body.
+ */
+export function sseFailure(
+  mask: ReturnType<typeof errorMasker>,
+  error: unknown,
+  streaming: boolean
+): { status: number; headers: Record<string, string>; body: string } {
+  if (!streaming) {
+    const [body, init] = contextFailure(mask, error);
+    return {
+      status: init.status,
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: body ?? ""
+    };
+  }
+  const result = JSON.stringify({ errors: [mask.thrown(error).toJSON()] });
+  return {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache"
+    },
+    body: `event: next\ndata: ${result}\n\nevent: complete\ndata:\n\n`
   };
 }

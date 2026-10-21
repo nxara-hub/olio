@@ -99,7 +99,7 @@ For WebSockets (the graphql-ws protocol, which Apollo Client, urql and Relay spe
 
 ## Errors
 
-Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost. This applies to queries, mutations and subscriptions alike, over every transport, including a subscription that fails while starting or while streaming.
+Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost. This applies to queries, mutations and subscriptions alike, over every transport, including a subscription that fails while starting or while streaming, and a `context` hook that throws. Throw a `GraphQLError` from `context` (say, `UNAUTHENTICATED` for a bad token) and the client gets it as a normal GraphQL error: status 200 over HTTP, an error event over SSE, a close reason over WebSocket.
 
 ```ts
 throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // the client sees this

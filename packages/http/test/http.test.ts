@@ -315,3 +315,112 @@ describe.each([
     });
   }
 );
+
+describe("a context hook that throws", () => {
+  const leak = () => {
+    throw new Error("password=hunter2");
+  };
+  const denied = () => {
+    throw new GraphQLError("Bad token", {
+      extensions: { code: "UNAUTHENTICATED" }
+    });
+  };
+  const query = (handler: (r: Request) => Promise<Response>) =>
+    handler(
+      new Request("http://localhost/graphql", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "{ hello }" })
+      })
+    );
+
+  test("over HTTP: a GraphQL error, hidden and reported unless deliberate", async () => {
+    const reported: unknown[] = [];
+    const unexpected = await query(
+      fetchHandler(app, {
+        context: leak,
+        onUnexpectedError: (e) => reported.push(e)
+      })
+    );
+    expect(unexpected.status).toBe(500);
+    expect(await unexpected.json()).toEqual({
+      errors: [{ message: "Unexpected error." }]
+    });
+    expect(reported.map((e) => (e as Error).message)).toEqual([
+      "password=hunter2"
+    ]);
+
+    const deliberate = await query(fetchHandler(app, { context: denied }));
+    expect(deliberate.status).toBe(200);
+    expect(await deliberate.json()).toEqual({
+      errors: [
+        { message: "Bad token", extensions: { code: "UNAUTHENTICATED" } }
+      ]
+    });
+  });
+
+  test("over SSE and WebSocket: hidden, never the raw message", async () => {
+    const reported: unknown[] = [];
+    const onUnexpectedError = (e: unknown) => reported.push(e);
+    const handler = fetchHandler(app, {
+      subscriptionContext: leak,
+      onUnexpectedError
+    });
+    const sse = createSseClient({
+      url: "http://localhost/graphql",
+      fetchFn: ((input: string, init?: RequestInit) =>
+        handler(new Request(input, init))) as typeof fetch,
+      retryAttempts: 0
+    });
+    const [sseResult] = (await sseCollect(
+      sse,
+      "subscription { ticks(upTo: 1) }"
+    )) as {
+      errors?: unknown;
+    }[];
+    sse.dispose();
+    expect(JSON.stringify(sseResult?.errors)).toContain("Unexpected error.");
+    expect(JSON.stringify(sseResult?.errors)).not.toContain("hunter2");
+
+    const nodePort = await listen(
+      createServer(
+        nodeHandler(app, { subscriptionContext: leak, onUnexpectedError })
+      )
+    );
+    const nodeSse = createSseClient({
+      url: `http://localhost:${nodePort}/graphql`,
+      retryAttempts: 0
+    });
+    const [nodeResult] = (await sseCollect(
+      nodeSse,
+      "subscription { ticks(upTo: 1) }"
+    )) as {
+      errors?: unknown;
+    }[];
+    nodeSse.dispose();
+    expect(JSON.stringify(nodeResult?.errors)).toContain("Unexpected error.");
+
+    const server = createServer();
+    const port = await listen(server);
+    const close = wsServer(
+      app,
+      new WebSocketServer({ server, path: "/graphql" }),
+      {
+        context: leak,
+        onUnexpectedError
+      }
+    );
+    servers.push({ close });
+    const ws = await collect(
+      `ws://localhost:${port}/graphql`,
+      "subscription { ticks(upTo: 1) }"
+    );
+    const closed = (ws[0] as { errors?: { reason?: string } }).errors;
+    expect(closed?.reason).toBe("Unexpected error.");
+    expect(reported.map((e) => (e as Error).message)).toEqual([
+      "password=hunter2",
+      "password=hunter2",
+      "password=hunter2"
+    ]);
+  });
+});

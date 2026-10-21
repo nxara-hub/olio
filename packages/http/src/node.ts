@@ -4,9 +4,12 @@ import { createHandler } from "graphql-http/lib/use/http";
 import { createHandler as createSseHandler } from "graphql-sse/lib/use/http";
 
 import {
+  contextFailure,
   errorMasker,
+  guardContext,
   isSse,
   maskOperation,
+  sseFailure,
   type HttpOptions,
   type Servable
 } from "./core.js";
@@ -25,10 +28,22 @@ export function nodeHandler(
   options: HttpOptions<IncomingMessage> = {}
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const mask = errorMasker(options);
-  const { context, subscriptionContext = context } = options;
+  const { context } = options;
+  const subscriptionContext = guardContext(
+    mask,
+    options.subscriptionContext ?? context
+  );
   const http = createHandler({
     schema: app.schema,
-    context: context ? (req) => context(req.raw) as never : undefined,
+    context: context
+      ? async (req) => {
+          try {
+            return (await context(req.raw)) as never;
+          } catch (error) {
+            return contextFailure(mask, error);
+          }
+        }
+      : undefined,
     onOperation: (_req, _args, result) => mask.result(result)
   });
   const sse = createSseHandler({
@@ -39,14 +54,24 @@ export function nodeHandler(
     onOperation: (_ctx, _req, _args, result) => maskOperation(mask, result),
     onNext: (_ctx, _req, result) => mask.result(result as never) as never
   });
-  return (req, res) => {
-    const token = req.headers["x-graphql-event-stream-token"];
-    return isSse({
+  return async (req, res) => {
+    const header = req.headers["x-graphql-event-stream-token"];
+    const signals = {
       method: req.method ?? "GET",
       accept: req.headers.accept,
-      token: Array.isArray(token) ? token[0] : token
-    })
-      ? sse(req, res)
-      : http(req, res);
+      token: Array.isArray(header) ? header[0] : header
+    };
+    if (!isSse(signals)) return http(req, res);
+    try {
+      await sse(req, res);
+    } catch (error) {
+      if (res.headersSent) throw error;
+      const failure = sseFailure(
+        mask,
+        error,
+        !signals.token && signals.method !== "PUT"
+      );
+      res.writeHead(failure.status, failure.headers).end(failure.body);
+    }
   };
 }

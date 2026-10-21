@@ -2,9 +2,12 @@ import { createHandler } from "graphql-http/lib/use/fetch";
 import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
 
 import {
+  contextFailure,
   errorMasker,
+  guardContext,
   isSse,
   maskOperation,
+  sseFailure,
   type HttpOptions,
   type Servable
 } from "./core.js";
@@ -24,10 +27,22 @@ export function fetchHandler(
   options: HttpOptions<Request> = {}
 ): (request: Request) => Promise<Response> {
   const mask = errorMasker(options);
-  const { context, subscriptionContext = context } = options;
+  const { context } = options;
+  const subscriptionContext = guardContext(
+    mask,
+    options.subscriptionContext ?? context
+  );
   const http = createHandler({
     schema: app.schema,
-    context: context ? (req) => context(req.raw) as never : undefined,
+    context: context
+      ? async (req) => {
+          try {
+            return (await context(req.raw)) as never;
+          } catch (error) {
+            return contextFailure(mask, error);
+          }
+        }
+      : undefined,
     onOperation: (_req, _args, result) => mask.result(result)
   });
   const sse = createSseHandler({
@@ -38,12 +53,22 @@ export function fetchHandler(
     onOperation: (_ctx, _req, _args, result) => maskOperation(mask, result),
     onNext: (_ctx, _req, result) => mask.result(result as never) as never
   });
-  return (request) =>
-    isSse({
+  return async (request) => {
+    const signals = {
       method: request.method,
       accept: request.headers.get("accept"),
       token: request.headers.get("x-graphql-event-stream-token")
-    })
-      ? sse(request)
-      : http(request);
+    };
+    if (!isSse(signals)) return http(request);
+    try {
+      return await sse(request);
+    } catch (error) {
+      const failure = sseFailure(
+        mask,
+        error,
+        !signals.token && signals.method !== "PUT"
+      );
+      return new Response(failure.body, failure);
+    }
+  };
 }
