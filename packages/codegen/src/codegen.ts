@@ -1,4 +1,4 @@
-import { compose } from "@nxlab/schema";
+import { compose, type Ownership } from "@nxlab/schema";
 import {
   isEnumType,
   isInputObjectType,
@@ -48,6 +48,40 @@ export interface Compiled {
   schema: GraphQLSchema;
 }
 
+/** Names a function already has: `query.sales` is one, so features can't use them. */
+const FUNCTION_PROPS = new Set([
+  "apply",
+  "arguments",
+  "bind",
+  "call",
+  "caller",
+  "length",
+  "name",
+  "prototype",
+  "toString"
+]);
+
+/**
+ * Feature names sit next to type names in the builders
+ * (`resolvers.sales.orders` / `resolvers.sales.Customer`), so they can't clash.
+ */
+function assertFeatureNames(ownership: Ownership): void {
+  for (const id of ownership.keys()) {
+    const [module = "", feature] = id.split("/");
+    if (feature === undefined) continue;
+    const clash = FUNCTION_PROPS.has(feature)
+      ? "a reserved name"
+      : ownership.get(module)?.has(feature)
+        ? `type "${feature}" in module "${module}"`
+        : undefined;
+    if (clash) {
+      throw new Error(
+        `Feature folder "${id}" clashes with ${clash}; rename the folder`
+      );
+    }
+  }
+}
+
 function assertSupported(schema: GraphQLSchema): void {
   for (const name of Object.keys(schema.getTypeMap())) {
     if (RESERVED_NAMES.has(name)) {
@@ -74,6 +108,7 @@ export function compile(
     options.directives
   );
   assertSupported(schema);
+  assertFeatureNames(ownership);
 
   const types = Object.values(schema.getTypeMap())
     .filter((t) => !t.name.startsWith("__") && !BUILTIN_SCALARS.has(t.name))

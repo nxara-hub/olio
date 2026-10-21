@@ -50,39 +50,49 @@ export const User = resolvers.users.User({
 
 `mutation.<id>` and `subscription.<id>` work the same way. See [Subscriptions](#subscriptions) for what a subscription field looks like.
 
-## Splitting a large module
+## Features: splitting a large module
 
-When a module grows, split it into feature folders. It stays one module (`users`), so the generated types and builders don't change:
+When a module grows, split it into features: subfolders that each own part of the module's schema.
 
 ```
-src/modules/users/
-├── index.ts            # assembles the module
-├── store.ts            # shared code
-├── typedefs/user.gql   # shared core: User, Role
-├── resolvers/user.ts
-├── profile/
-│   ├── typedefs/profile.gql
-│   ├── query.ts
-│   └── middleware.ts
-└── admin/
-    ├── typedefs/admin.gql
-    ├── query.ts
-    ├── mutation.ts
-    └── middleware.ts
+src/modules/sales/
+├── index.ts              # the module: module-wide middleware, loads its features
+├── store.ts              # shared code
+├── typedefs/             # SDL the module itself owns (optional)
+├── customers/            # feature "customers"
+│   ├── index.ts
+│   ├── typedefs/customers.gql
+│   ├── query.ts  mutation.ts  middleware.ts
+└── orders/               # feature "orders"
+    ├── index.ts
+    ├── typedefs/orders.gql
+    └── query.ts  mutation.ts  middleware.ts
 ```
 
 ```ts
-export const usersModule = module.users({
-  typeDefs: await loadTypeDefs(new URL("**/typedefs/*.gql", import.meta.url)),
+// sales/orders/index.ts
+export const orders = feature.sales.orders({
+  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
   resolvers: await loadResolvers(
-    new URL("**/{query,mutation,subscription}.{js,ts}", import.meta.url),
-    new URL("**/resolvers/*.{js,ts}", import.meta.url)
+    new URL("{query,mutation}.{js,ts}", import.meta.url)
   ),
-  middleware: [profile, admin] // each feature's mw.users({...})
+  middleware: mw.sales.orders({
+    Mutation: { cancelOrder: [requireRole("MANAGER")] }
+  })
+});
+
+// sales/index.ts
+export const salesModule = module.sales({
+  middleware: mw.sales({ Mutation: { "*": [journal()] } }), // every feature's fields
+  features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
 });
 ```
 
-`Query` exports from several files merge, and a field defined twice throws. Middleware maps merge in order. They are module-wide, so a feature should key only the fields it owns. Point codegen's `typeDefs` at `**/typedefs/**/*.gql` so it finds every feature's SDL.
+- **Discovery.** Codegen treats a direct subfolder of a module as a feature when the `typeDefs` glob finds files of its own there. With `**/typedefs/**/*.gql`, `sales/orders/typedefs/` makes `orders` a feature, while `sales/typedefs/` stays the module's own SDL. Features don't nest: deeper folders belong to their feature.
+- **Isolation.** A feature owns the fields its SDL declares, like a module does, and only it can resolve them. To add a field to a sibling's type, `extend` it (`orders` adds `Customer.orders`).
+- **Builders.** Each feature has its own typed builders: `query.sales.orders`, `mutation.sales.orders`, `resolvers.sales.orders.SalesOrder`, `mw.sales.orders`. The module's are still there (`query.sales` for fields the module itself declares).
+- **Middleware nests.** For a feature's field, the chain runs app → module → feature. `mw.sales` reaches every feature's fields, and `mw.sales.orders` only orders'. A `-` key in a feature drops the module's layers as well as the app's.
+- **Names.** A feature folder can't share its name with a type the module declares, or with a function property (`name`, `length`, …), because both sit side by side in the builders. Codegen tells you if one does.
 
 ## Application
 
@@ -130,8 +140,10 @@ Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the 
 3. app `Type.field`
 4. module `Type.*`
 5. module `Type.field`
+6. feature `Type.*` (for a feature's field)
+7. feature `Type.field`
 
-The application addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`. A module addresses the fields it declares, including fields it adds to other modules' types with `extend`.
+The application addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`. A module addresses the fields it and its features declare, including fields they add to other modules' types with `extend`; a feature, only its own.
 
 A **`-` key** stops a target from inheriting middleware from the layers above it. `{ Query: { "-login": [rateLimit()] } }` runs only `rateLimit` for `Query.login`, and `"-*"` does the same for every field of the type, while lower layers still apply. `"x"` and `"-x"` can't be combined.
 

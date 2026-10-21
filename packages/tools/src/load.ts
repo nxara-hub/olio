@@ -2,7 +2,7 @@ import { glob, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { OlioModule } from "@nxlab/olio";
+import type { OlioFeature, OlioModule } from "@nxlab/olio";
 import { parse, Source, type DocumentNode } from "graphql";
 
 export type TypeSource = string | DocumentNode;
@@ -139,26 +139,31 @@ export async function loadResolvers(
   return merged;
 }
 
-/** An `OlioModule`, recognised by shape so any copy of olio works. */
-function isModule(value: unknown): value is OlioModule {
+/** Shared by modules and features. */
+function hasParts(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
-  const m = value as Record<string, unknown>;
+  const v = value as Record<string, unknown>;
   return (
-    typeof m.id === "string" &&
-    Array.isArray(m.typeDefs) &&
-    Array.isArray(m.resolvers) &&
-    typeof m.middleware === "object"
+    typeof v.id === "string" &&
+    Array.isArray(v.typeDefs) &&
+    Array.isArray(v.resolvers) &&
+    typeof v.middleware === "object"
   );
 }
 
-/**
- * Load modules from files, usually each module's `index.ts`: every exported
- * module (`export const usersModule = module.users({...})`) is collected, in
- * file order. A file that exports no module throws.
- */
-export async function loadModules(
-  ...patterns: Pattern[]
-): Promise<OlioModule[]> {
+/** Recognised by shape, so any copy of olio works. */
+const isModule = (value: unknown): value is OlioModule =>
+  hasParts(value) && Array.isArray(value.features);
+
+const isFeature = (value: unknown): value is OlioFeature =>
+  hasParts(value) && typeof value.module === "string";
+
+/** Import every file and collect its exports that pass `is`, in file order. */
+async function collect<T>(
+  patterns: readonly Pattern[],
+  is: (value: unknown) => value is T,
+  what: string
+): Promise<T[]> {
   const files = await matchFiles(patterns);
   const loaded = await Promise.all(
     files.map(async (file) => {
@@ -166,10 +171,25 @@ export async function loadModules(
         string,
         unknown
       >;
-      const modules = Object.values(exports).filter(isModule);
-      if (modules.length === 0) throw new Error(`${file} exports no module`);
-      return modules;
+      const found = Object.values(exports).filter(is);
+      if (found.length === 0) throw new Error(`${file} exports no ${what}`);
+      return found;
     })
   );
   return loaded.flat();
 }
+
+/**
+ * Load modules from files, usually each module's `index.ts`: every exported
+ * module (`export const usersModule = module.users({...})`) is collected, in
+ * file order. A file that exports no module throws.
+ */
+export const loadModules = (...patterns: Pattern[]): Promise<OlioModule[]> =>
+  collect(patterns, isModule, "module");
+
+/**
+ * Load a module's features, usually each feature folder's `index.ts`
+ * (`export const orders = feature.sales.orders({...})`), in file order.
+ */
+export const loadFeatures = (...patterns: Pattern[]): Promise<OlioFeature[]> =>
+  collect(patterns, isFeature, "feature");

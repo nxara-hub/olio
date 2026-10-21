@@ -2,7 +2,7 @@ import { mutation } from "@nxlab/olio";
 
 import { customers } from "../store.js";
 
-export const Mutation = mutation.sales({
+export const Mutation = mutation.sales.customers({
   createCustomer: (_root, { input }) => {
     const now = new Date();
     const row = {

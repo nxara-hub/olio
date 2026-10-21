@@ -9,6 +9,7 @@ type Maybe<T> = T | null;
 export type Scalars = {
   Boolean: ResolveScalar<"Boolean">;
   ID: ResolveScalar<"ID">;
+  Int: ResolveScalar<"Int">;
   String: ResolveScalar<"String">;
 };
 
@@ -24,6 +25,12 @@ export type Role = ResolveEnum<"Role", (typeof Role)[keyof typeof Role]>;
 
 /* #region Types */
 
+export type Article = {
+  __typename?: "Article";
+  id: Scalars["ID"]["output"];
+  title: Scalars["String"]["output"];
+};
+
 export type Post = {
   __typename?: "Post";
   id: Scalars["ID"]["output"];
@@ -36,6 +43,7 @@ export type Query = {
   items: Item[];
   named: Named[];
   usersByRole: User[];
+  articles: Article[];
 };
 
 export type Tag = {
@@ -48,6 +56,7 @@ export type User = {
   id: Scalars["ID"]["output"];
   name: Scalars["String"]["output"];
   role: Role;
+  articleCount: Scalars["Int"]["output"];
 };
 
 /* #endregion Types */
@@ -92,5 +101,10 @@ export type Application = {
     Role: { type: Role; fields: never; enum: "ADMIN" | "GUEST" };
     Tag: { type: Tag; fields: "__isTypeOf" | "name" };
     User: { type: User; fields: "__isTypeOf" | "id" | "name" | "role" };
+  };
+  "content/blog": {
+    Article: { type: Article; fields: "__isTypeOf" | "id" | "title" };
+    Query: { type: Query; fields: "articles"; root: "query" };
+    User: { type: User; fields: "articleCount" };
   };
 };

@@ -106,22 +106,38 @@ describe("module discovery", () => {
     }
   });
 
-  test("does not treat nested directories as separate modules", async () => {
+  test("a subfolder with SDL of its own is a feature, not a module", async () => {
     const dir = await makeDir();
     try {
       const modules = join(dir, "modules");
-      await writeModule(modules, "auth", {
-        "auth.gql": "type Query { viewer: User } type User { id: ID! }",
-        "sub/deep.gql": "extend type User { email: String! }"
+      await writeModule(modules, "sales", {
+        "typedefs/core.gql": "type Customer { id: ID! }",
+        "typedefs/more/extra.gql": "extend type Customer { name: String }",
+        "orders/typedefs/orders.gql":
+          "extend type Query { orders: Int } extend type Customer { orderCount: Int }",
+        "orders/returns/typedefs/returns.gql":
+          "extend type Query { returns: Int }",
+        "notes/readme.md": "not SDL"
       });
       const output = join(dir, "generated.ts");
 
-      await codegen({ modules, typeDefs: "**/*.gql", output });
+      await codegen({
+        modules,
+        typeDefs: "**/typedefs/**/*.gql",
+        output,
+        logs: false
+      });
 
       const out = await readFile(output, "utf8");
-      // Both files belong to the single "auth" module.
-      expect(out).toContain("\n  auth: {");
-      expect(out).not.toContain("\n  sub: {");
+      // sales/typedefs/ is the module's own SDL, including its subfolders.
+      expect(out).toContain(
+        '  sales: {\n    Customer: { type: Customer; fields: "__isTypeOf" | "id" | "name" };\n  };'
+      );
+      // orders/ is a feature; features don't nest, so returns/ belongs to it.
+      expect(out).toContain(
+        '  "sales/orders": {\n    Customer: { type: Customer; fields: "orderCount" };\n    Query: { type: Query; fields: "orders" | "returns"; root: "query" };\n  };'
+      );
+      expect(out).not.toContain("notes");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

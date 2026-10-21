@@ -40,11 +40,19 @@ function parseFile(filePath: string, source: string): DocumentNode {
   }
 }
 
-interface ModuleDefinition {
+/** A module's own SDL, or one feature's. */
+interface Part {
+  /** `"sales"`, or `"sales/orders"` for a feature. */
   id: string;
-  directory: string;
   files: string[];
   typeDefs: DocumentNode[];
+}
+
+interface ModuleDefinition {
+  id: string;
+  /** The module's own SDL first, then one part per feature. */
+  parts: Part[];
+  features: string[];
 }
 
 /** Glob for a module's typeDefs, resolved relative to its directory. */
@@ -89,6 +97,20 @@ async function discoverModules(
   const patterns = Array.isArray(typeDefs) ? typeDefs : [typeDefs];
   const modules: ModuleDefinition[] = [];
 
+  const load = async (id: string, files: readonly string[]): Promise<Part> => {
+    const part: Part = { id, files: [], typeDefs: [] };
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      if (isEmptySDL(source)) {
+        onSkip(file);
+        continue;
+      }
+      part.files.push(file);
+      part.typeDefs.push(parseFile(file, source));
+    }
+    return part;
+  };
+
   for (const id of childDirs) {
     const directory = join(root, id);
     const files = await matchFiles(directory, patterns);
@@ -98,19 +120,32 @@ async function discoverModules(
       );
     }
 
-    const loaded: string[] = [];
-    const docs: DocumentNode[] = [];
-    for (const file of files) {
-      const source = await readFile(file, "utf8");
-      if (isEmptySDL(source)) {
-        onSkip(file);
-        continue;
-      }
-      loaded.push(file);
-      docs.push(parseFile(file, source));
+    // A feature is a direct subfolder in which the patterns find files of
+    // their own; everything else is the module's own SDL.
+    const subdirs = (await readdir(directory, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    const features: { name: string; files: string[] }[] = [];
+    for (const name of subdirs) {
+      const own = await matchFiles(join(directory, name), patterns);
+      if (own.length > 0) features.push({ name, files: own });
     }
+    const inFeature = new Set(
+      features.flatMap((f) => f.files.map((file) => resolve(file)))
+    );
+    const rootFiles = files.filter((file) => !inFeature.has(resolve(file)));
 
-    modules.push({ id, directory, files: loaded, typeDefs: docs });
+    modules.push({
+      id,
+      parts: [
+        await load(id, rootFiles),
+        ...(await Promise.all(
+          features.map((f) => load(`${id}/${f.name}`, f.files))
+        ))
+      ],
+      features: features.map((f) => f.name)
+    });
   }
 
   return modules;
@@ -186,7 +221,13 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       row(
         "modules",
         modules
-          .map((m) => `${m.id} ${dim(count(m.files.length, "file"))}`)
+          .map((m) => {
+            const files = m.parts.reduce((sum, p) => sum + p.files.length, 0);
+            const features = m.features.length
+              ? dim(` [${m.features.join(", ")}]`)
+              : "";
+            return `${m.id}${features} ${dim(count(files, "file"))}`;
+          })
           .join(dim(" · "))
       )
     );
@@ -194,10 +235,9 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       log(row("directives", directives.map((d) => `@${d.name}`).join(" ")));
     }
 
-    const codegenModules: CodegenModule[] = modules.map((m) => ({
-      name: m.id,
-      typeDefs: m.typeDefs
-    }));
+    const codegenModules: CodegenModule[] = modules.flatMap((m) =>
+      m.parts.map((p) => ({ name: p.id, typeDefs: p.typeDefs }))
+    );
     const compiled = compile(codegenModules, { directives });
     const types = Object.keys(compiled.schema.getTypeMap()).filter(
       (name) => !name.startsWith("__") && !BUILTIN_SCALARS.has(name)

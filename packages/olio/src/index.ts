@@ -1,4 +1,5 @@
 export {
+  feature,
   module,
   mutation,
   mw,
@@ -6,10 +7,13 @@ export {
   resolvers,
   subscription
 } from "./builders.js";
-export { createModule, olio } from "./olio.js";
+export { createFeature, createModule, olio } from "./olio.js";
 export type { OlioApp, OlioConfig } from "./olio.js";
 export type {
   Context,
+  FeatureConfig,
+  FeatureId,
+  FeatureMiddleware,
   Fields,
   Middleware,
   MiddlewareFn,
@@ -21,6 +25,7 @@ export type {
   ModuleTypeName,
   MutationResolvers,
   Olio,
+  OlioFeature,
   OlioModule,
   QueryResolvers,
   ResolverMap,

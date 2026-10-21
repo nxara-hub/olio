@@ -19,7 +19,16 @@ mw.auth({ Mutation: { "-nope": [] } });
 // A module targets fields it declares: unitsSold is sales', not inventory's.
 // @ts-expect-error
 mw.inventory({ Product: { unitsSold: [] } });
-mw.sales({ Product: { unitsSold: [] } });
+// Module middleware reaches every feature's fields...
+mw.sales({ Product: { unitsSold: [] }, Customer: { email: [] } });
+// ...a feature's only its own: unitsSold belongs to orders.
+// @ts-expect-error
+mw.sales.customers({ Product: { unitsSold: [] } });
+mw.sales.orders({ Product: { unitsSold: [] } });
+
+// Features are isolated: customers can't resolve orders' query.
+// @ts-expect-error
+query.sales.customers({ orders: () => [] });
 
 // ---- Resolvers ---------------------------------------------------------
 
@@ -37,12 +46,12 @@ resolvers.inventory.Product({ unitsSold: () => 0 });
 
 // __resolveType returns one of the union's members.
 // @ts-expect-error
-resolvers.sales.PlaceOrderResult({ __resolveType: () => "Customer" });
+resolvers.sales.orders.PlaceOrderResult({ __resolveType: () => "Customer" });
 
 // ---- Mappers -----------------------------------------------------------
 
 // Product is mapped to ProductRow: resolvers return rows and read rows.
-resolvers.sales.Product({ unitsSold: (row) => row.priceCents });
+resolvers.sales.orders.Product({ unitsSold: (row) => row.priceCents });
 // @ts-expect-error a ProductRow needs priceCents, currency and timestamps
 query.inventory({ product: () => ({ id: "p", sku: "X", name: "X" }) });
 
@@ -60,10 +69,14 @@ export const items: PageItems = [productType];
 // ---- Enums with internal values ------------------------------------------
 
 // OrderStatus is stored lowercase (CustomEnums in types.d.ts).
+const namesNotValues = {
+  CONFIRMED: "CONFIRMED",
+  CANCELLED: "cancelled"
+} as const;
 // @ts-expect-error internal values are "confirmed" | "cancelled"
-resolvers.sales.OrderStatus({ CONFIRMED: "CONFIRMED", CANCELLED: "cancelled" });
+resolvers.sales.orders.OrderStatus(namesNotValues);
 // Arguments arrive converted: status is "confirmed" | "cancelled".
-query.sales({
+query.sales.orders({
   orders: (_root, { status }) => (status === "confirmed" ? [] : [])
 });
 

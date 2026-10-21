@@ -64,7 +64,7 @@ src/modules/
     └── app.gql
 ```
 
-This yields modules `auth`, `user`, and `app`. `typeDefs: "**/*.gql"` resolves to `src/modules/auth/**/*.gql`, `src/modules/user/**/*.gql`, and so on — each module's files belong exclusively to that module. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
+This yields modules `auth`, `user`, and `app`. A direct subfolder of a module in which `typeDefs` finds files of its own is a **feature** of that module (for example `sales/orders/typedefs/*.gql`), and gets its own entry in `Application` (`"sales/orders"`). Features don't nest. `typeDefs: "**/*.gql"` resolves to `src/modules/auth/**/*.gql`, `src/modules/user/**/*.gql`, and so on — each module's files belong exclusively to that module. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
 
 ## Application
 

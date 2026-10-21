@@ -1,0 +1,14 @@
+# A feature of content: owns Article and the fields it adds.
+
+type Article {
+  id: ID!
+  title: String!
+}
+
+extend type Query {
+  articles: [Article!]!
+}
+
+extend type User {
+  articleCount: Int!
+}

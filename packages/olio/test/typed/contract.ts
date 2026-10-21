@@ -1,6 +1,6 @@
 // Compile-time only: olio's types against real codegen output (see
 // generate.ts). Each @ts-expect-error must keep failing.
-import { query, resolvers } from "../../src/index.js";
+import { feature, mw, query, resolvers } from "../../src/index.js";
 import type { Application } from "./generated.js";
 
 interface UserRow {
@@ -65,3 +65,21 @@ query.content({
 resolvers.content.User({ role: (row) => row.roleId });
 // @ts-expect-error role resolves to an internal value, not a name
 resolvers.content.User({ role: () => "ADMIN" });
+
+// ---- Features -------------------------------------------------------------
+
+// A feature builds its own resolvers, typed to the fields it declares.
+query.content.blog({ articles: () => [{ id: "a1", title: "Hello" }] });
+resolvers.content.blog.User({ articleCount: (row) => row.name.length });
+feature.content.blog({
+  middleware: mw.content.blog({ Query: { articles: [] } })
+});
+
+// @ts-expect-error the module can't resolve its feature's field
+query.content({ articles: () => [] });
+// @ts-expect-error the feature can't resolve the module's field
+query.content.blog({ items: () => [] });
+// @ts-expect-error feature middleware reaches only the feature's fields
+mw.content.blog({ Query: { node: [] } });
+// Module middleware reaches the module's and every feature's fields.
+mw.content({ Query: { node: [], articles: [] }, User: { articleCount: [] } });

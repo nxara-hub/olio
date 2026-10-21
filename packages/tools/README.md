@@ -37,6 +37,8 @@ export const app = olio({
 });
 ```
 
+**`loadFeatures(...patterns)`** does the same for a module's features (`feature.sales.orders({...})`), usually `new URL("*/index.{js,ts}", import.meta.url)` from the module's `index.ts`.
+
 **`loadTypeDefs(...patterns)`** returns parsed documents from `.graphql`/`.gql` files and from `.ts`/`.js` modules (their default export: SDL or a `DocumentNode`). Each file is parsed with its path, so syntax, directive and schema errors point at `file:line:column`. Files that hold only comments are skipped.
 
 **`loadResolvers(...patterns)`** imports `.ts`/`.js` modules and treats every named object export as a type: `export const Query = …`, `export const User = …`. Exports for the same type from different files are merged, and a field defined twice throws, naming both files. A non-plain export, such as a `GraphQLScalarType`, is used as it is.

@@ -3,7 +3,7 @@ import { mutation } from "@nxlab/olio";
 import { onHand, productBySku, takeStock } from "../../inventory/service.js";
 import { customers, nextOrderNumber, orders } from "../store.js";
 
-export const Mutation = mutation.sales({
+export const Mutation = mutation.sales.orders({
   placeOrder: (_root, { customerId, lines }, ctx) => {
     if (!customers.has(customerId)) {
       throw new Error(`Unknown customer "${customerId}"`);

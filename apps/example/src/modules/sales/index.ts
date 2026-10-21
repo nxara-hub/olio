@@ -1,19 +1,21 @@
-import { module } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { module, mw, type MiddlewareFn } from "@nxlab/olio";
+import { loadFeatures } from "@nxlab/tools";
 
-import { middleware as customers } from "./customers/middleware.js";
-import { middleware as orders } from "./orders/middleware.js";
+/** Every change in sales lands in the sales journal, whichever feature made it. */
+const journal =
+  (): MiddlewareFn =>
+  ({ ctx, info }, next) => {
+    console.log(`  [${ctx.requestId}] sales journal → ${info.fieldName}`);
+    return next();
+  };
 
 /**
- * One module, split by feature: customers/ and orders/ each bring their own
- * SDL, resolvers and middleware. The globs pick up every feature folder; to
- * add one, add a folder and list its middleware here.
+ * One module, split into features: customers/ and orders/ each own their SDL,
+ * resolvers and middleware (see their index.ts). Middleware here is
+ * module-wide: it runs on every feature's fields, between the app's layers
+ * and the feature's own.
  */
 export const salesModule = module.sales({
-  typeDefs: await loadTypeDefs(new URL("**/typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("**/{query,mutation,subscription}.{js,ts}", import.meta.url),
-    new URL("**/resolvers/*.{js,ts}", import.meta.url)
-  ),
-  middleware: [customers, orders]
+  middleware: mw.sales({ Mutation: { "*": [journal()] } }),
+  features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
 });

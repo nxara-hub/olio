@@ -5,7 +5,12 @@ import { join } from "node:path";
 
 import { print } from "graphql";
 
-import { loadModules, loadResolvers, loadTypeDefs } from "../src/index.js";
+import {
+  loadFeatures,
+  loadModules,
+  loadResolvers,
+  loadTypeDefs
+} from "../src/index.js";
 
 const sdl = (defs: readonly unknown[]): string[] =>
   defs.map((d) => print(d as Parameters<typeof print>[0]).trim());
@@ -161,7 +166,7 @@ describe("errors", () => {
 
   test("loadModules collects exported modules in file order", async () => {
     const mod = (id: string) =>
-      `export const ${id}Module = { id: "${id}", typeDefs: [], resolvers: [], middleware: {} };`;
+      `export const ${id}Module = { id: "${id}", typeDefs: [], resolvers: [], middleware: {}, features: [] };`;
     const { dir, clean } = await withDir({
       "b.ts": mod("b"),
       "a.ts": `${mod("a")}\nexport const helper = 1;`,
@@ -172,6 +177,29 @@ describe("errors", () => {
       expect(modules.map((m) => m.id)).toEqual(["a", "b"]);
       await expect(loadModules(`${dir}/none.ts`)).rejects.toThrow(
         /none\.ts exports no module/
+      );
+    } finally {
+      await clean();
+    }
+  });
+
+  test("loadFeatures collects features, and modules and features don't mix", async () => {
+    const { dir, clean } = await withDir({
+      "orders.ts":
+        'export const orders = { module: "sales", id: "orders", typeDefs: [], resolvers: [], middleware: {} };',
+      "module.ts":
+        'export const sales = { id: "sales", typeDefs: [], resolvers: [], middleware: {}, features: [] };'
+    });
+    try {
+      const features = await loadFeatures(`${dir}/orders.ts`);
+      expect(features.map((f) => `${f.module}/${f.id}`)).toEqual([
+        "sales/orders"
+      ]);
+      await expect(loadFeatures(`${dir}/module.ts`)).rejects.toThrow(
+        /exports no feature/
+      );
+      await expect(loadModules(`${dir}/orders.ts`)).rejects.toThrow(
+        /exports no module/
       );
     } finally {
       await clean();

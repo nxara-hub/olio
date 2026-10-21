@@ -4,12 +4,14 @@ import { copyDirective } from "@nxlab/schema";
 import { graphql, GraphQLScalarType, parse, subscribe } from "graphql";
 
 import {
+  createFeature,
   createModule,
   module,
   mw,
   olio,
   type MiddlewareFn,
-  type ModuleConfig
+  type ModuleConfig,
+  type OlioFeature
 } from "../src/index.js";
 
 const root = createModule("root", {
@@ -141,26 +143,115 @@ describe("olio", () => {
     expect(log).toEqual(["mod -*", "mod user"]);
   });
 
-  test("merges middleware split across features, in order", async () => {
+  test("features own their fields; middleware nests app → module → feature", async () => {
     const log: string[] = [];
-    const app = olio({
-      modules: [
-        root,
-        users({
-          middleware: [
-            { Query: { user: [trace(log, "profile")] } },
-            {
-              Query: {
-                user: [trace(log, "admin")],
-                "*": [trace(log, "admin *")]
-              }
-            }
-          ]
+    const sales = createModule("sales", {
+      typeDefs: "type Customer { id: ID! name: String! }",
+      middleware: {
+        Query: { "*": [trace(log, "sales Query.*")] },
+        Customer: { name: [trace(log, "sales Customer.name")] }
+      },
+      features: [
+        createFeature("sales", "customers", {
+          typeDefs: "extend type Query { customer: Customer }",
+          resolvers: {
+            Query: { customer: () => ({ id: "c1", name: "Acme" }) }
+          },
+          middleware: { Query: { "*": [trace(log, "customers Query.*")] } }
+        }),
+        createFeature("sales", "orders", {
+          typeDefs:
+            "extend type Query { orderCount: Int! } extend type Customer { orders: Int! }",
+          resolvers: {
+            Query: { orderCount: () => 2 },
+            Customer: { orders: () => 2 }
+          },
+          middleware: { Query: { "-orderCount": [trace(log, "orders only")] } }
         })
       ]
     });
-    await run(app, `{ user(id: "1") { id } }`);
-    expect(log).toEqual(["admin *", "profile", "admin"]);
+    const app = olio({
+      middleware: { Query: { "*": [trace(log, "app Query.*")] } },
+      modules: [sales]
+    });
+
+    await run(app, "{ customer { name } }");
+    // The feature's "*" covers its own fields; the module's reach every feature.
+    expect(log.splice(0)).toEqual([
+      "app Query.*",
+      "sales Query.*",
+      "customers Query.*",
+      "sales Customer.name"
+    ]);
+
+    await run(app, "{ orderCount }");
+    // A feature's "-" drops the module's layers and the app's.
+    expect(log.splice(0)).toEqual(["orders only"]);
+
+    expect((await run(app, "{ customer { orders } }")).data).toEqual({
+      customer: { orders: 2 }
+    });
+  });
+
+  test("features are isolated from each other and from the module", () => {
+    const sales = (
+      features: OlioFeature[],
+      extra: Partial<ModuleConfig<string>> = {}
+    ) =>
+      createModule("sales", {
+        typeDefs: "type Customer { id: ID! }",
+        features: [
+          createFeature("sales", "customers", {
+            typeDefs: "extend type Query { customer: Customer }"
+          }),
+          ...features
+        ],
+        ...extra
+      });
+    expect(() =>
+      olio({
+        modules: [
+          sales([
+            createFeature("sales", "orders", {
+              resolvers: { Query: { customer: () => null } }
+            })
+          ])
+        ]
+      })
+    ).toThrow(
+      'Feature "sales/orders": "Query.customer" is declared by feature "sales/customers"; only that feature can resolve it'
+    );
+    expect(() =>
+      olio({
+        modules: [
+          sales([], { resolvers: [{ Query: { customer: () => null } }] })
+        ]
+      })
+    ).toThrow(
+      'Module "sales": "Query.customer" is declared by feature "sales/customers"'
+    );
+    expect(() =>
+      olio({
+        modules: [
+          sales([
+            createFeature("sales", "orders", {
+              typeDefs: "extend type Query { orders: Int }",
+              middleware: { Query: { customer: [] } }
+            })
+          ])
+        ]
+      })
+    ).toThrow(
+      'Feature "sales/orders": middleware "Query.customer" targets a field the feature doesn\'t declare'
+    );
+    expect(() =>
+      olio({ modules: [sales([createFeature("billing", "x", {})])] })
+    ).toThrow('Feature "billing/x" is listed in module "sales"');
+    expect(() =>
+      olio({
+        modules: [sales([createFeature("sales", "customers", {})])]
+      })
+    ).toThrow('Feature "sales/customers" is registered twice');
   });
 
   test("middleware can short-circuit and replace args", async () => {

@@ -1,11 +1,15 @@
-import { createModule } from "./olio.js";
+import { createFeature, createModule } from "./olio.js";
 import type {
+  FeatureConfig,
+  FeatureId,
+  FeatureMiddleware,
   Middleware,
   ModuleConfig,
   ModuleId,
   ModuleMiddleware,
   ModuleTypeName,
   MutationResolvers,
+  OlioFeature,
   OlioModule,
   QueryResolvers,
   SubscriptionResolvers,
@@ -25,36 +29,67 @@ function perModule<T>(make: (id: string) => T): Record<string, T> {
 /** Typed builders are identity at runtime; the types carry the safety. */
 const identity = <T>(value: T): T => value;
 
+/** Callable as a builder, and `.<anything>` is one too: `query.sales` and `query.sales.orders`. */
+const nested = new Proxy(identity, { get: () => identity });
+
+type Builder<T> = (value: T) => T;
+
 export const module = perModule(
   (id) => (config: ModuleConfig<ModuleId>) =>
     createModule(id as ModuleId, config)
 ) as { [M in ModuleId]: (config: ModuleConfig<M>) => OlioModule };
 
-/** `mw({...})` is application middleware; `mw.<id>({...})` is a module's. */
-export const mw = new Proxy(identity, { get: () => identity }) as unknown as ((
-  middleware: Middleware
-) => Middleware) & {
-  [M in ModuleId]: (middleware: ModuleMiddleware<M>) => ModuleMiddleware<M>;
-};
-
-export const query = perModule(() => identity) as {
-  [M in ModuleId]: (resolvers: QueryResolvers<M>) => QueryResolvers<M>;
-};
-
-export const mutation = perModule(() => identity) as {
-  [M in ModuleId]: (resolvers: MutationResolvers<M>) => MutationResolvers<M>;
-};
-
-export const subscription = perModule(() => identity) as {
-  [M in ModuleId]: (
-    resolvers: SubscriptionResolvers<M>
-  ) => SubscriptionResolvers<M>;
-};
-
-export const resolvers = perModule(() => perModule(() => identity)) as {
+/** `feature.<module>.<id>({...})`: one per feature folder. */
+export const feature = perModule((m) =>
+  perModule(
+    (f) => (config: FeatureConfig<ModuleId, string>) =>
+      createFeature(m as ModuleId, f, config)
+  )
+) as {
   [M in ModuleId]: {
-    [T in ModuleTypeName<M>]: (
-      resolvers: TypeResolvers<M, T>
-    ) => TypeResolvers<M, T>;
+    [F in FeatureId<M>]: (config: FeatureConfig<M, F>) => OlioFeature;
+  };
+};
+
+/**
+ * `mw({...})` is application middleware, `mw.<id>({...})` a module's (every
+ * field it and its features declare), `mw.<id>.<feature>({...})` a feature's.
+ */
+export const mw = new Proxy(identity, {
+  get: () => nested
+}) as unknown as Builder<Middleware> & {
+  [M in ModuleId]: Builder<ModuleMiddleware<M>> & {
+    [F in FeatureId<M>]: Builder<FeatureMiddleware<M, F>>;
+  };
+};
+
+export const query = perModule(() => nested) as unknown as {
+  [M in ModuleId]: Builder<QueryResolvers<M>> & {
+    [F in FeatureId<M>]: Builder<QueryResolvers<`${M}/${F}`>>;
+  };
+};
+
+export const mutation = perModule(() => nested) as unknown as {
+  [M in ModuleId]: Builder<MutationResolvers<M>> & {
+    [F in FeatureId<M>]: Builder<MutationResolvers<`${M}/${F}`>>;
+  };
+};
+
+export const subscription = perModule(() => nested) as unknown as {
+  [M in ModuleId]: Builder<SubscriptionResolvers<M>> & {
+    [F in FeatureId<M>]: Builder<SubscriptionResolvers<`${M}/${F}`>>;
+  };
+};
+
+type TypeBuilders<O extends string> = {
+  [T in ModuleTypeName<O>]: Builder<TypeResolvers<O, T>>;
+};
+
+/** `resolvers.<id>.<Type>` for the module's own types, `resolvers.<id>.<feature>.<Type>` for a feature's. */
+export const resolvers = perModule(() =>
+  perModule(() => nested)
+) as unknown as {
+  [M in ModuleId]: TypeBuilders<M> & {
+    [F in FeatureId<M>]: TypeBuilders<`${M}/${F}`>;
   };
 };

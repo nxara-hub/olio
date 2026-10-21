@@ -278,16 +278,35 @@ export type Application = {
     };
     Warehouse: { type: Warehouse; fields: "__isTypeOf" | "code" | "id" | "name" };
   };
-  sales: {
-    Customer: { type: Customer; fields: "__isTypeOf" | "createdAt" | "creditLimit" | "email" | "id" | "name" | "orders" | "updatedAt" };
+  sales: {};
+  "sales/customers": {
+    Customer: { type: Customer; fields: "__isTypeOf" | "createdAt" | "creditLimit" | "email" | "id" | "name" | "updatedAt" };
+    Mutation: {
+      type: Mutation;
+      fields: "createCustomer";
+      root: "mutation";
+      args: {
+        createCustomer: { input: NewCustomer };
+      };
+    };
+    Query: {
+      type: Query;
+      fields: "customer" | "customers";
+      root: "query";
+      args: {
+        customer: { id: Scalars["ID"]["input"] };
+      };
+    };
+  };
+  "sales/orders": {
+    Customer: { type: Customer; fields: "orders" };
     InsufficientStock: { type: InsufficientStock; fields: "__isTypeOf" | "available" | "message" | "requested" | "sku" };
     Mutation: {
       type: Mutation;
-      fields: "cancelOrder" | "createCustomer" | "placeOrder";
+      fields: "cancelOrder" | "placeOrder";
       root: "mutation";
       args: {
         cancelOrder: { id: Scalars["ID"]["input"] };
-        createCustomer: { input: NewCustomer };
         placeOrder: { customerId: Scalars["ID"]["input"]; lines: OrderLineInput[] };
       };
     };
@@ -297,10 +316,9 @@ export type Application = {
     Product: { type: Product; fields: "unitsSold" };
     Query: {
       type: Query;
-      fields: "customer" | "customers" | "orders";
+      fields: "orders";
       root: "query";
       args: {
-        customer: { id: Scalars["ID"]["input"] };
         orders: { status?: Maybe<OrderStatus> };
       };
     };

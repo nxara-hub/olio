@@ -11,18 +11,22 @@ import {
   type GraphQLEnumType,
   type GraphQLFieldResolver,
   type GraphQLNamedType,
+  type DocumentNode,
   type GraphQLScalarType,
   type GraphQLSchema
 } from "graphql";
 
 import type {
+  FeatureConfig,
   Middleware,
   MiddlewareFn,
   MiddlewareMap,
   MiddlewareParams,
   ModuleConfig,
   ModuleId,
+  OlioFeature,
   OlioModule,
+  ResolverMap,
   TypeSource
 } from "./types.js";
 
@@ -45,37 +49,97 @@ const toList = <T>(value: T | readonly T[] | undefined): readonly T[] => {
   return Array.isArray(value) ? value : [value as T];
 };
 
+const parseAll = (
+  typeDefs: TypeSource | readonly TypeSource[] | undefined,
+  name: string
+): DocumentNode[] =>
+  toList(typeDefs).map((typeDef) =>
+    typeof typeDef === "string" ? parse(new Source(typeDef, name)) : typeDef
+  );
+
 export function createModule<M extends ModuleId>(
   id: M,
   config: ModuleConfig<M>
 ): OlioModule {
   return {
     id,
-    typeDefs: toList(config.typeDefs).map((typeDef: TypeSource) =>
-      typeof typeDef === "string"
-        ? parse(new Source(typeDef, `module "${id}"`))
-        : typeDef
-    ),
+    typeDefs: parseAll(config.typeDefs, `module "${id}"`),
     resolvers: toList(config.resolvers),
-    middleware: mergeMiddleware(
-      toList(config.middleware) as readonly MiddlewareMap[]
-    )
+    middleware: (config.middleware ?? {}) as MiddlewareMap,
+    features: config.features ?? []
   };
 }
 
-/** Merge per-feature middleware maps; a shared key runs each map's fns in order. */
-function mergeMiddleware(maps: readonly MiddlewareMap[]): MiddlewareMap {
-  const merged: Record<string, Record<string, MiddlewareFn[]>> = {};
-  for (const map of maps) {
-    for (const [type, fields] of Object.entries(map)) {
-      const target = merged[type] ?? {};
-      merged[type] = target;
-      for (const [field, fns] of Object.entries(fields ?? {})) {
-        target[field] = [...(target[field] ?? []), ...(fns ?? [])];
+/** A feature of `module`, owning the fields its own SDL declares. */
+export function createFeature<M extends ModuleId, F extends string>(
+  module: M,
+  id: F,
+  config: FeatureConfig<M, F>
+): OlioFeature {
+  return {
+    module,
+    id,
+    typeDefs: parseAll(config.typeDefs, `feature "${module}/${id}"`),
+    resolvers: toList(config.resolvers),
+    middleware: (config.middleware ?? {}) as MiddlewareMap
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Owners: modules and their features
+
+/** A module, or one of its features: what owns SDL and resolves it. */
+interface Owner {
+  /** `"sales"`, or `"sales/orders"` for a feature. */
+  id: string;
+  kind: "module" | "feature";
+  /** For errors: `Module "sales"`, `Feature "sales/orders"`. */
+  label: string;
+  typeDefs: readonly DocumentNode[];
+  resolvers: readonly ResolverMap[];
+  middleware: MiddlewareMap;
+  /** Middleware layers between the app and this owner: its module's, for a feature. */
+  parents: readonly MiddlewareMap[];
+  /** Whether this owner's middleware may target a field owned by `id`. */
+  reaches: (id: string) => boolean;
+}
+
+/** Flatten modules into owners: each module, then each of its features. */
+function owners(modules: readonly OlioModule[]): Owner[] {
+  const result: Owner[] = [];
+  const ids = new Set<string>();
+  for (const m of modules) {
+    if (ids.has(m.id)) throw new Error(`Module "${m.id}" is registered twice`);
+    ids.add(m.id);
+    result.push({
+      ...m,
+      kind: "module",
+      label: `Module "${m.id}"`,
+      parents: [],
+      reaches: (id) => id === m.id || id.startsWith(`${m.id}/`)
+    });
+    for (const f of m.features) {
+      const id = `${m.id}/${f.id}`;
+      if (f.module !== m.id) {
+        throw new Error(
+          `Feature "${f.module}/${f.id}" is listed in module "${m.id}"`
+        );
       }
+      if (ids.has(id)) throw new Error(`Feature "${id}" is registered twice`);
+      ids.add(id);
+      result.push({
+        id,
+        kind: "feature",
+        label: `Feature "${id}"`,
+        typeDefs: f.typeDefs,
+        resolvers: f.resolvers,
+        middleware: f.middleware,
+        parents: [m.middleware],
+        reaches: (owner) => owner === id
+      });
     }
   }
-  return merged;
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,12 +169,13 @@ function layer(
 }
 
 /**
- * Layers run top-down: app `*.*`, app `Type.*`, app `Type.field`, module
- * `Type.*`, module `Type.field`. An exclusive layer resets what came before.
+ * Layers run top-down: app `*.*`, app `Type.*`, app `Type.field`, then for the
+ * module and (for a feature's field) the feature: `Type.*`, `Type.field`. An
+ * exclusive layer resets what came before.
  */
 function chainFor(
   app: MiddlewareMap,
-  module: MiddlewareMap,
+  owner: Owner,
   type: string,
   field: string
 ): MiddlewareFn[] {
@@ -118,8 +183,10 @@ function chainFor(
     layer(app, "*", "*"),
     layer(app, type, "*"),
     layer(app, type, field),
-    layer(module, type, "*"),
-    layer(module, type, field)
+    ...[...owner.parents, owner.middleware].flatMap((map) => [
+      layer(map, type, "*"),
+      layer(map, type, field)
+    ])
   ];
   const chain: MiddlewareFn[] = [];
   for (const current of layers) {
@@ -150,7 +217,7 @@ function wrap(resolve: Resolve, chain: readonly MiddlewareFn[]): Resolve {
 
 interface Attach {
   schema: GraphQLSchema;
-  module: OlioModule;
+  owner: Owner;
   appMiddleware: MiddlewareMap;
   /** `Type.field` -> the module that declares it in SDL. */
   declared: ReadonlyMap<string, string>;
@@ -161,13 +228,13 @@ interface Attach {
 }
 
 /** Only the module that declares `Type.field` (or an enum value) may resolve it. */
-function claim({ module, declared, resolved }: Attach, key: string): void {
-  const where = `Module "${module.id}"`;
+function claim({ owner: self, declared, resolved }: Attach, key: string): void {
+  const where = self.label;
   const owner = declared.get(key);
-  if (owner !== module.id) {
+  if (owner !== self.id) {
     throw new Error(
       owner
-        ? `${where}: "${key}" is declared by module "${owner}"; only that module can resolve it`
+        ? `${where}: "${key}" is declared by ${owner.includes("/") ? "feature" : "module"} "${owner}"; only that ${owner.includes("/") ? "feature" : "module"} can resolve it`
         : `${where}: "${key}" can't be resolved here`
     );
   }
@@ -203,9 +270,9 @@ function applyField(
   fieldName: string,
   resolver: unknown
 ): void {
-  const { schema, module, appMiddleware } = attach;
+  const { schema, owner, appMiddleware } = attach;
   const key = `${type.name}.${fieldName}`;
-  const where = `Module "${module.id}"`;
+  const where = owner.label;
 
   if (fieldName === "__resolveType" || fieldName === "__isTypeOf") {
     if (typeof resolver !== "function") {
@@ -232,12 +299,7 @@ function applyField(
 
   claim(attach, key);
 
-  const chain = chainFor(
-    appMiddleware,
-    module.middleware,
-    type.name,
-    fieldName
-  );
+  const chain = chainFor(appMiddleware, owner, type.name, fieldName);
   if (typeof resolver !== "function") {
     throw new TypeError(
       type === schema.getSubscriptionType()
@@ -264,9 +326,7 @@ function applyEnum(
     const key = `${type.name}.${name}`;
     const value = type.getValue(name);
     if (!value) {
-      throw new Error(
-        `Module "${attach.module.id}": unknown enum value "${key}"`
-      );
+      throw new Error(`${attach.owner.label}: unknown enum value "${key}"`);
     }
     claim(attach, key);
     (value as { value: unknown }).value = internal;
@@ -295,13 +355,11 @@ function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
 }
 
 function applyResolvers(attach: Attach): void {
-  for (const map of attach.module.resolvers) {
+  for (const map of attach.owner.resolvers) {
     for (const [typeName, value] of Object.entries(map)) {
       const type = attach.schema.getType(typeName);
       if (!type) {
-        throw new Error(
-          `Module "${attach.module.id}": unknown type "${typeName}"`
-        );
+        throw new Error(`${attach.owner.label}: unknown type "${typeName}"`);
       }
       if (isScalarType(type)) {
         applyScalar(type, value);
@@ -313,7 +371,7 @@ function applyResolvers(attach: Attach): void {
       }
       if (!isObjectType(type) && !isInterfaceType(type) && !isUnionType(type)) {
         throw new Error(
-          `Module "${attach.module.id}": cannot attach resolvers to ${typeName}`
+          `${attach.owner.label}: cannot attach resolvers to ${typeName}`
         );
       }
       for (const [fieldName, resolver] of Object.entries(value)) {
@@ -375,30 +433,33 @@ function checkAppMiddleware(
   }
 }
 
-/** A module may target the fields it declares, plus `*` and the `-` forms. */
-function checkModuleMiddleware(
+/**
+ * A module's middleware may target the fields it and its features declare; a
+ * feature's, only its own. Plus `*` and the `-` forms.
+ */
+function checkOwnerMiddleware(
   schema: GraphQLSchema,
-  module: OlioModule,
+  owner: Owner,
   declared: ReadonlyMap<string, string>
 ): void {
-  for (const [type, fields] of Object.entries(module.middleware)) {
+  for (const [type, fields] of Object.entries(owner.middleware)) {
     for (const key of Object.keys(fields ?? {})) {
       if (!isObjectType(schema.getType(type))) {
         throw new Error(
-          `Module "${module.id}": middleware "${type}.${key}" targets ${type}, which has no fields to wrap`
+          `${owner.label}: middleware "${type}.${key}" targets ${type}, which has no fields to wrap`
         );
       }
       const field = key.replace(/^-/, "");
-      const owns =
+      const reaches =
         field === "*"
           ? [...declared].some(
-              ([k, id]) => id === module.id && k.startsWith(`${type}.`)
+              ([k, id]) => owner.reaches(id) && k.startsWith(`${type}.`)
             )
-          : declared.get(`${type}.${field}`) === module.id &&
+          : owner.reaches(declared.get(`${type}.${field}`) ?? "") &&
             !field.startsWith("__");
-      if (!owns) {
+      if (!reaches) {
         throw new Error(
-          `Module "${module.id}": middleware "${type}.${key}" targets a field the module doesn't declare`
+          `${owner.label}: middleware "${type}.${key}" targets a field the ${owner.kind} doesn't declare`
         );
       }
     }
@@ -411,13 +472,13 @@ function checkModuleMiddleware(
  */
 function wrapDefaults(
   schema: GraphQLSchema,
-  config: OlioConfig,
+  app: MiddlewareMap,
+  all: readonly Owner[],
   declared: ReadonlyMap<string, string>
 ): void {
-  const app = (config.middleware ?? {}) as MiddlewareMap;
-  const byId = new Map(config.modules.map((m) => [m.id, m]));
+  const byId = new Map(all.map((o) => [o.id, o]));
   const targets = new Set<string>();
-  for (const map of [app, ...config.modules.map((m) => m.middleware)]) {
+  for (const map of [app, ...all.map((o) => o.middleware)]) {
     for (const [type, fields] of Object.entries(map)) {
       for (const key of Object.keys(fields ?? {})) {
         const field = key.replace(/^-/, "");
@@ -434,7 +495,7 @@ function wrapDefaults(
     if (!field || field.resolve || !owner) continue;
     field.resolve = wrap(
       defaultFieldResolver as Resolve,
-      chainFor(app, owner.middleware, typeName, fieldName)
+      chainFor(app, owner, typeName, fieldName)
     );
   }
 }
@@ -444,32 +505,20 @@ function wrapDefaults(
  * modules define, and any field it names explicitly.
  */
 export function olio(config: OlioConfig): OlioApp {
-  const ids = new Set<string>();
-  for (const { id } of config.modules) {
-    if (ids.has(id)) throw new Error(`Module "${id}" is registered twice`);
-    ids.add(id);
-  }
-
-  const { schema, ownership } = compose(config.modules, config.directives);
+  const all = owners(config.modules);
+  const { schema, ownership } = compose(all, config.directives);
   const declared = declarations(ownership);
   const appMiddleware = (config.middleware ?? {}) as MiddlewareMap;
   checkAppMiddleware(schema, appMiddleware);
 
   const resolved = new Set<string>();
   const enums = new Set<GraphQLEnumType>();
-  for (const module of config.modules) {
-    checkModuleMiddleware(schema, module, declared);
-    applyResolvers({
-      schema,
-      module,
-      appMiddleware,
-      declared,
-      resolved,
-      enums
-    });
+  for (const owner of all) {
+    checkOwnerMiddleware(schema, owner, declared);
+    applyResolvers({ schema, owner, appMiddleware, declared, resolved, enums });
   }
   checkEnums(enums);
-  wrapDefaults(schema, config, declared);
+  wrapDefaults(schema, appMiddleware, all, declared);
 
   return { schema, modules: config.modules };
 }

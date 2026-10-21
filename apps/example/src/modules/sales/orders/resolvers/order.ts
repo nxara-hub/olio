@@ -4,7 +4,7 @@ import { money } from "../../../core/money.js";
 import { productBySku } from "../../../inventory/service.js";
 import { customers, orderTotal } from "../../store.js";
 
-export const SalesOrder = resolvers.sales.SalesOrder({
+export const SalesOrder = resolvers.sales.orders.SalesOrder({
   customer: (order) => {
     const customer = customers.get(order.customerId);
     if (!customer) throw new Error(`Order ${order.number} has no customer`);
@@ -20,7 +20,7 @@ export const SalesOrder = resolvers.sales.SalesOrder({
   total: (order) => money(orderTotal(order))
 });
 
-export const PlaceOrderResult = resolvers.sales.PlaceOrderResult({
+export const PlaceOrderResult = resolvers.sales.orders.PlaceOrderResult({
   __resolveType: (result) =>
     "number" in result ? "SalesOrder" : "InsufficientStock"
 });

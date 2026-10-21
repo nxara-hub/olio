@@ -17,7 +17,7 @@ bun run --cwd apps/example check-types
 | [`core`](src/modules/core) | `Node`, `Timestamped` and `UserError` interfaces, `Money`, `PageInfo`, `PageArgs`, the `DateTime` scalar |
 | [`auth`](src/modules/auth) | Employees with roles, sessions, `login` / `logout` / `me` |
 | [`inventory`](src/modules/inventory) | Products, warehouses, stock levels, `adjustStock`, the `stockChanged` subscription |
-| [`sales`](src/modules/sales) | Split into `customers/` and `orders/`: customers, sales orders, `placeOrder`, `cancelOrder` |
+| [`sales`](src/modules/sales) | Two features, `customers/` and `orders/`: customers, sales orders, `placeOrder`, `cancelOrder` |
 
 Each module is a folder under `src/modules`. Codegen and `loadModules` both find modules there.
 
@@ -36,7 +36,7 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | Result unions and `__resolveType` | [`login-result.ts`](src/modules/auth/resolvers/login-result.ts), [`order.ts`](src/modules/sales/orders/resolvers/order.ts) |
 | Mappers: resolvers return rows, field resolvers derive the rest | [`inventory/resolvers/product.ts`](src/modules/inventory/resolvers/product.ts) |
 | Extending another module's type (`Product.unitsSold`) | [`orders.gql`](src/modules/sales/orders/typedefs/orders.gql), [`extensions.ts`](src/modules/sales/orders/resolvers/extensions.ts) |
-| A module split by feature | [`sales/index.ts`](src/modules/sales/index.ts) |
+| A module split into features, with module-wide middleware | [`sales/index.ts`](src/modules/sales/index.ts), [`sales/orders/index.ts`](src/modules/sales/orders/index.ts) |
 | Modules calling each other through plain imports, no DI | [`inventory/service.ts`](src/modules/inventory/service.ts), used by [`sales/orders/mutation.ts`](src/modules/sales/orders/mutation.ts) |
 | A subscription and a typed pubsub | [`inventory/subscription.ts`](src/modules/inventory/subscription.ts), [`src/pubsub.ts`](src/pubsub.ts) |
 | `Fields[...]` types outside resolvers | [`inventory/service.ts`](src/modules/inventory/service.ts) |

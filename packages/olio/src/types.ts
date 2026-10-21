@@ -48,7 +48,22 @@ type App =
     ? A
     : ApplicationShape;
 
-export type ModuleId = keyof App & string;
+/** Everything that owns SDL: modules (`"sales"`) and their features (`"sales/orders"`). */
+type Owner = keyof App & string;
+
+export type ModuleId = Exclude<Owner, `${string}/${string}`>;
+
+/** A module's features, one per feature folder: `FeatureId<"sales">` → `"customers" | "orders"`. */
+export type FeatureId<M extends ModuleId> = Untyped extends true
+  ? string
+  : Owner extends infer O
+    ? O extends `${M}/${infer F}`
+      ? F
+      : never
+    : never;
+
+/** A module and all its features. */
+type ModuleOwners<M extends ModuleId> = M | `${M}/${FeatureId<M>}`;
 export type Context = Registered<"ctx", unknown>;
 export type SubscriptionContext = Registered<"sub_ctx", Context>;
 
@@ -65,19 +80,21 @@ interface DefaultRoots {
 type RootName<Op extends Operation> = Untyped extends true
   ? DefaultRoots[Op]
   : {
-      [M in ModuleId]: {
-        [T in keyof App[M]]: App[M][T] extends { root: Op } ? T : never;
-      }[keyof App[M]];
-    }[ModuleId] &
+      [O in Owner]: {
+        [T in keyof App[O]]: App[O][T] extends { root: Op } ? T : never;
+      }[keyof App[O]];
+    }[Owner] &
       string;
 
 type RootType = RootName<Operation>;
 type TypeHook = "__isTypeOf" | "__resolveType";
 
-/** A module's entry for one type (`never` when it declares nothing there). */
-type Entry<M extends ModuleId, T> = App[M] extends infer Types
-  ? T extends keyof Types
-    ? Types[T]
+/** An owner's entry for one type (`never` when it declares nothing there). */
+type Entry<M extends string, T> = M extends Owner
+  ? App[M] extends infer Types
+    ? T extends keyof Types
+      ? Types[T]
+      : never
     : never
   : never;
 
@@ -111,10 +128,10 @@ type DeepMapped<X> = X extends Primitive
 
 /** Every entry of every module, tagged with its type name. */
 type AllEntries = {
-  [M in ModuleId]: {
-    [T in keyof App[M]]: App[M][T] & { name: T };
-  }[keyof App[M]];
-}[ModuleId];
+  [O in Owner]: {
+    [T in keyof App[O]]: App[O][T] & { name: T };
+  }[keyof App[O]];
+}[Owner];
 
 /** The interface (or union) entry whose TypeScript type is exactly `X`. */
 type InterfaceEntry<X> = AllEntries extends infer E
@@ -195,8 +212,8 @@ export type MiddlewareMap = Partial<
 
 /** Fields any module declares on a root type. */
 type RootFields<R extends RootType> = {
-  [M in ModuleId]: Owned<Entry<M, R>>;
-}[ModuleId];
+  [O in Owner]: Owned<Entry<O, R>>;
+}[Owner];
 
 /** Application middleware: `"*"` and the root types. */
 export type Middleware = Untyped extends true
@@ -213,38 +230,52 @@ export type Middleware = Untyped extends true
       };
     };
 
-type MiddlewareFields<M extends ModuleId, T> = Exclude<
-  Owned<Entry<M, T>>,
+type MiddlewareFields<O extends Owner, T> = Exclude<
+  Owned<Entry<O, T>>,
   TypeHook
 >;
 
+/** Middleware over the fields a set of owners declares, per type. */
+type MiddlewareFor<Os extends Owner> = {
+  [
+    T in { [O in Os]: keyof App[O] & string }[Os] as [
+      { [O in Os]: MiddlewareFields<O, T> }[Os]
+    ] extends [never]
+      ? never
+      : T
+  ]?: {
+    [
+      K in
+        | "*"
+        | "-*"
+        | { [O in Os]: MiddlewareFields<O, T> }[Os]
+        | `-${{ [O in Os]: MiddlewareFields<O, T> }[Os]}`
+    ]?: Fns<T>;
+  };
+};
+
 /**
- * A module's middleware: the fields it declares, per type. A `-` key
- * (`"-user"`, `"-*"`) drops every upper layer's middleware for that target
- * instead of merging with it.
+ * A module's middleware: every field the module and its features declare,
+ * per type. A `-` key (`"-user"`, `"-*"`) drops every upper layer's
+ * middleware for that target instead of merging with it.
  */
 export type ModuleMiddleware<M extends ModuleId> = Untyped extends true
   ? MiddlewareMap
-  : {
-      [
-        T in keyof App[M] & string as [MiddlewareFields<M, T>] extends [never]
-          ? never
-          : T
-      ]?: {
-        [
-          K in
-            | "*"
-            | "-*"
-            | MiddlewareFields<M, T>
-            | `-${MiddlewareFields<M, T>}`
-        ]?: Fns<T>;
-      };
-    };
+  : MiddlewareFor<ModuleOwners<M> & Owner>;
+
+/**
+ * A feature's middleware: only the fields that feature declares. It runs
+ * after the module's layers, and a `-` key drops those too.
+ */
+export type FeatureMiddleware<
+  M extends ModuleId,
+  F extends string
+> = Untyped extends true ? MiddlewareMap : MiddlewareFor<`${M}/${F}` & Owner>;
 
 // ---------------------------------------------------------------------------
 // Resolvers
 
-type RootResolvers<M extends ModuleId, R extends RootType> = {
+type RootResolvers<M extends string, R extends RootType> = {
   [F in Owned<Entry<M, R>>]?: (
     root: undefined,
     args: Args<Entry<M, R>, F>,
@@ -253,11 +284,11 @@ type RootResolvers<M extends ModuleId, R extends RootType> = {
   ) => MaybePromise<Out<Entry<M, R>, F>>;
 };
 
-export type QueryResolvers<M extends ModuleId> = RootResolvers<
+export type QueryResolvers<M extends string> = RootResolvers<
   M,
   RootName<"query">
 >;
-export type MutationResolvers<M extends ModuleId> = RootResolvers<
+export type MutationResolvers<M extends string> = RootResolvers<
   M,
   RootName<"mutation">
 >;
@@ -267,7 +298,7 @@ export type MutationResolvers<M extends ModuleId> = RootResolvers<
  * field's values (with mappers applied): usually an async generator. Map and
  * filter events inside it; middleware runs once, when a client subscribes.
  */
-export type SubscriptionResolvers<M extends ModuleId> = {
+export type SubscriptionResolvers<M extends string> = {
   [F in Owned<Entry<M, RootName<"subscription">>>]?: (
     root: undefined,
     args: Args<Entry<M, RootName<"subscription">>, F>,
@@ -276,11 +307,10 @@ export type SubscriptionResolvers<M extends ModuleId> = {
   ) => MaybePromise<AsyncIterable<Out<Entry<M, RootName<"subscription">>, F>>>;
 };
 
-/** Non-root types a module declares fields on, or defines. */
-export type ModuleTypeName<M extends ModuleId> = Exclude<
-  keyof App[M] & string,
-  RootType
->;
+/** Non-root types a module (or feature) declares fields on, or defines. */
+export type ModuleTypeName<M extends string> = M extends Owner
+  ? Exclude<keyof App[M] & string, RootType>
+  : never;
 
 type TypeHookResolver<E, F> = (
   root: Parent<E>,
@@ -297,7 +327,7 @@ type TypeHookResolver<E, F> = (
  * the internal value of every value the module declares (see `CustomEnums`
  * in @nxlab/codegen): `{ ADMIN: 1, GUEST: 2 }`.
  */
-export type TypeResolvers<M extends ModuleId, T extends ModuleTypeName<M>> =
+export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
   Entry<M, T> extends { enum: infer V extends string }
     ? { [K in V]: Parent<Entry<M, T>> }
     : {
@@ -315,21 +345,21 @@ export type TypeResolvers<M extends ModuleId, T extends ModuleTypeName<M>> =
 // Field types, for code outside resolvers (services, loaders, tests)
 
 /** Every type any module declares fields on. */
-type TypeName = { [M in ModuleId]: keyof App[M] & string }[ModuleId];
+type TypeName = { [O in Owner]: keyof App[O] & string }[Owner];
 
 /** The entry of whichever module declares `T.F`. */
 type Declaring<T, F> = {
-  [M in ModuleId]: Entry<M, T> extends infer E
+  [O in Owner]: Entry<O, T> extends infer E
     ? E extends unknown
       ? F extends Owned<E>
         ? E
         : never
       : never
     : never;
-}[ModuleId];
+}[Owner];
 
 type FieldName<T> = Exclude<
-  { [M in ModuleId]: Owned<Entry<M, T>> }[ModuleId],
+  { [O in Owner]: Owned<Entry<O, T>> }[Owner],
   TypeHook
 >;
 
@@ -375,8 +405,27 @@ export interface ModuleConfig<M extends ModuleId> {
   typeDefs?: TypeSource | readonly TypeSource[];
   /** Typed per file via `query.<id>`, `resolvers.<id>.<Type>`, etc. */
   resolvers?: Resolvers | readonly Resolvers[];
-  /** One map, or one per feature when the module is split up; merged in order. */
-  middleware?: ModuleMiddleware<M> | readonly ModuleMiddleware<M>[];
+  /** Module-wide: may target any field the module or its features declare. */
+  middleware?: ModuleMiddleware<M>;
+  /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
+  features?: readonly OlioFeature[];
+}
+
+export interface FeatureConfig<M extends ModuleId, F extends string> {
+  typeDefs?: TypeSource | readonly TypeSource[];
+  /** Typed per file via `query.<id>.<feature>`, etc. */
+  resolvers?: Resolvers | readonly Resolvers[];
+  middleware?: FeatureMiddleware<M, F>;
+}
+
+/** A feature: part of a module, owning the fields its own SDL declares. */
+export interface OlioFeature {
+  /** The module it belongs to. */
+  readonly module: string;
+  readonly id: string;
+  readonly typeDefs: readonly DocumentNode[];
+  readonly resolvers: readonly ResolverMap[];
+  readonly middleware: MiddlewareMap;
 }
 
 export interface OlioModule {
@@ -384,4 +433,5 @@ export interface OlioModule {
   readonly typeDefs: readonly DocumentNode[];
   readonly resolvers: readonly ResolverMap[];
   readonly middleware: MiddlewareMap;
+  readonly features: readonly OlioFeature[];
 }

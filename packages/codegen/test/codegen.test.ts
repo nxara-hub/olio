@@ -276,6 +276,23 @@ describe("generate: Application", () => {
 });
 
 describe("generate: unsupported schemas", () => {
+  test("rejects feature names that clash in the builders", () => {
+    expect(() =>
+      generate([
+        { name: "sales", typeDefs: "type Customer { id: ID! }" },
+        { name: "sales/Customer", typeDefs: "extend type Query { a: Int }" }
+      ])
+    ).toThrow(
+      'Feature folder "sales/Customer" clashes with type "Customer" in module "sales"; rename the folder'
+    );
+    expect(() =>
+      generate([
+        { name: "sales", typeDefs: "type Query { a: Int }" },
+        { name: "sales/name", typeDefs: "extend type Query { b: Int }" }
+      ])
+    ).toThrow('Feature folder "sales/name" clashes with a reserved name');
+  });
+
   test("rejects type names the generated file uses", () => {
     for (const name of ["Application", "Maybe", "ResolveScalar"]) {
       expect(() =>
