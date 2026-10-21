@@ -12,7 +12,7 @@ declare module "@nxlab/olio" {
   interface Olio {
     application: Application;
     ctx: { req_id: string; userId?: string };
-    sub_ctx: { pubsub: unknown }; // context for Subscription resolvers
+    sub_ctx: SubGQLCtx; // context for subscriptions; defaults to ctx
   }
 }
 ```
@@ -48,7 +48,7 @@ export const User = resolvers.users.User({
 });
 ```
 
-`mutation.<id>` and `subscription.<id>` work the same way. Subscription fields take `{ subscribe, resolve? }`.
+`mutation.<id>` and `subscription.<id>` work the same way. See [Subscriptions](#subscriptions) for what a subscription field looks like.
 
 ## Splitting a large module
 
@@ -138,6 +138,25 @@ A **`-` key** stops a target from inheriting middleware from the layers above it
 Middleware wraps the resolvers modules define, and any field it names explicitly. `"*"` keys only reach fields with a resolver, but naming a field (`User: { email: [redact()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs.
 
 Every key is checked when `olio()` builds the schema, even without codegen. A key that matches no field, an application key on a non-root type, or a `-` key at the application level throws.
+
+## Subscriptions
+
+A subscription field is a function that returns an async iterable of the field's values. Usually that's an async generator:
+
+```ts
+export const Subscription = subscription.users({
+  async *userUpdated(_root, { id }, ctx) {
+    for await (const row of ctx.pubsub.subscribe("user:updated")) {
+      if (row._id === id) yield row; // filter and map right here
+    }
+  }
+});
+```
+
+- **Each yielded value is the field's value**, checked against the field type (with [mappers](#mappers) applied). Nested field resolvers run for every event.
+- **Middleware runs once**, when a client subscribes, which is the place for auth and logging. Per-event logic belongs in the iterator.
+- **Context:** subscription resolvers and `Subscription` middleware get `sub_ctx`, and `"*"` middleware can run on either kind: type it `MiddlewareFn<Context | SubscriptionContext>`. Without a separate `sub_ctx`, both are just `ctx`.
+- **The event source is yours** (in-memory, Redis, …). [`apps/example/src/pubsub.ts`](../../apps/example/src/pubsub.ts) has a small typed in-memory one. Serving subscriptions over a transport (graphql-ws, SSE) comes with the HTTP adapter; until then, run them with graphql's `subscribe()`.
 
 ## Mappers
 

@@ -175,17 +175,6 @@ function applyScalar(type: GraphQLScalarType, value: object): void {
   }
 }
 
-function isSubscriptionResolver(value: unknown): value is {
-  subscribe: Resolve;
-  resolve?: Resolve;
-} {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { subscribe?: unknown }).subscribe === "function"
-  );
-}
-
 function applyField(
   { schema, module, appMiddleware, declared, resolved }: Attach,
   type: GraphQLNamedType,
@@ -239,17 +228,18 @@ function applyField(
     type.name,
     fieldName
   );
-  if (type === schema.getSubscriptionType()) {
-    if (!isSubscriptionResolver(resolver)) {
-      throw new Error(`${where}: "${key}" must be { subscribe, resolve? }`);
-    }
-    // ponytail: middleware wraps `subscribe` (auth, logging), not each event.
-    field.subscribe = wrap(resolver.subscribe, chain);
-    if (resolver.resolve) field.resolve = resolver.resolve;
-    return;
-  }
   if (typeof resolver !== "function") {
-    throw new TypeError(`${where}: "${key}" must be a function`);
+    throw new TypeError(
+      type === schema.getSubscriptionType()
+        ? `${where}: "${key}" must be a function returning an AsyncIterable, e.g. an async generator`
+        : `${where}: "${key}" must be a function`
+    );
+  }
+  if (type === schema.getSubscriptionType()) {
+    // Each event is the field's value; middleware runs once, on subscribe.
+    field.subscribe = wrap(resolver as Resolve, chain);
+    field.resolve = (event) => event;
+    return;
   }
   field.resolve = wrap(resolver as Resolve, chain);
 }

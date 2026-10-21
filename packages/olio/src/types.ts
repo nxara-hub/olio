@@ -18,7 +18,6 @@ import type { DocumentNode, GraphQLResolveInfo } from "graphql";
 export interface Olio {}
 
 type MaybePromise<T> = T | Promise<T>;
-type Fns = readonly MiddlewareFn[];
 
 /**
  * The shape of codegen's generated `Application`: module id -> type name ->
@@ -94,18 +93,32 @@ type Args<E, F> = E extends { args: infer A }
 // ---------------------------------------------------------------------------
 // Middleware
 
-export interface MiddlewareParams {
+export interface MiddlewareParams<Ctx = Context> {
   root: unknown;
   args: Record<string, unknown>;
-  ctx: Context;
+  ctx: Ctx;
   info: GraphQLResolveInfo;
 }
 
-/** Run around a resolver; call `next()` to continue down the chain. */
-export type MiddlewareFn = (
-  params: MiddlewareParams,
+/**
+ * Run around a resolver; call `next()` to continue down the chain. Middleware
+ * on `Subscription` gets the subscription context, and `"*"` middleware can
+ * run on either: type it `MiddlewareFn<Context | SubscriptionContext>`. Both
+ * are `Context` unless you register a separate `sub_ctx`.
+ */
+export type MiddlewareFn<Ctx = Context> = (
+  params: MiddlewareParams<Ctx>,
   next: () => unknown
 ) => unknown;
+
+/** The context middleware on type `T` receives. */
+type ContextOf<T> = T extends "*"
+  ? Context | SubscriptionContext
+  : T extends "Subscription"
+    ? SubscriptionContext
+    : Context;
+
+type Fns<T = string> = readonly MiddlewareFn<ContextOf<T>>[];
 
 /** Untyped nested middleware, used when no application is registered. */
 export type MiddlewareMap = Partial<
@@ -130,7 +143,7 @@ export type Middleware = Untyped extends true
             : T
           : T
       ]?: {
-        [K in "*" | (T extends RootType ? RootFields<T> : never)]?: Fns;
+        [K in "*" | (T extends RootType ? RootFields<T> : never)]?: Fns<T>;
       };
     };
 
@@ -158,7 +171,7 @@ export type ModuleMiddleware<M extends ModuleId> = Untyped extends true
             | "-*"
             | MiddlewareFields<M, T>
             | `-${MiddlewareFields<M, T>}`
-        ]?: Fns;
+        ]?: Fns<T>;
       };
     };
 
@@ -180,22 +193,18 @@ export type MutationResolvers<M extends ModuleId> = RootResolvers<
   "Mutation"
 >;
 
-// ponytail: payloads are `unknown`; type them when subscriptions get real use.
+/**
+ * A subscription field is a function returning an async iterable of the
+ * field's values (with mappers applied): usually an async generator. Map and
+ * filter events inside it; middleware runs once, when a client subscribes.
+ */
 export type SubscriptionResolvers<M extends ModuleId> = {
-  [F in Owned<Entry<M, "Subscription">>]?: {
-    subscribe: (
-      root: undefined,
-      args: Args<Entry<M, "Subscription">, F>,
-      ctx: SubscriptionContext,
-      info: GraphQLResolveInfo
-    ) => MaybePromise<AsyncIterable<unknown>>;
-    resolve?: (
-      payload: unknown,
-      args: Args<Entry<M, "Subscription">, F>,
-      ctx: SubscriptionContext,
-      info: GraphQLResolveInfo
-    ) => MaybePromise<Out<Entry<M, "Subscription">, F>>;
-  };
+  [F in Owned<Entry<M, "Subscription">>]?: (
+    root: undefined,
+    args: Args<Entry<M, "Subscription">, F>,
+    ctx: SubscriptionContext,
+    info: GraphQLResolveInfo
+  ) => MaybePromise<AsyncIterable<Out<Entry<M, "Subscription">, F>>>;
 };
 
 /** Non-root types a module declares fields on, or defines. */

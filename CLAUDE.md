@@ -24,7 +24,7 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 - Nested only: `{ Type: { field | "*": MiddlewareFn[] } }`. `mw()` (app) accepts `"*"` and the root types. `mw.<id>()` accepts the fields the module declares, per type.
 - The chain for a resolver runs top-down: app `*.*` → app `Type.*` → app `Type.field` → module `Type.*` → module `Type.field`.
 - A `-` key (`"-user"`, `"-*"`) drops every layer above it; lower layers still apply. `x` together with `-x` throws.
-- Middleware wraps the resolvers modules define, plus any field named explicitly (its default resolver gets wrapped). `"*"` only reaches fields with a resolver. Subscriptions wrap `subscribe`.
+- Middleware wraps the resolvers modules define, plus any field named explicitly (its default resolver gets wrapped). `"*"` only reaches fields with a resolver. A subscription field is a function returning `AsyncIterable<field value>` (only form); olio sets an identity `resolve`, and middleware wraps `subscribe` (runs once per subscription). `Subscription` middleware gets `sub_ctx`; `"*"` gets `ctx | sub_ctx`.
 - `olio()` checks every middleware key at runtime and enforces ownership: a module resolves only fields it declares (`compose` ownership), the same rule codegen types.
 - A module's `middleware` can be a list (one map per feature folder). The maps merge in order and apply module-wide.
 

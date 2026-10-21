@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { copyDirective } from "@nxlab/schema";
-import { graphql, GraphQLScalarType } from "graphql";
+import { graphql, GraphQLScalarType, parse, subscribe } from "graphql";
 
 import {
   createModule,
@@ -266,7 +266,7 @@ describe("olio", () => {
     );
   });
 
-  test("supports __resolveType, __isTypeOf, scalars and subscriptions", async () => {
+  test("supports __resolveType, __isTypeOf and scalars", async () => {
     const shapes = createModule("shapes", {
       typeDefs: /* GraphQL */ `
         scalar Upper
@@ -293,23 +293,63 @@ describe("olio", () => {
         Upper: new GraphQLScalarType({
           name: "Upper",
           serialize: (v) => String(v).toUpperCase()
-        }),
-        Subscription: {
-          ticks: {
-            async *subscribe() {
-              yield { ticks: 1 };
-            }
-          }
-        }
+        })
       }
     });
     const app = olio({ modules: [root, shapes] });
     expect(
       (await run(app, `{ shape { ... on Square { side } } shout }`)).data
     ).toEqual({ shape: { side: 2 }, shout: "HEY" });
-    expect(
-      app.schema.getSubscriptionType()?.getFields().ticks?.subscribe
-    ).toBeFunction();
+  });
+
+  test("subscriptions yield field values; middleware runs once", async () => {
+    const log: string[] = [];
+    const feed = createModule("feed", {
+      typeDefs: /* GraphQL */ `
+        type Tick {
+          n: Int!
+          label: String!
+        }
+        type Subscription {
+          ticks(upTo: Int!): Tick!
+        }
+      `,
+      resolvers: {
+        Subscription: {
+          async *ticks(_: unknown, { upTo }: { upTo: number }) {
+            for (let n = 1; n <= upTo; n++) yield { n };
+          }
+        },
+        Tick: { label: (t: { n: number }) => `tick ${t.n}` }
+      },
+      middleware: { Subscription: { ticks: [trace(log, "ticks")] } }
+    });
+    const app = olio({ modules: [root, feed] });
+    const stream = await subscribe({
+      schema: app.schema,
+      document: parse("subscription { ticks(upTo: 3) { n label } }")
+    });
+    if (!(Symbol.asyncIterator in stream)) throw new Error("not a stream");
+    const events: unknown[] = [];
+    for await (const event of stream) events.push(event.data);
+    expect(events).toEqual(
+      [1, 2, 3].map((n) => ({ ticks: { n, label: `tick ${n}` } }))
+    );
+    expect(log).toEqual(["ticks"]);
+
+    expect(() =>
+      olio({
+        modules: [
+          root,
+          createModule("old", {
+            typeDefs: "type Subscription { x: Int }",
+            resolvers: { Subscription: { x: { subscribe: () => null } } }
+          })
+        ]
+      })
+    ).toThrow(
+      'Module "old": "Subscription.x" must be a function returning an AsyncIterable, e.g. an async generator'
+    );
   });
 
   test("applies schema-design directives", () => {
