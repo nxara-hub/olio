@@ -28,6 +28,7 @@ export function typeToTS(
 export function inputMember(
   input: GraphQLArgument | GraphQLInputField
 ): string {
-  const optional = !isNonNullType(input.type) && input.default === undefined;
+  const optional =
+    !isNonNullType(input.type) && input.defaultValue === undefined;
   return `${input.name}${optional ? "?" : ""}: ${typeToTS(input.type, "input")}`;
 }

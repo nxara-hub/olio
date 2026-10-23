@@ -6,14 +6,20 @@ import {
 } from "@nxlab/schema";
 import {
   defaultFieldResolver,
+  getNamedType,
   isEnumType,
+  isInputObjectType,
   isInterfaceType,
   isObjectType,
   isScalarType,
   isUnionType,
   parse,
   Source,
+  valueFromAST,
+  type GraphQLArgument,
   type GraphQLEnumType,
+  type GraphQLInputField,
+  type GraphQLInputObjectType,
   type GraphQLFieldResolver,
   type GraphQLNamedType,
   type DocumentNode,
@@ -224,15 +230,7 @@ function claim({ owner: self, declared, resolved }: Attach, key: string): void {
   resolved.add(key);
 }
 
-// Only what graphql 17 calls. Scalars written the older way (`serialize`, as
-// graphql-scalars does) get the coerce methods from their constructor.
-const SCALAR_METHODS = [
-  "coerceOutputValue",
-  "coerceInputValue",
-  "coerceInputLiteral",
-  "parseLiteral",
-  "valueToLiteral"
-] as const;
+const SCALAR_METHODS = ["serialize", "parseValue", "parseLiteral"] as const;
 
 function applyScalar(type: GraphQLScalarType, value: object): void {
   const target = type as unknown as Record<string, unknown>;
@@ -312,7 +310,7 @@ function applyEnum(
 }
 
 // Setting `value` after the schema is built is safe: graphql builds its
-// internal-value lookup lazily and coerces defaults per operation.
+// internal-value lookup lazily. Defaults are another matter (`coerceDefaults`).
 function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
   for (const type of enums) {
     const seen = new Map<unknown, string>();
@@ -325,6 +323,38 @@ function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
       }
       seen.set(value.value, value.name);
     }
+  }
+}
+
+// graphql coerced every default when the schema was built, before enums had
+// internal values and scalars their implementations: `role: Role = ADMIN`
+// would reach resolvers as "ADMIN", not the internal value. Coerce them again
+// from their SDL literals. Input types first, since an input default (`= {}`)
+// fills in its fields' defaults.
+function coerceDefaults(schema: GraphQLSchema): void {
+  const done = new Set<GraphQLInputObjectType>();
+  const recoerce = (input: GraphQLArgument | GraphQLInputField): void => {
+    const named = getNamedType(input.type);
+    if (isInputObjectType(named)) coerceInputType(named);
+    const literal = input.astNode?.defaultValue;
+    if (!literal) return;
+    const value = valueFromAST(literal, input.type);
+    if (value !== undefined) input.defaultValue = value;
+  };
+  const coerceInputType = (type: GraphQLInputObjectType): void => {
+    if (done.has(type)) return;
+    done.add(type);
+    for (const field of Object.values(type.getFields())) recoerce(field);
+  };
+  for (const type of Object.values(schema.getTypeMap())) {
+    if (isInputObjectType(type)) coerceInputType(type);
+    if (!isObjectType(type) && !isInterfaceType(type)) continue;
+    for (const field of Object.values(type.getFields())) {
+      for (const arg of field.args) recoerce(arg);
+    }
+  }
+  for (const directive of schema.getDirectives()) {
+    for (const arg of directive.args) recoerce(arg);
   }
 }
 
@@ -498,6 +528,7 @@ export function olio(config: OlioConfig): OlioApp {
     applyResolvers({ schema, owner, appMiddleware, declared, resolved, enums });
   }
   checkEnums(enums);
+  coerceDefaults(schema);
   wrapDefaults(schema, appMiddleware, all, declared);
 
   return { schema, modules: config.modules };

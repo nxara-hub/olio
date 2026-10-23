@@ -13,7 +13,7 @@ Compose module SDL into one validated GraphQL schema.
 bun add @nxlab/schema
 ```
 
-`graphql` 17 is a peer dependency.
+`graphql` 16 is a peer dependency.
 
 ## compose
 

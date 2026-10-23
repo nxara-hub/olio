@@ -9,9 +9,9 @@ import {
   type GraphQLSchema,
   type ObjectTypeDefinitionNode
 } from "graphql";
-// ponytail: marked internal in graphql 17 (reachable through its "./*.js"
-// export), but the public buildASTSchema throws one string without
-// locations. Swap if graphql ever exports it.
+// ponytail: not exported from graphql's index (a deep import), but the public
+// buildASTSchema throws one string without locations. Swap if graphql ever
+// exports it.
 import { validateSDL } from "graphql/validation/validate.js";
 
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";

@@ -18,7 +18,7 @@
     "@nxlab/schema": "workspace:*",
     "@nxlab/tools": "workspace:*",
     "dataloader": "^2.2.3",
-    "graphql": "^17.0.2",
+    "graphql": "^16.14.2",
     "graphql-scalars": "^2.0.1",
     "hono": "^4.13.13",
     "ws": "^8.22.0"

@@ -25,7 +25,7 @@
         "@nxlab/schema": "workspace:*",
         "@nxlab/tools": "workspace:*",
         "dataloader": "^2.2.3",
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
         "graphql-scalars": "^2.0.1",
         "hono": "^4.13.13",
         "ws": "^8.22.0",
@@ -42,10 +42,10 @@
         "@nxlab/schema": "workspace:*",
       },
       "devDependencies": {
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
       },
       "peerDependencies": {
-        "graphql": "^17.0.0",
+        "graphql": "^16.13.0",
       },
     },
     "packages/di": {
@@ -66,12 +66,12 @@
       "devDependencies": {
         "@nxlab/olio": "workspace:*",
         "@types/ws": "^8.18.1",
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
         "ws": "^8.18.3",
       },
       "peerDependencies": {
         "@nxlab/olio": "workspace:*",
-        "graphql": "^17.0.0",
+        "graphql": "^16.13.0",
         "ws": "^8.0.0",
       },
       "optionalPeers": [
@@ -86,20 +86,20 @@
       },
       "devDependencies": {
         "@nxlab/codegen": "workspace:*",
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
       },
       "peerDependencies": {
-        "graphql": "^17.0.0",
+        "graphql": "^16.13.0",
       },
     },
     "packages/schema": {
       "name": "@nxlab/schema",
       "version": "0.0.0",
       "devDependencies": {
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
       },
       "peerDependencies": {
-        "graphql": "^17.0.0",
+        "graphql": "^16.13.0",
       },
     },
     "packages/tools": {
@@ -107,11 +107,11 @@
       "version": "0.0.0",
       "devDependencies": {
         "@nxlab/olio": "workspace:*",
-        "graphql": "^17.0.2",
+        "graphql": "^16.14.2",
       },
       "peerDependencies": {
         "@nxlab/olio": "workspace:*",
-        "graphql": "^17.0.0",
+        "graphql": "^16.13.0",
       },
     },
   },
@@ -400,7 +400,7 @@
 
     "glob-parent": ["glob-parent@5.1.2", "", { "dependencies": { "is-glob": "^4.0.1" } }, "sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow=="],
 
-    "graphql": ["graphql@17.0.2", "", {}, "sha512-FRWbddMxfkjiB7z+aQDWIR+E34xo9I8c9mtK2RPv8PmMzKRvrdsreHL/Ui/TmwHJfhHChEtsFPyMHKI+xuarQQ=="],
+    "graphql": ["graphql@16.14.2", "", {}, "sha512-Chq1s4CY7jmh8gO2qvLIJyfCDIN+EHLFW/9iShnp1z8FjBQMoodWP1kDC36VAMXXIvAjj4ARa7ntfAV2BrjsbA=="],
 
     "graphql-http": ["graphql-http@1.23.1", "", { "peerDependencies": { "graphql": ">=0.11 <=17" } }, "sha512-h6AcykL7+xp22QvOnK0fu1eHk9AZG1ngF71rk0ZGuGupnjm1yqXRFrZ/eMv4Q1FTCWILJ5o6hVAxzt3S8/wPHQ=="],
 

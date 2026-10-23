@@ -12,7 +12,7 @@ It is deliberately small — SDL in, types out. Schema composition belongs to `@
 bun add @nxlab/codegen
 ```
 
-`graphql` 17 is a peer dependency.
+`graphql` 16 is a peer dependency.
 
 ## Usage
 

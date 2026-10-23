@@ -1,6 +1,6 @@
 # Nxara
 
-Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` 17 as a peer dependency (no graphql 16 support).
+Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` 16 (16.13+) as a peer dependency. Not 17: 17.0.2 creates and aborts an `AbortController` per execution, which makes small queries about 4× slower.
 
 ## Layout
 
@@ -53,7 +53,7 @@ bun run --cwd apps/example serve     # the example over HTTP + WebSocket (Hono o
 - Olio must work with and without codegen. `packages/olio/test` registers nothing, so its type-check covers the untyped mode (`createModule` and inline resolver maps, no implicit `any`).
 - `packages/olio/test/typed/` is olio's typed contract test: `check-types` regenerates `generated.ts` from its fixture SDL with codegen, then type-checks `contract.ts` against `src/` (it augments `src/types.ts`, not the build). Add an `@ts-expect-error` there for any new type behaviour.
 - Inline resolver maps in `module.<id>({ resolvers })` / `feature…({ resolvers })` are typed (`OwnerResolvers`). `loadResolvers` returns the branded `LoadedResolvers`, which passes through unchecked; the brand is what keeps inline maps from matching the loose type.
-- Enum internal values: types via codegen's `CustomEnums` (they affect args and inputs too), values via `resolvers.<id>.<Enum>({...})`. At runtime olio sets each `GraphQLEnumValue.value` before the schema is used; graphql 17 builds its value lookup lazily and coerces defaults per operation.
+- Enum internal values: types via codegen's `CustomEnums` (they affect args and inputs too), values via `resolvers.<id>.<Enum>({...})`. At runtime olio sets each `GraphQLEnumValue.value` before the schema is used (graphql builds its value lookup lazily), then re-coerces every argument and input default from its SDL literal (`coerceDefaults`), since graphql 16 coerced them when the schema was built.
 - `apps/example/src/type-checks.ts` holds `@ts-expect-error` lines that must keep failing. A passing type-check is what proves the type contract.
 - A Claude Code hook runs `bun run fix` after every edit.
 

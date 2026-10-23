@@ -8,7 +8,7 @@ A small core holds what shouldn't change between frameworks: running operations,
 bun add @nxlab/http
 ```
 
-`graphql` 17 and `@nxlab/olio` are peer dependencies. So is `ws`, but only if you use `@nxlab/http/ws`.
+`graphql` 16 and `@nxlab/olio` are peer dependencies. So is `ws`, but only if you use `@nxlab/http/ws`.
 
 ## Adapters
 
