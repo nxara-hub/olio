@@ -9,12 +9,24 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
-import { parse, print, Source, type DocumentNode } from "graphql";
+import {
+  buildASTSchema,
+  buildClientSchema,
+  getIntrospectionQuery,
+  parse,
+  print,
+  Source,
+  type DocumentNode,
+  type GraphQLSchema,
+  type IntrospectionQuery
+} from "graphql";
 
 import { compile } from "./codegen.js";
+import { emitClient } from "./emit-client.js";
 import { bold, count, cyan, dim, green, red, row, shortPath } from "./log.js";
 import {
   BUILTIN_SCALARS,
+  type ClientCodegenOptions,
   type CodegenModule,
   type CodegenOptions
 } from "./types.js";
@@ -264,4 +276,65 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       );
     }
   });
+}
+
+async function loadSchema(
+  source: string,
+  headers: Record<string, string> = {}
+): Promise<GraphQLSchema> {
+  if (!/^https?:\/\//.test(source)) {
+    return buildASTSchema(parseFile(source, await readFile(source, "utf8")));
+  }
+  const response = await fetch(source, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      ...headers
+    },
+    body: JSON.stringify({ query: getIntrospectionQuery() })
+  });
+  const body = (await response.json().catch(() => undefined)) as
+    | { data?: IntrospectionQuery; errors?: { message: string }[] }
+    | undefined;
+  if (!body?.data) {
+    const reason =
+      body?.errors?.map((e) => e.message).join("; ") ??
+      `HTTP ${response.status}`;
+    throw new Error(`Couldn't introspect ${source}: ${reason}`);
+  }
+  return buildClientSchema(body.data);
+}
+
+async function loadDocuments(
+  patterns: string | string[]
+): Promise<DocumentNode[]> {
+  const documents: DocumentNode[] = [];
+  for (const pattern of [patterns].flat()) {
+    const files = (await Array.fromAsync(glob(pattern))).sort();
+    if (files.length === 0) throw new Error(`No files match "${pattern}"`);
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      if (!isEmptySDL(source)) documents.push(parseFile(file, source));
+    }
+  }
+  return documents;
+}
+
+/**
+ * Typed operations for `@nxlab/client`, from `.graphql` files and the
+ * schema: a schema file, or the running server's URL.
+ */
+export async function codegenClient(
+  options: ClientCodegenOptions
+): Promise<void> {
+  const { output, logs = true } = options;
+  const schema = await loadSchema(options.schema, options.headers);
+  const code = emitClient(schema, await loadDocuments(options.documents));
+  const changed = await writeOutput(output, code, false);
+  if (logs) {
+    console.log(
+      `${bold("@nxlab/codegen")} ${dim("client")}\n  ${changed ? green("✓") : dim("·")} ${shortPath(output)}${changed ? "" : `  ${dim("unchanged")}`}`
+    );
+  }
 }

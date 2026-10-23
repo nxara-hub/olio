@@ -1,5 +1,5 @@
-export { codegen } from "./files.js";
-export type { CodegenOptions } from "./types.js";
+export { codegen, codegenClient } from "./files.js";
+export type { ClientCodegenOptions, CodegenOptions } from "./types.js";
 export type {
   CustomEnums,
   CustomScalars,
