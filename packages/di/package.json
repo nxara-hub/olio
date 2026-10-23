@@ -1,0 +1,35 @@
+{
+  "name": "@nxlab/di",
+  "version": "0.0.0",
+  "description": "Typed dependency injection for olio apps, on Awilix.",
+  "keywords": [
+    "awilix",
+    "dependency-injection",
+    "di",
+    "graphql",
+    "nxara"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "awilix": "^13.0.5"
+  }
+}

@@ -1,9 +1,5 @@
 # TODO
 
-## olio
-
-- [ ] Dependency injection: not in olio. Maybe a separate DI package later.
-
 ## Later
 
 - [ ] Docs, including migration guides for people coming from GraphQL Yoga and Apollo Server (Apollo needs graphql 17 support first).

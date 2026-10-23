@@ -19,10 +19,12 @@
       "dependencies": {
         "@hono/node-server": "^2.1.5",
         "@nxlab/codegen": "workspace:*",
+        "@nxlab/di": "workspace:*",
         "@nxlab/http": "workspace:*",
         "@nxlab/olio": "workspace:*",
         "@nxlab/schema": "workspace:*",
         "@nxlab/tools": "workspace:*",
+        "dataloader": "^2.2.3",
         "graphql": "^17.0.2",
         "graphql-scalars": "^2.0.1",
         "hono": "^4.13.13",
@@ -44,6 +46,13 @@
       },
       "peerDependencies": {
         "graphql": "^17.0.0",
+      },
+    },
+    "packages/di": {
+      "name": "@nxlab/di",
+      "version": "0.0.0",
+      "dependencies": {
+        "awilix": "^13.0.5",
       },
     },
     "packages/http": {
@@ -180,6 +189,8 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@nxlab/codegen": ["@nxlab/codegen@workspace:packages/codegen"],
+
+    "@nxlab/di": ["@nxlab/di@workspace:packages/di"],
 
     "@nxlab/example": ["@nxlab/example@workspace:apps/example"],
 
@@ -337,6 +348,8 @@
 
     "ansi-styles": ["ansi-styles@6.2.3", "", {}, "sha512-4Dj6M28JB+oAH8kFkTLUo+a2jwOFkuqb3yucU0CANcRRUbxS0cP0nZYCGjcc3BNXwRIsUVmDGgzawme7zvJHvg=="],
 
+    "awilix": ["awilix@13.0.5", "", { "dependencies": { "fast-glob": "^3.3.3" } }, "sha512-ORtca6suBdYA1FyTzqHEZDvEuUwo3lPDDBRm7GrzHgi6STESzJKdBtpqfTzObdMj1NGQUWX6k26E3EbQaGJX5Q=="],
+
     "braces": ["braces@3.0.3", "", { "dependencies": { "fill-range": "^7.1.1" } }, "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA=="],
 
     "bun-types": ["bun-types@1.4.3", "", { "dependencies": { "@types/node": "*", "undici-types": "*" } }, "sha512-tinRJNGOmUN+tEAsn2y2e942n9JHRHR42iUYzDH75NmhJqVBokGSQkkfSFdNWwsANIdrK6ACH9t01M452YyTwg=="],
@@ -350,6 +363,8 @@
     "commander": ["commander@15.0.0", "", {}, "sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg=="],
 
     "confbox": ["confbox@0.1.8", "", {}, "sha512-RMtmw0iFkeR4YV+fUOSucriAQNb9g8zFR52MWCtl+cCZOFRNL6zeB395vPzFhEjjn4fMxXudmELnl/KF/WrK6w=="],
+
+    "dataloader": ["dataloader@2.2.3", "", {}, "sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA=="],
 
     "deepmerge": ["deepmerge@4.3.1", "", {}, "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="],
 
