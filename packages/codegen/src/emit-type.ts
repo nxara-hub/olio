@@ -8,7 +8,6 @@ import type {
 
 import { inputMember, typeToTS } from "./type-map.js";
 
-/** Wrap declarations in a generated region (empty regions collapse cleanly). */
 export function region(name: string, declarations: readonly string[]): string {
   const body = declarations.length
     ? `\n\n${declarations.join("\n\n")}\n\n`
@@ -27,7 +26,7 @@ export function emitEnum(type: GraphQLEnumType): string {
   );
 }
 
-/** Interface fields are redeclared on every implementer, so no intersection is needed. */
+// Interface fields are redeclared on every implementer, so no intersection is needed.
 export function emitObject(type: GraphQLObjectType): string {
   const lines = [
     `  __typename?: "${type.name}";`,

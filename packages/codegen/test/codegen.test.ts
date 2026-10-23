@@ -3,9 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { generate } from "../src/codegen.js";
 
 const gen = (sdl: string, name = "auth"): string =>
-  generate([{ name, typeDefs: sdl }]);
+  generate([{ id: name, typeDefs: sdl }]);
 
-/** The `Application` block of the output. */
 const application = (out: string): string =>
   out.slice(out.indexOf("export type Application"));
 
@@ -174,11 +173,11 @@ describe("generate: Application", () => {
     const app = application(
       generate([
         {
-          name: "users",
+          id: "users",
           typeDefs: "type Query { user: User } type User { id: ID! }"
         },
         {
-          name: "posts",
+          id: "posts",
           typeDefs:
             "type Post { id: ID! } extend type User { posts: [Post!]! } extend type Query { post: Post }"
         }
@@ -203,12 +202,12 @@ describe("generate: Application", () => {
     const app = application(
       generate([
         {
-          name: "app",
+          id: "app",
           typeDefs:
             "type Query { node: Node } interface Node { id: ID! } interface Empty { x: Int }"
         },
-        { name: "users", typeDefs: "type User implements Node { id: ID! }" },
-        { name: "posts", typeDefs: "type Post implements Node { id: ID! }" }
+        { id: "users", typeDefs: "type User implements Node { id: ID! }" },
+        { id: "posts", typeDefs: "type Post implements Node { id: ID! }" }
       ])
     );
     expect(app).toContain(
@@ -225,9 +224,9 @@ describe("generate: Application", () => {
   test("merges same-named modules and keeps empty ones", () => {
     const app = application(
       generate([
-        { name: "a", typeDefs: "type Query { x: Int }" },
-        { name: "a", typeDefs: "extend type Query { y: Int }" },
-        { name: "empty", typeDefs: "directive @tag on FIELD_DEFINITION" }
+        { id: "a", typeDefs: "type Query { x: Int }" },
+        { id: "a", typeDefs: "extend type Query { y: Int }" },
+        { id: "empty", typeDefs: "directive @tag on FIELD_DEFINITION" }
       ])
     );
     expect(app).toContain(
@@ -238,8 +237,8 @@ describe("generate: Application", () => {
 
   test("needs no placeholder root type when modules only extend it", () => {
     const out = generate([
-      { name: "users", typeDefs: "extend type Query { user: Int }" },
-      { name: "posts", typeDefs: "extend type Query { post: Int }" }
+      { id: "users", typeDefs: "extend type Query { user: Int }" },
+      { id: "posts", typeDefs: "extend type Query { post: Int }" }
     ]);
     expect(out).toContain('export type Query = {\n  __typename?: "Query";');
     expect(application(out)).toContain(
@@ -254,10 +253,10 @@ describe("generate: Application", () => {
     const app = application(
       generate([
         {
-          name: "sales",
+          id: "sales",
           typeDefs: "enum Status { OPEN CLOSED } type Query { s: Status }"
         },
-        { name: "legacy", typeDefs: "extend enum Status { ARCHIVED }" }
+        { id: "legacy", typeDefs: "extend enum Status { ARCHIVED }" }
       ])
     );
     expect(app).toContain(
@@ -272,10 +271,10 @@ describe("generate: Application", () => {
     const app = application(
       generate([
         {
-          name: "core",
+          id: "core",
           typeDefs: "scalar DateTime type Query { now: DateTime }"
         },
-        { name: "users", typeDefs: "extend type Query { since: DateTime }" }
+        { id: "users", typeDefs: "extend type Query { since: DateTime }" }
       ])
     );
     expect(app).toContain(
@@ -295,16 +294,16 @@ describe("generate: unsupported schemas", () => {
   test("rejects feature names that clash in the builders", () => {
     expect(() =>
       generate([
-        { name: "sales", typeDefs: "type Customer { id: ID! }" },
-        { name: "sales/Customer", typeDefs: "extend type Query { a: Int }" }
+        { id: "sales", typeDefs: "type Customer { id: ID! }" },
+        { id: "sales/Customer", typeDefs: "extend type Query { a: Int }" }
       ])
     ).toThrow(
       'Feature folder "sales/Customer" clashes with type "Customer" in module "sales"; rename the folder'
     );
     expect(() =>
       generate([
-        { name: "sales", typeDefs: "type Query { a: Int }" },
-        { name: "sales/name", typeDefs: "extend type Query { b: Int }" }
+        { id: "sales", typeDefs: "type Query { a: Int }" },
+        { id: "sales/name", typeDefs: "extend type Query { b: Int }" }
       ])
     ).toThrow('Feature folder "sales/name" clashes with a reserved name');
   });
@@ -321,8 +320,8 @@ describe("generate: unsupported schemas", () => {
 
   test("supports custom root type names, marking roots by operation", () => {
     const out = generate([
-      { name: "app", typeDefs: "schema { query: RootQuery }" },
-      { name: "users", typeDefs: "extend type RootQuery { me: Int }" }
+      { id: "app", typeDefs: "schema { query: RootQuery }" },
+      { id: "users", typeDefs: "extend type RootQuery { me: Int }" }
     ]);
     expect(out).toContain(
       'export type RootQuery = {\n  __typename?: "RootQuery";'

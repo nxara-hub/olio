@@ -21,7 +21,6 @@ import {
 
 const COMMENT = /#[^\n]*/g;
 
-/** A file with only whitespace and `#` comments has no definitions to emit. */
 function isEmptySDL(source: string): boolean {
   return source.replace(COMMENT, "").trim() === "";
 }
@@ -40,9 +39,7 @@ function parseFile(filePath: string, source: string): DocumentNode {
   }
 }
 
-/** A module's own SDL, or one feature's. */
 interface Part {
-  /** `"sales"`, or `"sales/orders"` for a feature. */
   id: string;
   files: string[];
   typeDefs: DocumentNode[];
@@ -50,12 +47,10 @@ interface Part {
 
 interface ModuleDefinition {
   id: string;
-  /** The module's own SDL first, then one part per feature. */
   parts: Part[];
   features: string[];
 }
 
-/** Glob for a module's typeDefs, resolved relative to its directory. */
 async function matchFiles(
   moduleDir: string,
   patterns: readonly string[]
@@ -73,7 +68,6 @@ async function matchFiles(
   return files.sort();
 }
 
-/** Discover direct child directories of `modules` as modules. */
 async function discoverModules(
   modulesDir: string,
   typeDefs: string | string[],
@@ -151,7 +145,7 @@ async function discoverModules(
   return modules;
 }
 
-/** Write `content`, skipping the write when the file already holds it. */
+// Unchanged content isn't rewritten, so watchers and builds see no change.
 async function writeOutput(
   output: string,
   content: string,
@@ -165,7 +159,6 @@ async function writeOutput(
   return true;
 }
 
-/** Watch the modules root and re-run `onChange` (debounced) on any change. */
 function watchModules(
   modulesDir: string,
   onChange: (changedPath: string) => Promise<void>
@@ -186,7 +179,6 @@ function watchModules(
   });
 }
 
-/** Discover → parse → transform → generate → write, plus optional watch/schema. */
 export async function codegen(options: CodegenOptions): Promise<void> {
   const {
     modules: modulesDir,
@@ -236,7 +228,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
     }
 
     const codegenModules: CodegenModule[] = modules.flatMap((m) =>
-      m.parts.map((p) => ({ name: p.id, typeDefs: p.typeDefs }))
+      m.parts.map((p) => ({ id: p.id, typeDefs: p.typeDefs }))
     );
     const compiled = compile(codegenModules, { directives });
     const types = Object.keys(compiled.schema.getTypeMap()).filter(

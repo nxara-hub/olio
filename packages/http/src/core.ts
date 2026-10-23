@@ -8,7 +8,7 @@ import type { Response as HttpResponse } from "graphql-http";
 
 type MaybePromise<T> = T | Promise<T>;
 
-/** What the adapters serve: an olio app, or anything with a schema. */
+/** An olio app, or anything with a schema. */
 export interface Servable {
   readonly schema: GraphQLSchema;
 }
@@ -25,13 +25,8 @@ interface ErrorOptions {
 }
 
 export interface HttpOptions<Request> extends ErrorOptions {
-  /** Builds `ctx` for each operation, from the framework's request. */
   context?: (request: Request) => MaybePromise<Context>;
-  /**
-   * Builds `ctx` for operations streamed over server-sent events
-   * (`Accept: text/event-stream`), typically subscriptions. Defaults to
-   * `context`.
-   */
+  /** For operations streamed over server-sent events. Defaults to `context`. */
   subscriptionContext?: (request: Request) => MaybePromise<SubscriptionContext>;
   /**
    * Called once an operation has finished: after the HTTP response is
@@ -41,28 +36,21 @@ export interface HttpOptions<Request> extends ErrorOptions {
   onOperationEnd?: (ctx: Context | SubscriptionContext) => MaybePromise<void>;
 }
 
-/** Headers a server-sent events request carries, as graphql-sse sends them. */
 export interface SseSignals {
   method: string;
   accept: string | null | undefined;
   token: string | null | undefined;
 }
 
-/**
- * Whether a request is for graphql-sse: a stream (`Accept:
- * text/event-stream`), or single-connection mode's reservation (`PUT`) and
- * its token header. Everything else is plain GraphQL over HTTP.
- */
+// graphql-sse's single-connection mode reserves a stream with `PUT`, then
+// sends operations with its token header, without `Accept: text/event-stream`.
 export const isSse = ({ method, accept, token }: SseSignals): boolean =>
   method === "PUT" ||
   Boolean(token) ||
   Boolean(accept?.includes("text/event-stream"));
 
-/**
- * A stream whose source throws mid-iteration ends with one last result
- * carrying that (masked) error, instead of the error escaping the transport.
- * @yields {unknown} Each result from `stream`, then the error result if it throws.
- */
+// A source that throws mid-stream ends with one masked error result, instead
+// of the raw error escaping the transport.
 async function* endWithError(
   mask: ReturnType<typeof errorMasker>,
   stream: AsyncIterable<unknown>
@@ -83,11 +71,8 @@ async function* endWithError(
   }
 }
 
-/**
- * graphql-sse's operation result: one result (e.g. a subscription that failed
- * to start) is masked here; a stream is masked event by event in `onNext`,
- * and made to end cleanly if its source throws.
- */
+// A stream is masked event by event in `onNext`; only a single result (a
+// subscription that failed to start) is masked here.
 export async function maskOperation(
   mask: ReturnType<typeof errorMasker>,
   result: unknown
@@ -100,30 +85,26 @@ export async function maskOperation(
   ) as never;
 }
 
-/** A WebSocket client, as subscription context sees it. */
 export interface Connection<Request> {
-  /** The HTTP request that opened the socket: headers, cookies, URL. */
+  /** The HTTP request that opened the socket. */
   request: Request;
-  /** What the client sent in `connection_init`, where clients usually put a token. */
+  /** From `connection_init`. Browsers can't set WebSocket headers, so clients put tokens here. */
   connectionParams: Readonly<Record<string, unknown>> | undefined;
 }
 
 export interface SubscriptionOptions<Request> extends ErrorOptions {
-  /** Builds `ctx` for each subscription, from its connection. */
   context?: (
     connection: Connection<Request>
   ) => MaybePromise<SubscriptionContext>;
-  /** Called once an operation has completed, or its socket has closed. */
+  /** Called once an operation has completed, or its socket has closed (once per operation). */
   onOperationEnd?: (ctx: SubscriptionContext) => MaybePromise<void>;
 }
 
-/** Hides unexpected errors, per the options: one error, or a whole result. */
 export function errorMasker(options: ErrorOptions): {
   error: (error: GraphQLError) => GraphQLError;
   result: (result: ExecutionResult) => ExecutionResult;
-  /** A failure before execution (a throwing `context` hook), as a GraphQLError. */
+  /** For failures before execution, such as a throwing `context` hook. */
   thrown: (error: unknown) => GraphQLError;
-  /** Hand an error to `onUnexpectedError`. */
   report: (error: unknown) => void;
 } {
   const { maskErrors = true, onUnexpectedError = console.error } = options;
@@ -226,10 +207,8 @@ export function sseFailure(
   };
 }
 
-/**
- * `onOperationEnd`, made safe to call from transports: once per context, and
- * a failure in it is reported rather than thrown.
- */
+// Once per context, whatever a transport signals; a failure in it is reported
+// rather than thrown.
 export function operationEnd<C>(
   mask: ReturnType<typeof errorMasker>,
   hook: ((ctx: C) => MaybePromise<void>) | undefined

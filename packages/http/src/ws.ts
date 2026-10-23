@@ -12,17 +12,7 @@ import {
   type SubscriptionOptions
 } from "./core.js";
 
-/**
- * Subscriptions over WebSocket (the graphql-ws protocol) on a `ws` server,
- * for any Node HTTP server: `node:http`, Hono's `@hono/node-server`, Express.
- * Returns a function that shuts the server down.
- *
- * ```ts
- * wsServer(app, new WebSocketServer({ server, path: "/graphql" }), {
- *   context: ({ request, connectionParams }) => createSubscriptionContext(...)
- * });
- * ```
- */
+/** Returns a function that shuts the server down. */
 export function wsServer(
   app: Servable,
   server: WebSocketServer,
@@ -31,10 +21,9 @@ export function wsServer(
   const mask = errorMasker(options);
   const context = guardContext(mask, options.context);
   const end = operationEnd(mask, options.onOperationEnd);
-  /** Each connection's live operations: operation id -> its context. */
-  const live = new WeakMap<object, Map<string, unknown>>();
+  const contextsByOperation = new WeakMap<object, Map<string, unknown>>();
   const finish = async (connection: object, id: string): Promise<void> => {
-    const operations = live.get(connection);
+    const operations = contextsByOperation.get(connection);
     const ctx = operations?.get(id);
     operations?.delete(id);
     await end(ctx as never);
@@ -48,16 +37,17 @@ export function wsServer(
               request: ctx.extra.request,
               connectionParams: ctx.connectionParams
             });
-            const operations = live.get(ctx) ?? new Map<string, unknown>();
+            const operations =
+              contextsByOperation.get(ctx) ?? new Map<string, unknown>();
             operations.set(id, value);
-            live.set(ctx, operations);
+            contextsByOperation.set(ctx, operations);
             return value as never;
           }
         : undefined,
       onComplete: (ctx, id) => finish(ctx, id),
       // A socket that closes mid-operation never completes it.
       onClose: async (ctx) => {
-        const ids = [...(live.get(ctx)?.keys() ?? [])];
+        const ids = [...(contextsByOperation.get(ctx)?.keys() ?? [])];
         await Promise.all(ids.map((id) => finish(ctx, id)));
       },
       onNext: (_ctx, _id, _payload, _args, result) =>

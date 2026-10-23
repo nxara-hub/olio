@@ -33,8 +33,10 @@ const product = (
   updatedAt: opened
 });
 
-/** SKU -> product. */
-export const products = new Map<string, ProductRow>(
+type Sku = string;
+type WarehouseCode = string;
+
+export const products = new Map<Sku, ProductRow>(
   [
     product("p1", "CHAIR-01", "Office chair", 14_900),
     product("p2", "DESK-01", "Standing desk", 49_900),
@@ -42,8 +44,7 @@ export const products = new Map<string, ProductRow>(
   ].map((p) => [p.sku, p])
 );
 
-/** SKU -> warehouse code -> units on hand. */
-export const stock = new Map<string, Map<string, number>>([
+export const stock = new Map<Sku, Map<WarehouseCode, number>>([
   [
     "CHAIR-01",
     new Map([

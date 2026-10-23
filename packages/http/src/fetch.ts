@@ -13,16 +13,7 @@ import {
   type Servable
 } from "./core.js";
 
-/**
- * GraphQL over HTTP for anything that speaks the Fetch API: Bun.serve, Deno,
- * Cloudflare Workers, Hono, Elysia, Next.js route handlers, SvelteKit, Remix.
- * The same URL also serves subscriptions as server-sent events.
- *
- * ```ts
- * const graphql = fetchHandler(app, { context: (request) => createContext(request) });
- * hono.all("/graphql", (c) => graphql(c.req.raw));
- * ```
- */
+/** The same URL also serves subscriptions as server-sent events (`Accept: text/event-stream`). */
 export function fetchHandler(
   app: Servable,
   options: HttpOptions<Request> = {}
@@ -30,7 +21,7 @@ export function fetchHandler(
   const mask = errorMasker(options);
   const { context } = options;
   const end = operationEnd(mask, options.onOperationEnd);
-  /** The context built for each request, so it can be ended after the response. */
+  // Kept per request, so `onOperationEnd` can run after the response.
   const contexts = new WeakMap<Request, unknown>();
   const subscriptionContext = guardContext(
     mask,

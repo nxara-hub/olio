@@ -6,11 +6,7 @@ import { pubsub } from "./pubsub.js";
 
 let requests = 0;
 
-/**
- * A request's context, from its bearer token, with a DI scope for this
- * operation. This is what an HTTP adapter does per request; `main.ts` calls
- * it directly. Dispose `ctx.di` when the operation ends (`onOperationEnd`).
- */
+/** Dispose `ctx.di` when the operation ends (`onOperationEnd`). */
 export function createContext(token?: string): Context {
   requests += 1;
   const request = {

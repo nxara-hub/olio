@@ -1,4 +1,3 @@
-/** Built-in GraphQL scalar -> TypeScript input/output types. */
 export interface Scalars {
   ID: { input: string; output: string };
   String: { input: string; output: string };
@@ -7,10 +6,9 @@ export interface Scalars {
   Boolean: { input: boolean; output: boolean };
 }
 
-/** Augment this interface (via `declare module`) to register custom scalars. */
+/** Augment (`declare module`) to register custom scalars: `{ DateTime: Date }`, or `{ input; output }`. */
 export interface CustomScalars {}
 
-/** Resolve a scalar name to its input/output types, falling back to `unknown`. */
 export type ResolveScalar<
   Name extends keyof CustomScalars | keyof Scalars | (string & {})
 > = Name extends keyof CustomScalars
@@ -29,7 +27,6 @@ export type ResolveScalar<
 // oxlint-disable-next-line typescript/no-empty-interface -- augmented by apps
 export interface CustomEnums {}
 
-/** An enum's TypeScript type: its internal values if registered, else its names. */
 export type ResolveEnum<
   Name extends keyof CustomEnums | (string & {}),
   Names

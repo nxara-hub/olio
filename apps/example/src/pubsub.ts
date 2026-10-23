@@ -1,6 +1,5 @@
 import type { ProductRow } from "./modules/inventory/store.js";
 
-/** Topics and their payloads. */
 export interface Topics {
   "stock:changed": ProductRow;
 }

@@ -17,7 +17,6 @@ export interface OrderLineRow {
   unitPriceCents: number;
 }
 
-/** How orders are stored. */
 export interface OrderRow {
   id: string;
   number: string;

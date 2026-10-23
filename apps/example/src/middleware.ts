@@ -3,12 +3,10 @@ import type { Context, MiddlewareFn, SubscriptionContext } from "@nxlab/olio";
 import { clientError } from "./errors.js";
 import type { Role } from "./generated.js";
 
-/** Runs on queries, mutations and subscriptions alike. */
-type AnyFn = MiddlewareFn<Context | SubscriptionContext>;
+type AnyOperationFn = MiddlewareFn<Context | SubscriptionContext>;
 
-/** One line per operation field: who called what, and how long it took. */
 export const requestLogger =
-  (): AnyFn =>
+  (): AnyOperationFn =>
   async ({ ctx, info }, next) => {
     // ponytail: root fields only; nested fields would drown the log.
     if (info.path.prev) return next();
@@ -25,7 +23,7 @@ export const requestLogger =
   };
 
 export const requireAuth =
-  (): AnyFn =>
+  (): AnyOperationFn =>
   ({ ctx, info }, next) => {
     if (!ctx.viewer) {
       throw clientError("UNAUTHENTICATED", `Unauthorized: ${info.fieldName}`);

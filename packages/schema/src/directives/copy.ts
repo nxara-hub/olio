@@ -10,7 +10,7 @@ export function copyDirective(): SchemaDirective {
   return fieldCopyDirective({
     name: "copy",
     definition: "directive @copy(from: [String!]!) on OBJECT | INPUT_OBJECT",
-    sources: { object: ["object", "interface"], input: ["input"] },
+    sourceKinds: { object: ["object", "interface"], input: ["input"] },
     overrides: true
   });
 }

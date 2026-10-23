@@ -9,7 +9,6 @@ import {
 
 export type ScalarDirection = "input" | "output";
 
-/** Map a GraphQL type to its TypeScript representation, nullability included. */
 export function typeToTS(
   type: GraphQLType,
   direction: ScalarDirection,
@@ -24,10 +23,8 @@ export function typeToTS(
   return nullable ? `Maybe<${base}>` : base;
 }
 
-/**
- * `name: T` or `name?: T`. Nullable inputs may be omitted by the client, unless
- * a default value guarantees the resolver receives one.
- */
+// Nullable inputs may be omitted by the client, unless a default value
+// guarantees the resolver receives one.
 export function inputMember(
   input: GraphQLArgument | GraphQLInputField
 ): string {

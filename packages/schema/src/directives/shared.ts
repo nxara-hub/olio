@@ -34,7 +34,6 @@ const KINDS: Partial<Record<Kind, string>> = {
 const article = (kind: string): string =>
   /^[aeiou]/.test(kind) ? `an ${kind}` : `a ${kind}`;
 
-/** Prefix a message with the node's location: `users/user.gql:3:5: message`. */
 export function located(node: ASTNode | undefined, message: string): string {
   if (!node?.loc) return message;
   const { line, column } = getLocation(node.loc.source, node.loc.start);
@@ -42,12 +41,10 @@ export function located(node: ASTNode | undefined, message: string): string {
   return `${file === "GraphQL request" ? "" : `${file}:`}${line}:${column}: ${message}`;
 }
 
-/** Throw with the node's location. */
 export function fail(node: ASTNode, message: string): never {
   throw new Error(located(node, message));
 }
 
-/** A type definition or extension: anything with a name and directives. */
 interface TypeNode {
   kind: Kind;
   name: { value: string };
@@ -59,7 +56,6 @@ interface TypeNode {
 const asType = (def: DefinitionNode): TypeNode | undefined =>
   KINDS[def.kind] ? (def as unknown as TypeNode) : undefined;
 
-/** Names of the types that still carry one of the given directives. */
 export function directiveUsages(
   document: DocumentNode,
   names: ReadonlySet<string>
@@ -76,7 +72,6 @@ export function directiveUsages(
 
 interface Analysis {
   kinds: Map<string, string>;
-  /** Type name -> fields across its definition and extensions, in order. */
   fields: Map<string, Field[]>;
   interfaces: Map<string, Set<string>>;
 }
@@ -104,7 +99,6 @@ function analyze(document: DocumentNode): Analysis {
   return analysis;
 }
 
-/** `from: ["A", "B"]`, or a single `from: "A"`. */
 function sourceNames(directive: DirectiveNode, name: string): string[] {
   const arg = directive.arguments?.find((a) => a.name.value === "from");
   if (!arg) {
@@ -124,27 +118,20 @@ function sourceNames(directive: DirectiveNode, name: string): string[] {
   );
 }
 
-/** A field's shape, ignoring its description. */
 const shape = (field: Field): string =>
   print({ ...field, description: undefined });
 
 interface Merge {
   directive: DirectiveNode;
   target: string;
-  /** Source type name -> its fields, in reference order. */
   sources: readonly (readonly [string, readonly Field[]])[];
   local: readonly Field[];
-  /** Fields the type declares in another definition or extension. */
   declaredElsewhere: ReadonlySet<string>;
   overrides: boolean;
 }
 
-/**
- * Spread semantics, like `{ ...A, ...B, ...local }`: each field keeps the
- * position where it first appeared. With `overrides`, a later source wins over
- * an earlier one and local fields win over every source. Without it, a
- * redeclaration must have the same shape, or this throws.
- */
+// Like `{ ...A, ...B, ...local }`: a field keeps the position where it first
+// appeared. Without `overrides`, a redeclaration must have the same shape.
 function mergeFields(merge: Merge): Field[] {
   const merged = new Map<string, readonly [string, Field]>();
   const entries = [
@@ -171,18 +158,14 @@ function mergeFields(merge: Merge): Field[] {
 export interface FieldCopySpec {
   name: string;
   definition: string;
-  /** Allowed source kinds for each target kind the directive supports. */
-  sources: Partial<Record<TargetKind, readonly string[]>>;
-  /** Also add the sources to the target's `implements` list. */
+  sourceKinds: Partial<Record<TargetKind, readonly string[]>>;
   addInterfaces?: boolean;
-  /** Let later sources and local fields override earlier fields. */
   overrides: boolean;
 }
 
-/** A directive that copies fields from the types named in `from`. */
 export function fieldCopyDirective(spec: FieldCopySpec): SchemaDirective {
   const { name } = spec;
-  const targets = Object.keys(spec.sources).map((k) => `${k} types`);
+  const targets = Object.keys(spec.sourceKinds).map((k) => `${k} types`);
 
   const usage = (type: TypeNode): DirectiveNode | undefined =>
     type.directives?.find((d) => d.name.value === name);
@@ -193,7 +176,7 @@ export function fieldCopyDirective(spec: FieldCopySpec): SchemaDirective {
     analysis: Analysis
   ): string[] => {
     const kind = KINDS[type.kind] ?? "";
-    const allowed = spec.sources[kind as TargetKind];
+    const allowed = spec.sourceKinds[kind as TargetKind];
     const target = type.name.value;
     if (!allowed) {
       fail(

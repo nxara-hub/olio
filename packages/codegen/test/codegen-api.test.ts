@@ -14,7 +14,6 @@ import { copyDirective, implementsDirective } from "@nxlab/schema";
 
 import { codegen } from "../src/index.js";
 
-/** The SDL most tests generate from — one module, a realistic auth surface. */
 const AUTH_SDL = `
   interface Node { id: ID! }
   type Query { viewer: User }
@@ -43,7 +42,6 @@ async function writeModule(
   }
 }
 
-/** Write `files` as the single `auth` module and return the output path. */
 async function scaffold(
   dir: string,
   files: Record<string, string> = { "auth.gql": AUTH_SDL }

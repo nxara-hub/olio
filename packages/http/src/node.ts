@@ -16,13 +16,8 @@ import {
 } from "./core.js";
 
 /**
- * GraphQL over HTTP for Node's request/response pair: `node:http`, Express,
- * Connect, Koa's `ctx.req`/`ctx.res`, Fastify's `request.raw`/`reply.raw`.
- * The same URL also serves subscriptions as server-sent events.
- *
- * ```ts
- * createServer(nodeHandler(app, { context: (req) => createContext(req) }));
- * ```
+ * Koa: pass `ctx.req`/`ctx.res`; Fastify: `request.raw`/`reply.raw`. The same
+ * URL also serves subscriptions as server-sent events (`Accept: text/event-stream`).
  */
 export function nodeHandler(
   app: Servable,
@@ -31,7 +26,7 @@ export function nodeHandler(
   const mask = errorMasker(options);
   const { context } = options;
   const end = operationEnd(mask, options.onOperationEnd);
-  /** The context built for each request, so it can be ended after the response. */
+  // Kept per request, so `onOperationEnd` can run after the response.
   const contexts = new WeakMap<IncomingMessage, unknown>();
   const subscriptionContext = guardContext(
     mask,

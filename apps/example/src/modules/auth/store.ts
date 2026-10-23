@@ -35,8 +35,7 @@ const employees: readonly EmployeeRow[] = [
   }
 ];
 
-/** Session token -> employee id. */
-const sessions = new Map<string, string>();
+const employeeIdByToken = new Map<string, string>();
 
 export const employee = (id: string): EmployeeRow | undefined =>
   employees.find((e) => e.id === id);
@@ -50,13 +49,14 @@ export function signIn(
   );
   if (!found) return undefined;
   const token = crypto.randomUUID();
-  sessions.set(token, found.id);
+  employeeIdByToken.set(token, found.id);
   return { token, employee: found };
 }
 
-export const signOut = (token: string): boolean => sessions.delete(token);
+export const signOut = (token: string): boolean =>
+  employeeIdByToken.delete(token);
 
 export function viewerFor(token: string): Context["viewer"] {
-  const found = employee(sessions.get(token) ?? "");
+  const found = employee(employeeIdByToken.get(token) ?? "");
   return found && { id: found.id, role: found.role, token };
 }

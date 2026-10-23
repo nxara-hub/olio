@@ -23,12 +23,8 @@ export interface SchemaDirective {
   transform(document: DocumentNode, context: DirectiveContext): DocumentNode;
 }
 
-/**
- * Apply schema-design directives. Every directive validates first, then
- * transforms run in passes until no usage is left, so a type can copy from a
- * type that uses directives itself, whatever order the directives are in.
- * Their definitions, if the SDL declares them, are removed from the output.
- */
+// Transforms run in passes until no usage is left, so a type can copy from a
+// type that uses directives itself, whatever order the directives are in.
 export function applyDirectives(
   document: DocumentNode,
   directives: readonly SchemaDirective[]

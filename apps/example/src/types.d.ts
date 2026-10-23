@@ -11,7 +11,6 @@ import type {
 } from "./modules/sales/store.js";
 import type { PubSub } from "./pubsub.js";
 
-/** Who is calling, resolved from the session token. */
 interface Viewer {
   id: string;
   role: Role;
@@ -25,9 +24,8 @@ interface RequestInfo {
   pubsub: PubSub;
 }
 
-/** The context resolvers get: the request, plus its DI scope. */
 interface GQLCtx extends RequestInfo {
-  /** This operation's services, as named in src/di.ts: `ctx.di.productLoader`. */
+  /** Named in src/di.ts. */
   di: ScopeOf<typeof container>;
 }
 

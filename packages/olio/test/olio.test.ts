@@ -50,7 +50,6 @@ const users = (extra: ModuleConfig<string> = {}) =>
     ...extra
   });
 
-/** Middleware that records its label, then continues. */
 const trace =
   (log: string[], label: string): MiddlewareFn =>
   (_params, next) => {

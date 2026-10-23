@@ -11,18 +11,13 @@ import { inputMember } from "./type-map.js";
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
-/** Quote a module key when it is not a valid TypeScript identifier. */
 const moduleKey = (id: string): string =>
   IDENTIFIER.test(id) ? id : JSON.stringify(id);
 
 const union = (names: readonly string[]): string =>
   names.length ? names.map((n) => `"${n}"`).join(" | ") : "never";
 
-/**
- * One type's entry: its TypeScript type, the fields the module owns, and
- * arguments for the fields that take any. Olio derives resolver signatures and
- * middleware targets from this.
- */
+// Olio's `TypeShape` (packages/olio/src/types.ts) reads this; change both together.
 function emitEntry(
   schema: GraphQLSchema,
   operations: ReadonlyMap<string, string>,
@@ -31,12 +26,9 @@ function emitEntry(
 ): string {
   const type = schema.getType(name);
   const fields = [...owned].sort();
-  // An enum's entry lists the values the module declares; olio types their
-  // internal values from it.
   if (isEnumType(type)) {
     return `    ${name}: { type: ${name}; fields: never; enum: ${union(fields)} };`;
   }
-  // A scalar's entry marks the module that implements it.
   if (isScalarType(type)) {
     return `    ${name}: { type: Scalars["${name}"]["output"]; fields: never; scalar: true };`;
   }
@@ -74,13 +66,11 @@ function emitEntry(
   ].join("\n");
 }
 
-/** `Application`: every module and the types it declares fields on. */
 export function emitApplication(
   schema: GraphQLSchema,
   ownership: Ownership,
   roots: RootTypes
 ): string {
-  /** Root type name -> its operation. */
   const operations = new Map(
     Object.entries(roots).map(([operation, name]) => [name, operation])
   );

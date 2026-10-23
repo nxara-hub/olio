@@ -23,12 +23,10 @@ export interface Register {}
 type Ctx = Register extends { ctx: infer C } ? C : unknown;
 type MaybePromise<T> = T | Promise<T>;
 
-/** How long an instance lives: the container's lifetime, or one operation's. */
 export type Lifetime = "singleton" | "operation";
 
 declare const provides: unique symbol;
 
-/** A typed token for something the container builds. */
 export interface Provider<T, L extends Lifetime = Lifetime> {
   readonly lifetime: L;
   /** @internal */
@@ -39,19 +37,17 @@ export interface Provider<T, L extends Lifetime = Lifetime> {
   readonly [provides]?: T;
 }
 
-/** What a singleton's factory gets: only other singletons. */
 export interface SingletonDeps {
   get<T>(provider: Provider<T, "singleton">): T;
 }
 
-/** What an operation provider's factory gets: any provider, and the context. */
 export interface OperationDeps {
   get<T>(provider: Provider<T>): T;
   readonly ctx: Ctx;
 }
 
 interface Options<T> {
-  /** Cleans an instance up when its container (or operation scope) is disposed. */
+  /** Runs when its container (or operation scope) is disposed. */
   dispose?: (value: T) => MaybePromise<unknown>;
 }
 
@@ -71,7 +67,6 @@ export function operation<T>(
   return { lifetime: "operation", create, dispose: options.dispose };
 }
 
-/** A test replacement for a provider: its value must fit the provider's type. */
 export interface Override {
   readonly provider: Provider<unknown>;
   readonly value: unknown;
@@ -82,13 +77,12 @@ export const override = <T>(provider: Provider<T>, value: T): Override => ({
   value
 });
 
-/** The services an app exposes, by name: `{ orders: Orders }`. */
 export type Services = Readonly<Record<string, Provider<unknown>>> & {
   readonly dispose?: never;
   readonly ctx?: never;
 };
 
-/** One operation's instances, by name: `ctx.di.orders`. Each is created on first access. */
+/** Each instance is created on first access. */
 export type Scope<S extends Services> = {
   readonly [K in keyof S]: S[K] extends Provider<infer T> ? T : never;
 } & AsyncDisposable & {
@@ -97,7 +91,6 @@ export type Scope<S extends Services> = {
   };
 
 export interface Container<S extends Services> extends AsyncDisposable {
-  /** A scope for one operation, with its context. */
   scope(ctx: Ctx): Scope<S>;
   /** Disposes every singleton, newest first. */
   dispose(): Promise<void>;
@@ -112,12 +105,7 @@ const RESERVED = new Set([CTX, "dispose"]);
 
 type Cradle = Record<string, unknown>;
 
-/**
- * A container. Awilix does the work underneath: lazy proxy injection,
- * lifetimes, lifetime-leak checks (`strict`), cycle detection, disposal.
- * `services` names what resolvers reach through `ctx.di`; the providers those
- * depend on register on first use, so they needn't be listed.
- */
+/** `services` names what resolvers reach through `ctx.di`; what those depend on needn't be listed. */
 export function createContainer<const S extends Services>(
   services: S,
   options: { override?: readonly Override[] } = {}

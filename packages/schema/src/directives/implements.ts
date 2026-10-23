@@ -9,7 +9,7 @@ export function implementsDirective(): SchemaDirective {
   return fieldCopyDirective({
     name: "implements",
     definition: "directive @implements(from: [String!]!) on OBJECT",
-    sources: { object: ["interface"] },
+    sourceKinds: { object: ["interface"] },
     addInterfaces: true,
     overrides: false
   });

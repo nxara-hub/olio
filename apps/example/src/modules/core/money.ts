@@ -1,7 +1,6 @@
 import type { Currency, Money } from "../../generated.js";
 
-/** Money from minor units (cents). */
-export const money = (amount: number, currency: Currency = "EUR"): Money => ({
-  amount,
+export const money = (cents: number, currency: Currency = "EUR"): Money => ({
+  amount: cents,
   currency
 });

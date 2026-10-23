@@ -66,3 +66,4 @@ Enforced by Ultracite (oxlint + oxfmt). Run `bun run check` before finishing.
 - `for...of`, `const`, early returns, small focused functions. No stray `console.log` in packages. Codegen's `logs` option is the one intended output.
 - Tests live in `<package>/test/*.test.ts` using `bun:test`. Keep them flat. Runtime behaviour gets a test; type contracts get an `@ts-expect-error` line.
 - Keep it small: no speculative options or abstractions; the TODO list is where "later" goes.
+- Comments are need-to-know only: **why**, never **what**. A comment may explain a constraint, a workaround, a trap, or a decision the code can't show. A comment that explains what the code does means the code is unclear: rename, extract or simplify until the comment is unnecessary, then delete it. JSDoc on a public export stays only when it tells users something the signature can't (a default, when it runs, what it rejects). An `@ts-expect-error` carries the reason it must fail.

@@ -40,7 +40,7 @@ import type {
 export interface OlioConfig {
   modules: readonly OlioModule[];
   middleware?: Middleware;
-  /** Schema-design directives, the same ones passed to codegen. */
+  /** Must be the same ones passed to codegen. */
   directives?: readonly SchemaDirective[];
 }
 
@@ -77,7 +77,6 @@ export function createModule<
   };
 }
 
-/** A feature of `module`, owning the fields its own SDL declares. */
 export function createFeature<
   M extends ModuleId,
   F extends string,
@@ -92,26 +91,17 @@ export function createFeature<
   };
 }
 
-// ---------------------------------------------------------------------------
-// Owners: modules and their features
-
-/** A module, or one of its features: what owns SDL and resolves it. */
 interface Owner {
-  /** `"sales"`, or `"sales/orders"` for a feature. */
   id: string;
   kind: "module" | "feature";
-  /** For errors: `Module "sales"`, `Feature "sales/orders"`. */
   label: string;
   typeDefs: readonly DocumentNode[];
   resolvers: readonly ResolverMap[];
   middleware: MiddlewareMap;
-  /** Middleware layers between the app and this owner: its module's, for a feature. */
-  parents: readonly MiddlewareMap[];
-  /** Whether this owner's middleware may target a field owned by `id`. */
-  reaches: (id: string) => boolean;
+  upperMiddleware: readonly MiddlewareMap[];
+  canTarget: (owner: string) => boolean;
 }
 
-/** Flatten modules into owners: each module, then each of its features. */
 function owners(modules: readonly OlioModule[]): Owner[] {
   const result: Owner[] = [];
   const ids = new Set<string>();
@@ -122,8 +112,8 @@ function owners(modules: readonly OlioModule[]): Owner[] {
       ...m,
       kind: "module",
       label: `Module "${m.id}"`,
-      parents: [],
-      reaches: (id) => id === m.id || id.startsWith(`${m.id}/`)
+      upperMiddleware: [],
+      canTarget: (id) => id === m.id || id.startsWith(`${m.id}/`)
     });
     for (const f of m.features) {
       const id = `${m.id}/${f.id}`;
@@ -141,21 +131,17 @@ function owners(modules: readonly OlioModule[]): Owner[] {
         typeDefs: f.typeDefs,
         resolvers: f.resolvers,
         middleware: f.middleware,
-        parents: [m.middleware],
-        reaches: (owner) => owner === id
+        upperMiddleware: [m.middleware],
+        canTarget: (owner) => owner === id
       });
     }
   }
   return result;
 }
 
-// ---------------------------------------------------------------------------
-// Middleware chains
-
 interface Layer {
   fns: readonly MiddlewareFn[];
-  /** `-` key: drop every layer above this one. */
-  exclusive: boolean;
+  dropsAbove: boolean;
 }
 
 function layer(
@@ -164,22 +150,17 @@ function layer(
   key: string
 ): Layer | undefined {
   const fields = middleware[type];
-  const inclusive = fields?.[key];
-  const exclusive = fields?.[`-${key}`];
-  if (inclusive && exclusive) {
+  const adding = fields?.[key];
+  const dropping = fields?.[`-${key}`];
+  if (adding && dropping) {
     throw new Error(
       `Middleware "${type}.${key}" cannot be combined with "${type}.-${key}"`
     );
   }
-  if (exclusive) return { fns: exclusive, exclusive: true };
-  return inclusive ? { fns: inclusive, exclusive: false } : undefined;
+  if (dropping) return { fns: dropping, dropsAbove: true };
+  return adding ? { fns: adding, dropsAbove: false } : undefined;
 }
 
-/**
- * Layers run top-down: app `*.*`, app `Type.*`, app `Type.field`, then for the
- * module and (for a feature's field) the feature: `Type.*`, `Type.field`. An
- * exclusive layer resets what came before.
- */
 function chainFor(
   app: MiddlewareMap,
   owner: Owner,
@@ -190,7 +171,7 @@ function chainFor(
     layer(app, "*", "*"),
     layer(app, type, "*"),
     layer(app, type, field),
-    ...[...owner.parents, owner.middleware].flatMap((map) => [
+    ...[...owner.upperMiddleware, owner.middleware].flatMap((map) => [
       layer(map, type, "*"),
       layer(map, type, field)
     ])
@@ -198,7 +179,7 @@ function chainFor(
   const chain: MiddlewareFn[] = [];
   for (const current of layers) {
     if (!current) continue;
-    if (current.exclusive) chain.length = 0;
+    if (current.dropsAbove) chain.length = 0;
     chain.push(...current.fns);
   }
   return chain;
@@ -219,22 +200,15 @@ function wrap(resolve: Resolve, chain: readonly MiddlewareFn[]): Resolve {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Attaching resolvers
-
 interface Attach {
   schema: GraphQLSchema;
   owner: Owner;
   appMiddleware: MiddlewareMap;
-  /** `Type.field` -> the module that declares it in SDL. */
   declared: ReadonlyMap<string, string>;
-  /** `Type.field` already given a resolver, to catch a module resolving twice. */
   resolved: Set<string>;
-  /** Enums given internal values, finished once every module is applied. */
   enums: Set<GraphQLEnumType>;
 }
 
-/** Only the module that declares `Type.field` (or an enum value) may resolve it. */
 function claim({ owner: self, declared, resolved }: Attach, key: string): void {
   const where = self.label;
   const owner = declared.get(key);
@@ -250,11 +224,8 @@ function claim({ owner: self, declared, resolved }: Attach, key: string): void {
   resolved.add(key);
 }
 
-/**
- * What graphql 17 calls on a scalar. A scalar written the older way
- * (`serialize`, `parseValue`, as graphql-scalars does) gets the coerce methods
- * from its constructor, and literals still fall back to `parseLiteral`.
- */
+// Only what graphql 17 calls. Scalars written the older way (`serialize`, as
+// graphql-scalars does) get the coerce methods from their constructor.
 const SCALAR_METHODS = [
   "coerceOutputValue",
   "coerceInputValue",
@@ -323,7 +294,6 @@ function applyField(
   field.resolve = wrap(resolver as Resolve, chain);
 }
 
-/** `Role: { ADMIN: 1 }`: internal values for an enum's values. */
 function applyEnum(
   attach: Attach,
   type: GraphQLEnumType,
@@ -341,11 +311,8 @@ function applyEnum(
   attach.enums.add(type);
 }
 
-/**
- * Reject enums whose values share an internal value. graphql builds its
- * internal-value lookup lazily, on first use, so the values set above are the
- * ones it sees; defaults are coerced when an operation runs.
- */
+// Setting `value` after the schema is built is safe: graphql builds its
+// internal-value lookup lazily and coerces defaults per operation.
 function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
   for (const type of enums) {
     const seen = new Map<unknown, string>();
@@ -361,10 +328,8 @@ function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
   }
 }
 
-/**
- * A resolver map is keyed by type. Passing `query.users({...})` straight in
- * keys it by field instead, so say so when the name is a root field.
- */
+// Passing `query.users({...})` straight in as a resolver map keys it by field;
+// a common slip, so the error says so.
 function unknownType({ schema, owner }: Attach, name: string): string {
   const root = [
     schema.getQueryType(),
@@ -410,10 +375,6 @@ function applyResolvers(attach: Attach): void {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Middleware targets
-
-/** `Type.field` -> declaring module id, from `compose`'s ownership. */
 function declarations(ownership: Ownership): Map<string, string> {
   const declared = new Map<string, string>();
   for (const [id, types] of ownership) {
@@ -424,7 +385,6 @@ function declarations(ownership: Ownership): Map<string, string> {
   return declared;
 }
 
-/** The app may target `"*"` and root types, with no `-` keys. */
 function checkAppMiddleware(
   schema: GraphQLSchema,
   middleware: MiddlewareMap
@@ -462,10 +422,6 @@ function checkAppMiddleware(
   }
 }
 
-/**
- * A module's middleware may target the fields it and its features declare; a
- * feature's, only its own. Plus `*` and the `-` forms.
- */
 function checkOwnerMiddleware(
   schema: GraphQLSchema,
   owner: Owner,
@@ -482,9 +438,9 @@ function checkOwnerMiddleware(
       const reaches =
         field === "*"
           ? [...declared].some(
-              ([k, id]) => owner.reaches(id) && k.startsWith(`${type}.`)
+              ([k, id]) => owner.canTarget(id) && k.startsWith(`${type}.`)
             )
-          : owner.reaches(declared.get(`${type}.${field}`) ?? "") &&
+          : owner.canTarget(declared.get(`${type}.${field}`) ?? "") &&
             !field.startsWith("__");
       if (!reaches) {
         throw new Error(
@@ -495,10 +451,8 @@ function checkOwnerMiddleware(
   }
 }
 
-/**
- * Fields named explicitly in middleware (`Type.field`, not `*`) that have no
- * resolver get GraphQL's default resolver wrapped, so the middleware runs.
- */
+// A field named explicitly in middleware runs it even without a resolver: its
+// default resolver gets wrapped. `*` doesn't reach those.
 function wrapDefaults(
   schema: GraphQLSchema,
   app: MiddlewareMap,
@@ -529,10 +483,7 @@ function wrapDefaults(
   }
 }
 
-/**
- * Compose modules into one executable schema. Middleware wraps the resolvers
- * modules define, and any field it names explicitly.
- */
+/** Middleware wraps the resolvers modules define, plus any field it names explicitly. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
   const { schema, ownership } = compose(all, config.directives);

@@ -10,15 +10,12 @@ export type TypeSource = string | DocumentNode;
 /** A glob string, or a `file:` URL such as `new URL("*.gql", import.meta.url)`. */
 export type Pattern = string | URL;
 
-/** A resolver map: type name -> its field resolvers (or a scalar). */
 export type ResolverMap = Record<string, object>;
 
 const COMMENT = /#[^\n]*/g;
 
-/**
- * Every file the patterns match, deduped and sorted for stable output. A
- * pattern that matches nothing throws, so a typo can't load an empty module.
- */
+// Sorted for stable output. A pattern matching nothing throws, so a typo
+// can't load an empty module.
 async function matchFiles(patterns: readonly Pattern[]): Promise<string[]> {
   const paths = patterns.map((p) =>
     typeof p === "string" ? p : fileURLToPath(p)
@@ -32,7 +29,7 @@ async function matchFiles(patterns: readonly Pattern[]): Promise<string[]> {
   return [...new Set(matches.flat())].sort();
 }
 
-/** Parse SDL with its file name, so errors point at `file:line:column`. */
+// With its file name, so errors point at `file:line:column`.
 function parseFile(source: string, file: string): DocumentNode {
   try {
     return parse(new Source(source, file));
@@ -48,7 +45,6 @@ function parseFile(source: string, file: string): DocumentNode {
   }
 }
 
-/** One file as a document, or undefined when it has nothing to add. */
 async function loadFile(file: string): Promise<DocumentNode | undefined> {
   const ext = extname(file);
   if (ext === ".graphql" || ext === ".gql") {
@@ -71,11 +67,7 @@ async function loadFile(file: string): Promise<DocumentNode | undefined> {
   );
 }
 
-/**
- * Load type definitions from `.graphql`/`.gql` files and from `.ts`/`.js`
- * modules (their default export: SDL or a DocumentNode). Files holding only
- * comments are skipped.
- */
+/** `.ts`/`.js` files default-export SDL or a DocumentNode. Files holding only comments are skipped. */
 export async function loadTypeDefs(
   ...patterns: Pattern[]
 ): Promise<DocumentNode[]> {
@@ -87,10 +79,9 @@ const isPlainObject = (value: object): boolean =>
   Object.getPrototypeOf(value) === Object.prototype;
 
 /**
- * Load resolvers from `.ts`/`.js` modules: every named object export is a type
- * (`export const Query = ...`, `export const User = ...`). Plain objects for
- * the same type merge across files; a field defined twice throws. Anything
- * else, such as a `GraphQLScalarType`, is used as it is.
+ * Every named object export is a type (`export const User = ...`). Plain
+ * objects for one type merge across files; a field defined twice throws.
+ * Anything else, such as a `GraphQLScalarType`, is used as it is.
  */
 export async function loadResolvers(
   ...patterns: Pattern[]
@@ -107,7 +98,6 @@ export async function loadResolvers(
   );
 
   const merged: ResolverMap = {};
-  /** `Type.field` (or `Type`) -> the file that defined it. */
   const origin = new Map<string, string>();
   const claim = (key: string, file: string): void => {
     const first = origin.get(key);
@@ -140,7 +130,6 @@ export async function loadResolvers(
   return merged as LoadedResolvers;
 }
 
-/** Shared by modules and features. */
 function hasParts(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -152,14 +141,13 @@ function hasParts(value: unknown): value is Record<string, unknown> {
   );
 }
 
-/** Recognised by shape, so any copy of olio works. */
+// Recognised by shape, so any copy of olio works.
 const isModule = (value: unknown): value is OlioModule =>
   hasParts(value) && Array.isArray(value.features);
 
 const isFeature = (value: unknown): value is OlioFeature =>
   hasParts(value) && typeof value.module === "string";
 
-/** Import every file and collect its exports that pass `is`, in file order. */
 async function collect<T>(
   patterns: readonly Pattern[],
   is: (value: unknown) => value is T,
@@ -180,17 +168,10 @@ async function collect<T>(
   return loaded.flat();
 }
 
-/**
- * Load modules from files, usually each module's `index.ts`: every exported
- * module (`export const usersModule = module.users({...})`) is collected, in
- * file order. A file that exports no module throws.
- */
+/** Every exported module, in file order. A file that exports none throws. */
 export const loadModules = (...patterns: Pattern[]): Promise<OlioModule[]> =>
   collect(patterns, isModule, "module");
 
-/**
- * Load a module's features, usually each feature folder's `index.ts`
- * (`export const orders = feature.sales.orders({...})`), in file order.
- */
+/** Every exported feature, in file order. A file that exports none throws. */
 export const loadFeatures = (...patterns: Pattern[]): Promise<OlioFeature[]> =>
   collect(patterns, isFeature, "feature");

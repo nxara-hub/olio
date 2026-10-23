@@ -16,7 +16,6 @@ export function productBySku(sku: string): ProductRow {
 export const onHand = (sku: string): number =>
   [...(stock.get(sku)?.values() ?? [])].reduce((sum, n) => sum + n, 0);
 
-/** Book stock in or out of one warehouse, and tell subscribers. */
 export function adjustStock(
   { sku, warehouse, delta }: Fields["Mutation"]["adjustStock"]["args"],
   pubsub: PubSub
@@ -39,7 +38,6 @@ export function adjustStock(
   return row;
 }
 
-/** Take units for an order, from the fullest warehouse first. */
 export function takeStock(sku: string, quantity: number, pubsub: PubSub): void {
   let remaining = quantity;
   const levels = [...(stock.get(sku) ?? [])].sort(([, a], [, b]) => b - a);

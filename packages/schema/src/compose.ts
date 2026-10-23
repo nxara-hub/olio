@@ -17,7 +17,7 @@ import { validateSDL } from "graphql/validation/validate.js";
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";
 import { located } from "./directives/shared.js";
 
-/** One module's SDL. Modules sharing an id are merged. */
+/** Modules sharing an id are merged. */
 export interface ModuleSDL {
   id: string;
   typeDefs: readonly DocumentNode[];
@@ -28,7 +28,6 @@ export type Ownership = Map<string, Map<string, Set<string>>>;
 
 export type Operation = "query" | "mutation" | "subscription";
 
-/** Root type name per operation, e.g. `{ query: "Query" }`. */
 export type RootTypes = Partial<Record<Operation, string>>;
 
 /** Ownership marker for a scalar: its defining module implements it. */
@@ -41,10 +40,6 @@ export interface Composed {
   roots: RootTypes;
 }
 
-/**
- * The root types: from `schema { … }` and `extend schema { … }` when the SDL
- * has them, else GraphQL's default names.
- */
 function rootTypes(document: DocumentNode): RootTypes {
   const declared: RootTypes = {};
   let hasSchema = false;
@@ -65,10 +60,8 @@ function rootTypes(document: DocumentNode): RootTypes {
     : { query: "Query", mutation: "Mutation", subscription: "Subscription" };
 }
 
-/**
- * Add the root types modules only extend (`type Query`, or your names), so no
- * module has to own a placeholder field.
- */
+// Roots that modules only extend get defined here, so no module has to own a
+// placeholder field.
 function withRootTypes(document: DocumentNode, roots: RootTypes): DocumentNode {
   const defined = new Set<string>();
   const extended = new Set<string>();
@@ -92,10 +85,8 @@ function withRootTypes(document: DocumentNode, roots: RootTypes): DocumentNode {
   };
 }
 
-/**
- * Remember which module each definition came from. Directive transforms spread
- * the nodes they rewrite, so a definition keeps its `loc.source`.
- */
+// Directive transforms spread the nodes they rewrite, so a definition keeps
+// its `loc.source`; that still finds the module.
 function moduleTracker(
   modules: readonly ModuleSDL[]
 ): (definition: DefinitionNode) => string {
@@ -122,12 +113,9 @@ function moduleTracker(
   };
 }
 
-/**
- * A module owns the fields it declares, whether in a definition or an
- * `extend`. The defining module also owns `__isTypeOf` (objects) or
- * `__resolveType` (interfaces and unions). Enum values are owned the same
- * way as fields.
- */
+// A module owns the fields it declares, in a definition or an `extend`; the
+// defining module also owns the type hooks. Enum values work like fields, and
+// a scalar belongs to the module that defines it.
 function collectOwnership(
   document: DocumentNode,
   moduleOf: (definition: DefinitionNode) => string,
@@ -166,14 +154,11 @@ function collectOwnership(
     ) {
       own(def, def.name.value, ["__resolveType"]);
     } else if (def.kind === Kind.SCALAR_TYPE_DEFINITION) {
-      // The defining module supplies the scalar's implementation.
       own(def, def.name.value, [SCALAR]);
     } else if (
       def.kind === Kind.ENUM_TYPE_DEFINITION ||
       def.kind === Kind.ENUM_TYPE_EXTENSION
     ) {
-      // Enum values work like fields: their internal values come from the
-      // module that declares them.
       own(
         def,
         def.name.value,
@@ -191,10 +176,8 @@ function assertNoErrors(errors: readonly GraphQLError[], title: string): void {
 }
 
 /**
- * Compose module SDL into one validated schema: concatenate, add root types
- * that are only extended, apply directives, then validate. Errors point at
- * `file:line:column`. Codegen and olio both compose through here, so they
- * agree on the schema and on which module owns which field.
+ * Codegen and olio both compose through here, so they agree on the schema and
+ * on which module owns which field. Errors point at `file:line:column`.
  */
 export function compose(
   modules: readonly ModuleSDL[],

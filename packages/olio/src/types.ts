@@ -23,21 +23,15 @@ export interface Olio {}
 
 type MaybePromise<T> = T | Promise<T>;
 
-/**
- * The shape of codegen's generated `Application`: module id -> type name ->
- * the fields that module declares on it, plus arguments for fields that take
- * any. Abstract types also list their possible types, and root types say
- * which operation they serve (`root: "query"`), whatever they're named.
- */
+// Codegen's emit-application.ts writes this shape; change both together.
+// Roots are marked by operation, never found by name, so custom root names work.
 interface TypeShape {
   type: unknown;
   fields: string;
   args?: object;
   resolveType?: string;
   root?: Operation;
-  /** Enums: the values this module declares. */
   enum?: string;
-  /** Scalars: this module defines it, so it supplies the implementation. */
   scalar?: true;
 }
 
@@ -54,7 +48,6 @@ type App =
     ? A
     : ApplicationShape;
 
-/** Everything that owns SDL: modules (`"sales"`) and their features (`"sales/orders"`). */
 type Owner = keyof App & string;
 
 export type ModuleId = Exclude<Owner, `${string}/${string}`>;
@@ -68,21 +61,18 @@ export type FeatureId<M extends ModuleId> = Untyped extends true
       : never
     : never;
 
-/** A module and all its features. */
 type ModuleOwners<M extends ModuleId> = M | `${M}/${FeatureId<M>}`;
 export type Context = Registered<"ctx", unknown>;
 export type SubscriptionContext = Registered<"sub_ctx", Context>;
 
 type Untyped = string extends ModuleId ? true : false;
 
-/** GraphQL's default root names, used when no application is registered. */
 interface DefaultRoots {
   query: "Query";
   mutation: "Mutation";
   subscription: "Subscription";
 }
 
-/** The root type serving an operation: `"Query"`, or your own name. */
 type RootName<Op extends Operation> = Untyped extends true
   ? DefaultRoots[Op]
   : {
@@ -95,7 +85,6 @@ type RootName<Op extends Operation> = Untyped extends true
 type RootType = RootName<Operation>;
 type TypeHook = "__isTypeOf" | "__resolveType";
 
-/** An owner's entry for one type (`never` when it declares nothing there). */
 type Entry<M extends string, T> = M extends Owner
   ? App[M] extends infer Types
     ? T extends keyof Types
@@ -105,16 +94,11 @@ type Entry<M extends string, T> = M extends Owner
   : never;
 
 type Owned<E> = E extends { fields: infer F extends string } ? F : never;
-/** Registered `mappers`: object or interface type name -> what resolvers use for it. */
 type Mappers = Registered<"mappers", Record<never, never>>;
 
 /**
- * Swap mapped types for their mapper, through lists, nulls, unions and the
- * fields of unmapped types (so `UserPage.data: User[]` takes rows too).
- * Generated object types carry `__typename`, which names them. An interface
- * maps to its own mapper, or else to any implementer (each as its mapper),
- * since that's what graphql resolves. With no mappers registered, this is
- * the identity.
+ * Deep, so `UserPage.data: User[]` holds rows too. An unmapped interface
+ * takes any implementer's mapper, since that's what graphql resolves.
  */
 type Mapped<X> = [keyof Mappers] extends [never] ? X : DeepMapped<X>;
 
@@ -124,7 +108,8 @@ type DeepMapped<X> = X extends Primitive
   ? X
   : X extends readonly (infer I)[]
     ? DeepMapped<I>[]
-    : X extends { __typename?: infer N }
+    : // Generated object types are named by their `__typename`.
+      X extends { __typename?: infer N }
       ? NonNullable<N> extends keyof Mappers
         ? Mappers[NonNullable<N>]
         : { [K in keyof X]: DeepMapped<X[K]> }
@@ -132,17 +117,16 @@ type DeepMapped<X> = X extends Primitive
         ? X
         : MappedInterface<InterfaceEntry<X>>;
 
-/** Every entry of every module, tagged with its type name. */
 type AllEntries = {
   [O in Owner]: {
     [T in keyof App[O]]: App[O][T] & { name: T };
   }[keyof App[O]];
 }[Owner];
 
-/** The interface (or union) entry whose TypeScript type is exactly `X`. */
 type InterfaceEntry<X> = AllEntries extends infer E
   ? E extends { resolveType: string; type: infer T }
-    ? [X] extends [T]
+    ? // Both ways: an object type that merely fits an interface isn't it.
+      [X] extends [T]
       ? [T] extends [X]
         ? E
         : never
@@ -156,7 +140,6 @@ type MappedInterface<E> = E extends { name: infer N; resolveType: infer P }
     : MappedName<P>
   : never;
 
-/** A GraphQL type by name, as resolvers see it. */
 type MappedName<P> = P extends keyof Mappers
   ? Mappers[P]
   : DeepMapped<
@@ -167,9 +150,7 @@ type MappedName<P> = P extends keyof Mappers
         : never
     >;
 
-/** A type's `root` in its resolvers: its mapper, if it has one. */
 type Parent<E> = E extends { type: infer T } ? Mapped<T> : never;
-/** What a field resolver returns: mapped types as their mapper. */
 type Out<E, F> = E extends { type: infer T }
   ? F extends keyof T
     ? Mapped<T[F]>
@@ -181,9 +162,6 @@ type Args<E, F> = E extends { args: infer A }
     : Record<string, never>
   : Record<string, never>;
 
-// ---------------------------------------------------------------------------
-// Middleware
-
 export interface MiddlewareParams<Ctx = Context> {
   root: unknown;
   args: Record<string, unknown>;
@@ -192,17 +170,14 @@ export interface MiddlewareParams<Ctx = Context> {
 }
 
 /**
- * Run around a resolver; call `next()` to continue down the chain. Middleware
- * on `Subscription` gets the subscription context, and `"*"` middleware can
- * run on either: type it `MiddlewareFn<Context | SubscriptionContext>`. Both
- * are `Context` unless you register a separate `sub_ctx`.
+ * `"*"` middleware also runs on subscriptions: type it
+ * `MiddlewareFn<Context | SubscriptionContext>`.
  */
 export type MiddlewareFn<Ctx = Context> = (
   params: MiddlewareParams<Ctx>,
   next: () => unknown
 ) => unknown;
 
-/** The context middleware on type `T` receives. */
 type ContextOf<T> = T extends "*"
   ? Context | SubscriptionContext
   : T extends RootName<"subscription">
@@ -211,17 +186,14 @@ type ContextOf<T> = T extends "*"
 
 type Fns<T = string> = readonly MiddlewareFn<ContextOf<T>>[];
 
-/** Untyped nested middleware, used when no application is registered. */
 export type MiddlewareMap = Partial<
   Record<string, Partial<Record<string, Fns>>>
 >;
 
-/** Fields any module declares on a root type. */
 type RootFields<R extends RootType> = {
   [O in Owner]: Owned<Entry<O, R>>;
 }[Owner];
 
-/** Application middleware: `"*"` and the root types. */
 export type Middleware = Untyped extends true
   ? MiddlewareMap
   : {
@@ -241,7 +213,6 @@ type MiddlewareFields<O extends Owner, T> = Exclude<
   TypeHook
 >;
 
-/** Middleware over the fields a set of owners declares, per type. */
 type MiddlewareFor<Os extends Owner> = {
   [
     T in { [O in Os]: keyof App[O] & string }[Os] as [
@@ -261,34 +232,25 @@ type MiddlewareFor<Os extends Owner> = {
 };
 
 /**
- * A module's middleware: every field the module and its features declare,
- * per type. A `-` key (`"-user"`, `"-*"`) drops every upper layer's
- * middleware for that target instead of merging with it.
+ * Reaches the module's features too. A `-` key (`"-user"`, `"-*"`) drops the
+ * upper layers' middleware for that target instead of adding to it.
  */
 export type ModuleMiddleware<M extends ModuleId> = Untyped extends true
   ? MiddlewareMap
   : MiddlewareFor<ModuleOwners<M> & Owner>;
 
-/**
- * A feature's middleware: only the fields that feature declares. It runs
- * after the module's layers, and a `-` key drops those too.
- */
+/** Runs after the module's layers; a `-` key drops those too. */
 export type FeatureMiddleware<
   M extends ModuleId,
   F extends string
 > = Untyped extends true ? MiddlewareMap : MiddlewareFor<`${M}/${F}` & Owner>;
 
-/** The keys of `T` that are actually present (not optional). */
 type PresentKeys<T> = {
   [K in keyof T]-?: object extends Pick<T, K> ? never : K;
 }[keyof T];
 
-/**
- * A middleware map checked against what its owner may target: unknown types
- * and keys, and `x` together with `-x` (opposite instructions for one field),
- * are compile errors with a message on the offending key. The builders take
- * the map as a generic `T`, so this replaces the excess-property check too.
- */
+// The builders take the map as a generic, which loses the excess-property
+// check; this puts it back, with a message on the offending key.
 export type CheckedMiddleware<T, Shape> = {
   [Type in keyof T]: Type extends keyof Shape
     ? {
@@ -304,9 +266,6 @@ export type CheckedMiddleware<T, Shape> = {
       }
     : `"${Type & string}" has no fields this module or feature declares`;
 };
-
-// ---------------------------------------------------------------------------
-// Resolvers
 
 type RootResolvers<M extends string, R extends RootType> = {
   [F in Owned<Entry<M, R>>]?: (
@@ -326,11 +285,7 @@ export type MutationResolvers<M extends string> = RootResolvers<
   RootName<"mutation">
 >;
 
-/**
- * A subscription field is a function returning an async iterable of the
- * field's values (with mappers applied): usually an async generator. Map and
- * filter events inside it; middleware runs once, when a client subscribes.
- */
+/** Middleware runs once, when a client subscribes, not per event. */
 export type SubscriptionResolvers<M extends string> = {
   [F in Owned<Entry<M, RootName<"subscription">>>]?: (
     root: undefined,
@@ -340,7 +295,6 @@ export type SubscriptionResolvers<M extends string> = {
   ) => MaybePromise<AsyncIterable<Out<Entry<M, RootName<"subscription">>, F>>>;
 };
 
-/** Non-root types a module (or feature) declares fields on, or defines. */
 export type ModuleTypeName<M extends string> = M extends Owner
   ? Exclude<keyof App[M] & string, RootType>
   : never;
@@ -355,11 +309,7 @@ type TypeHookResolver<E, F> = (
     : (E extends { resolveType: infer R } ? R : never) | null
 >;
 
-/**
- * Resolvers for one type in a module, e.g. `User` in `users`. For an enum,
- * the internal value of every value the module declares (see `CustomEnums`
- * in @nxlab/codegen): `{ ADMIN: 1, GUEST: 2 }`.
- */
+/** An enum takes its internal values (`CustomEnums` in @nxlab/codegen): `{ ADMIN: 1 }`. */
 export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
   Entry<M, T> extends { scalar: true }
     ? GraphQLScalarType
@@ -376,13 +326,8 @@ export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
               ) => MaybePromise<Out<Entry<M, T>, F>>;
         };
 
-// ---------------------------------------------------------------------------
-// Field types, for code outside resolvers (services, loaders, tests)
-
-/** Every type any module declares fields on. */
 type TypeName = { [O in Owner]: keyof App[O] & string }[Owner];
 
-/** The entry of whichever module declares `T.F`. */
 type Declaring<T, F> = {
   [O in Owner]: Entry<O, T> extends infer E
     ? E extends unknown
@@ -399,9 +344,8 @@ type FieldName<T> = Exclude<
 >;
 
 /**
- * Arguments and result of every field, whichever module declares it:
- * `Fields["Query"]["user"]["args"]` → `{ id: string }`. Indexed access, so
- * editors complete each key.
+ * For code outside resolvers: `Fields["Query"]["user"]["args"]`. Indexed
+ * access, so editors complete each key.
  */
 export type Fields = {
   [T in TypeName as [FieldName<T>] extends [never] ? never : T]: {
@@ -412,16 +356,11 @@ export type Fields = {
   };
 };
 
-// ---------------------------------------------------------------------------
-// Modules
-
 export type TypeSource = string | DocumentNode;
 
-/** Type name -> field resolvers (or a scalar). What `loadResolvers` returns. */
 export type ResolverMap = Record<string, object>;
 
-/** Loose types for resolver maps written inline when no application is registered. */
-type InlineResolvers = Record<
+type UntypedInlineResolvers = Record<
   string,
   Record<
     string,
@@ -443,13 +382,8 @@ declare const loaded: unique symbol;
  */
 export type LoadedResolvers = ResolverMap & { readonly [loaded]: true };
 
-/**
- * An owner's resolver map, typed from the application: root types take their
- * field resolvers, other types theirs, enums their internal values, scalars a
- * `GraphQLScalarType`. Loose without a registered application.
- */
 export type OwnerResolvers<O extends string> = Untyped extends true
-  ? ResolverMap | InlineResolvers
+  ? ResolverMap | UntypedInlineResolvers
   : O extends Owner
     ? {
         [T in keyof App[O] & string]?: T extends RootName<"query">
@@ -466,9 +400,8 @@ type ResolversInput<O extends string> = OwnerResolvers<O> | LoadedResolvers;
 
 export interface ModuleConfig<M extends ModuleId, MW = ModuleMiddleware<M>> {
   typeDefs?: TypeSource | readonly TypeSource[];
-  /** Inline maps are typed from the module; loaded ones pass through. */
   resolvers?: ResolversInput<M> | readonly ResolversInput<M>[];
-  /** Module-wide: may target any field the module or its features declare. */
+  /** May target the features' fields too. */
   middleware?: MW & CheckedMiddleware<MW, ModuleMiddleware<M>>;
   /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
   features?: readonly OlioFeature[];
@@ -480,16 +413,14 @@ export interface FeatureConfig<
   MW = FeatureMiddleware<M, F>
 > {
   typeDefs?: TypeSource | readonly TypeSource[];
-  /** Inline maps are typed from the feature; loaded ones pass through. */
   resolvers?:
     | ResolversInput<`${M}/${F}`>
     | readonly ResolversInput<`${M}/${F}`>[];
   middleware?: MW & CheckedMiddleware<MW, FeatureMiddleware<M, F>>;
 }
 
-/** A feature: part of a module, owning the fields its own SDL declares. */
+/** Isolated: resolves only what its own SDL declares, like a module. */
 export interface OlioFeature {
-  /** The module it belongs to. */
   readonly module: string;
   readonly id: string;
   readonly typeDefs: readonly DocumentNode[];

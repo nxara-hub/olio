@@ -41,9 +41,8 @@ function toDocument(typeDef: TypeSource, name: string): DocumentNode {
 }
 
 export interface Compiled {
-  /** The merged document, after directives. */
+  /** After directives. */
   document: DocumentNode;
-  /** The generated TypeScript. */
   code: string;
   schema: GraphQLSchema;
 }
@@ -92,7 +91,6 @@ function assertSupported(schema: GraphQLSchema): void {
   }
 }
 
-/** Compose the modules (see `compose` in @nxlab/schema) and generate TypeScript. */
 export function compile(
   modules: readonly CodegenModule[],
   options: GenerateOptions = {}
@@ -100,9 +98,9 @@ export function compile(
   // Same-named modules merge, so a module can be passed in pieces.
   const { document, schema, ownership, roots } = compose(
     modules.map((m) => ({
-      id: m.name,
+      id: m.id,
       typeDefs: (Array.isArray(m.typeDefs) ? m.typeDefs : [m.typeDefs]).map(
-        (d) => toDocument(d, m.name)
+        (d) => toDocument(d, m.id)
       )
     })),
     options.directives
@@ -133,7 +131,6 @@ export function compile(
   return { document, code: `${parts.join("\n\n")}\n`, schema };
 }
 
-/** Generate the TypeScript for a set of modules. */
 export function generate(
   modules: readonly CodegenModule[],
   options: GenerateOptions = {}

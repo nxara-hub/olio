@@ -4,13 +4,11 @@ import type { DocumentNode } from "graphql";
 export type TypeSource = string | DocumentNode;
 
 export interface CodegenModule {
-  /** Module ID, e.g. "auth" (from the module directory name). */
-  name: string;
+  id: string;
   typeDefs: TypeSource | readonly TypeSource[];
 }
 
 export interface GenerateOptions {
-  /** Schema-design directives applied before generation. */
   directives?: readonly SchemaDirective[];
 }
 
