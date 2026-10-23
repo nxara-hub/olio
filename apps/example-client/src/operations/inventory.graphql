@@ -1,0 +1,26 @@
+query Products($search: String) {
+  products(filter: { search: $search }) {
+    items {
+      sku
+      name
+      onHand
+      price {
+        amount
+      }
+    }
+  }
+}
+
+mutation AdjustStock($sku: String!, $warehouse: String!, $delta: Int!) {
+  adjustStock(sku: $sku, warehouse: $warehouse, delta: $delta) {
+    sku
+    onHand
+  }
+}
+
+subscription StockChanged($sku: String) {
+  stockChanged(sku: $sku) {
+    sku
+    onHand
+  }
+}

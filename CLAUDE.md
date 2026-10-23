@@ -10,13 +10,15 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 - `packages/tools`: `loadModules(...patterns)` / `loadFeatures(...patterns)` / `loadTypeDefs(...patterns)` / `loadResolvers(...patterns)` (globs or `new URL(..., import.meta.url)`). SDL is parsed with its file name so errors carry `file:line:col`; a pattern matching nothing throws.
 - `packages/di`: typed DI on Awilix (PROXY injection, `strict`). `createContainer({ productLoader: ProductLoader })` names the services resolvers reach as `ctx.di.productLoader` (typed via `ScopeOf<typeof container>`); factories use typed tokens (`get(ProductStore)`), since name-based deps would make the types circular, and unlisted providers register on first use. Operation scopes travel in `ctx.di` and are disposed through `@nxlab/http`'s `onOperationEnd`. Awilix stays an implementation detail.
 - `packages/http`: serving. A core (`core.ts`: context hooks, `errorMasker`) on graphql-http / graphql-sse / graphql-ws, and adapters under subpath exports: `fetch`, `node` (HTTP, plus SSE on the same URL when `Accept: text/event-stream`), `ws`, `bun` (WebSocket). Only `GraphQLError`s reach clients; everything else becomes "Unexpected error." and goes to `onUnexpectedError`. That includes errors thrown by `context` hooks, which the protocol libraries don't handle themselves (`guardContext`, `contextFailure`, `sseFailure` in `core.ts`).
-- `apps/example`: the reference app (a small ERP) and the integration test for the whole pipeline.
+- `packages/client`: `createClient(operations, { url, headers, fetch })` / `testClient(operations, fetchHandler)`: one call per operation, `client.mutation.login(variables, { headers, signal })`, named after the operation (first letter lowercased). Operations are `.graphql` files the client writes; codegen's `codegenClient({ schema, documents, output })` (`emit-client.ts`) validates them against a schema file or a URL (introspection) and emits, graphql-codegen style, `LoginMutation` / `LoginMutationVariables` / `LoginDocument` plus the `operations` map. Results are typed from the selection: abstract types become a union per possible type, `@include`/`@skip` fields optional. Scalars go through `ClientScalars` (one type, or `{ input; output }`, like the server's `CustomScalars`). `fetch` is anything fetch-shaped (ky); `fromAxios(axios)` adapts axios. Subscriptions over graphql-sse. `TypedDocument` carries its types under the string key `"~types"`, not a symbol, so they match across copies of the package.
+- `apps/example-server`: the reference app (a small ERP) and the integration test for the whole pipeline. Its tests live in `test/`, outside `src`: `api.test.ts` drives it through `testClient`, `type-checks.ts` holds compile-time checks.
+- `apps/example-client`: a separate client app on `@nxlab/client`, talking to the running server over HTTP. Its operations are `src/operations/*.graphql`; its types come from the server's `src/schema.gql` (or `SCHEMA_URL`) through `codegenClient`, never from server code.
 - `TODO.md`: open work. Check it before starting something new.
 
 ## How the pieces connect
 
 1. Codegen discovers modules as the **direct child directories** of `modules/`, and a module's **features** as its direct subfolders in which the `typeDefs` glob finds files of their own (one level, no deeper). It emits `Application`, keyed by owner (`sales`, `"sales/orders"`): `{ [id]: { [Type]: { type; fields; args?; resolveType? } } }`. A module owns the fields it declares, in a definition or an `extend`, on any type. The defining module also owns `__isTypeOf` / `__resolveType`. `args` lists only fields that take arguments. Root types carry `root: "query" | "mutation" | "subscription"`; olio finds roots by that marker, never by name, so custom root names (`schema { query: RootQuery }`) work end to end.
-2. The app registers it: `declare module "@nxlab/olio" { interface Olio { application; ctx; sub_ctx; mappers? } }` (see `apps/example/src/types.d.ts`). `mappers` swaps object types for what resolvers return, deeply (`Mapped<>` in olio's `types.ts`).
+2. The app registers it: `declare module "@nxlab/olio" { interface Olio { application; ctx; sub_ctx; mappers? } }` (see `apps/example-server/src/types.d.ts`). `mappers` swaps object types for what resolvers return, deeply (`Mapped<>` in olio's `types.ts`).
 3. `packages/olio/src/types.ts` derives everything from that: resolver signatures (parent and return types come from `type`), middleware targets (owned fields plus `*` and the `-` forms), module ids. Builders are identity functions behind a Proxy; the safety is in the types.
 
 **Codegen's output shape is olio's input contract.** Change `packages/codegen/src/*` and `packages/olio/src/types.ts` together, then regenerate and type-check the example.
@@ -39,9 +41,11 @@ bun run test                         # bun:test in every package
 bun run check-types                  # builds dependencies first
 bun run check                        # ultracite: oxlint + oxfmt; `bun run fix` to apply
 bun test                             # inside one package
-bun run --cwd apps/example codegen   # regenerate src/generated.ts + src/schema.gql
-bun run --cwd apps/example start     # run the example end to end
-bun run --cwd apps/example serve     # the example over HTTP + WebSocket (Hono on Node, via tsx)
+bun run --cwd apps/example-server codegen   # regenerate src/generated.ts + src/schema.gql
+bun run --cwd apps/example-server start     # run the example end to end
+bun run --cwd apps/example-server serve     # the example over HTTP + WebSocket (Hono on Node, via tsx)
+bun run --cwd apps/example-client codegen   # client types from the server's schema.gql
+bun run --cwd apps/example-client start     # the client walkthrough, against a running `serve`
 ```
 
 ## Gotchas
@@ -54,7 +58,7 @@ bun run --cwd apps/example serve     # the example over HTTP + WebSocket (Hono o
 - `packages/olio/test/typed/` is olio's typed contract test: `check-types` regenerates `generated.ts` from its fixture SDL with codegen, then type-checks `contract.ts` against `src/` (it augments `src/types.ts`, not the build). Add an `@ts-expect-error` there for any new type behaviour.
 - Inline resolver maps in `module.<id>({ resolvers })` / `feature…({ resolvers })` are typed (`OwnerResolvers`). `loadResolvers` returns the branded `LoadedResolvers`, which passes through unchecked; the brand is what keeps inline maps from matching the loose type.
 - Enum internal values: types via codegen's `CustomEnums` (they affect args and inputs too), values via `resolvers.<id>.<Enum>({...})`. At runtime olio sets each `GraphQLEnumValue.value` before the schema is used (graphql builds its value lookup lazily), then re-coerces every argument and input default from its SDL literal (`coerceDefaults`), since graphql 16 coerced them when the schema was built.
-- `apps/example/src/type-checks.ts` holds `@ts-expect-error` lines that must keep failing. A passing type-check is what proves the type contract.
+- `apps/example-server/test/type-checks.ts` holds `@ts-expect-error` lines that must keep failing. A passing type-check is what proves the type contract.
 - A Claude Code hook runs `bun run fix` after every edit.
 
 ## Code standards
@@ -66,4 +70,5 @@ Enforced by Ultracite (oxlint + oxfmt). Run `bun run check` before finishing.
 - `for...of`, `const`, early returns, small focused functions. No stray `console.log` in packages. Codegen's `logs` option is the one intended output.
 - Tests live in `<package>/test/*.test.ts` using `bun:test`. Keep them flat. Runtime behaviour gets a test; type contracts get an `@ts-expect-error` line.
 - Keep it small: no speculative options or abstractions; the TODO list is where "later" goes.
+- Never use em dashes (U+2014) anywhere in the repo: code, comments, docs, generated output. Use a hyphen, a colon, or rewrite the sentence.
 - Comments are need-to-know only: **why**, never **what**. A comment may explain a constraint, a workaround, a trap, or a decision the code can't show. A comment that explains what the code does means the code is unclear: rename, extract or simplify until the comment is unnecessary, then delete it. JSDoc on a public export stays only when it tells users something the signature can't (a default, when it runs, what it rejects). An `@ts-expect-error` carries the reason it must fail.

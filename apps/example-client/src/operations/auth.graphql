@@ -1,0 +1,19 @@
+mutation Login($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
+    __typename
+    ... on Session {
+      token
+      employee {
+        name
+        role
+      }
+    }
+    ... on UserError {
+      message
+    }
+  }
+}
+
+mutation Logout {
+  logout
+}

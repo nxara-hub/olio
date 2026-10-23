@@ -1,0 +1,15 @@
+mutation PlaceOrder($customerId: ID!, $lines: [OrderLineInput!]!) {
+  placeOrder(customerId: $customerId, lines: $lines) {
+    __typename
+    ... on SalesOrder {
+      number
+      status
+      total {
+        amount
+      }
+    }
+    ... on InsufficientStock {
+      message
+    }
+  }
+}
