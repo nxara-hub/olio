@@ -15,7 +15,5 @@ coverage
 *.log
 
 # Misc
-# A local clone of graphql-modules, for reference.
-/graphql-modules
 .DS_Store
 *.pem
