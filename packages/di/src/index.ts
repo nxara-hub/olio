@@ -102,6 +102,9 @@ export type ScopeOf<C> = C extends Container<infer S> ? Scope<S> : never;
 /** Awilix keeps `ctx` under this name in each scope. */
 const CTX = "ctx";
 const RESERVED = new Set([CTX, "dispose"]);
+// A symbol, so no service name can shadow it.
+const RESOLVE = Symbol("resolve");
+const DISPOSED = Promise.resolve();
 
 type Cradle = Record<string, unknown>;
 
@@ -157,28 +160,52 @@ export function createContainer<const S extends Services>(
     if (!names.has(provider)) register(provider, name);
   }
 
-  const disposable = (awilix: AwilixContainer<Cradle>) => ({
-    dispose: async () => {
-      await awilix.dispose();
-    },
-    [Symbol.asyncDispose]: async () => {
-      await awilix.dispose();
+  // A scope runs on every request, so it costs as little as possible: getters
+  // live on the prototype, singletons resolve from the root, and the Awilix
+  // scope only exists once an operation provider is used.
+  class OperationScope implements AsyncDisposable {
+    readonly #ctx: Ctx;
+    #awilix: AwilixContainer<Cradle> | undefined;
+
+    constructor(ctx: Ctx) {
+      this.#ctx = ctx;
     }
-  });
+
+    [RESOLVE](provider: Provider<unknown>): unknown {
+      const name = ensure(provider);
+      if (provider.lifetime === "singleton") return root.resolve(name);
+      if (!this.#awilix) {
+        this.#awilix = root.createScope<Cradle>();
+        this.#awilix.register(CTX, asValue(this.#ctx));
+      }
+      return this.#awilix.resolve(name);
+    }
+
+    dispose(): Promise<void> {
+      return this.#awilix
+        ? this.#awilix.dispose().then(() => undefined)
+        : DISPOSED;
+    }
+
+    [Symbol.asyncDispose](): Promise<void> {
+      return this.dispose();
+    }
+  }
+  for (const [name, provider] of Object.entries(services)) {
+    Object.defineProperty(OperationScope.prototype, name, {
+      get(this: OperationScope) {
+        return this[RESOLVE](provider);
+      }
+    });
+  }
 
   return {
-    scope: (ctx) => {
-      const scope = root.createScope<Cradle>();
-      scope.register(CTX, asValue(ctx));
-      const instances = disposable(scope);
-      for (const [name, provider] of Object.entries(services)) {
-        Object.defineProperty(instances, name, {
-          enumerable: true,
-          get: () => scope.resolve(ensure(provider))
-        });
-      }
-      return instances as Scope<S>;
+    scope: (ctx) => new OperationScope(ctx) as unknown as Scope<S>,
+    dispose: async () => {
+      await root.dispose();
     },
-    ...disposable(root)
+    [Symbol.asyncDispose]: async () => {
+      await root.dispose();
+    }
   };
 }
