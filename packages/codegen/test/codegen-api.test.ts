@@ -281,7 +281,7 @@ describe("codegen", () => {
 
       await waitFor(async () => (await read(output)).includes("\n  auth: {"));
 
-      // A new module extending the root type — no Query clash with auth.
+      // A new module extending the root type - no Query clash with auth.
       await writeModule(modules, "billing", {
         "billing.gql":
           "extend type Query { invoices: [Invoice!]! } type Invoice { id: ID! }"

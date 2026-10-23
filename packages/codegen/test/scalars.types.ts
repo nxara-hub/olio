@@ -1,5 +1,5 @@
 /**
- * Type-level checks for `ResolveScalar`. Deliberately has no runtime tests —
+ * Type-level checks for `ResolveScalar`. Deliberately has no runtime tests -
  * `bun test` cannot evaluate types. These assertions are verified by
  * `bun run check-types`, which typechecks `test/` via tsconfig.test.json.
  */
