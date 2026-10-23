@@ -1,0 +1,59 @@
+scalar DateTime
+
+enum Status {
+  OPEN
+  CLOSED
+}
+
+interface Node {
+  id: ID!
+}
+
+type Product implements Node {
+  id: ID!
+  name: String!
+  price(currency: String = "EUR"): Int!
+  tags: [String!]!
+  createdAt: DateTime!
+}
+
+type Line {
+  product: Product!
+  quantity: Int!
+}
+
+type Order implements Node {
+  id: ID!
+  status: Status!
+  lines(first: Int): [Line!]!
+}
+
+type NotFound {
+  id: ID!
+}
+
+union Lookup = Product | NotFound
+
+input LineInput {
+  productId: ID!
+  quantity: Int!
+}
+
+type Query {
+  products(first: Int, status: Status): [Product!]!
+  product(id: ID!): Lookup!
+  node(id: ID!): Node
+  recent(after: DateTime!): [Product!]!
+  hello: String!
+  echo(text: String!): String!
+  whoami: String
+  secret: String
+}
+
+type Mutation {
+  order(lines: [LineInput!]!): Order!
+}
+
+type Subscription {
+  ticks(upTo: Int!): Int!
+}

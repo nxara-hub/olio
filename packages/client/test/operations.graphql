@@ -1,0 +1,73 @@
+query Products($first: Int, $status: Status, $currency: String) {
+  products(first: $first, status: $status) {
+    name
+    price(currency: $currency)
+    createdAt
+  }
+}
+
+query Product($id: ID!) {
+  product(id: $id) {
+    __typename
+    ... on Product {
+      name
+    }
+    ... on NotFound {
+      id
+    }
+  }
+}
+
+query Node($id: ID!) {
+  node(id: $id) {
+    id
+    ...ProductTags
+  }
+}
+
+fragment ProductTags on Product {
+  tags
+}
+
+query Greetings($withTags: Boolean!) {
+  hello
+  shout: echo(text: "hey")
+  products {
+    tags @include(if: $withTags)
+  }
+}
+
+query Echo($text: String!) {
+  echo(text: $text)
+}
+
+query Whoami {
+  whoami
+}
+
+query Secret {
+  secret
+}
+
+mutation Order($lines: [LineInput!]!, $first: Int) {
+  order(lines: $lines) {
+    status
+    lines(first: $first) {
+      quantity
+      product {
+        name
+      }
+    }
+  }
+}
+
+subscription Ticks($upTo: Int!) {
+  ticks(upTo: $upTo)
+}
+
+query Recent($after: DateTime!) {
+  recent(after: $after) {
+    name
+    createdAt
+  }
+}

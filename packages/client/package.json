@@ -1,0 +1,45 @@
+{
+  "name": "@nxlab/client",
+  "version": "0.0.0",
+  "description": "A typed GraphQL client for Nxara apps: select fields, get typed results.",
+  "keywords": [
+    "client",
+    "graphql",
+    "nxara",
+    "rpc"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "bun test/generate.ts && tsc -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "graphql-sse": "2.6.3"
+  },
+  "devDependencies": {
+    "@nxlab/codegen": "workspace:*",
+    "@nxlab/http": "workspace:*",
+    "@nxlab/olio": "workspace:*",
+    "axios": "^1.20.0",
+    "graphql": "^16.14.2",
+    "ky": "^2.2.0"
+  },
+  "peerDependencies": {
+    "graphql": "^16.13.0"
+  }
+}
