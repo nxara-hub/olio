@@ -1,12 +1,13 @@
-# Example: a small ERP
+# Example server: a small ERP
 
-A warehouse-and-sales backend built with olio. It's the reference app for the repo and the integration test for the whole pipeline, from SDL through codegen to a running schema.
+A warehouse-and-sales backend built with olio. It's the reference app for the repo and the integration test for the whole pipeline, from SDL through codegen to a running schema. [`apps/example-client`](../example-client) uses it over HTTP.
 
 ```sh
-bun run --cwd apps/example codegen   # SDL → src/generated.ts, src/schema.gql
-bun run --cwd apps/example start     # a day at the warehouse, end to end
-bun run --cwd apps/example check-types
-bun run --cwd apps/example serve     # the same app over HTTP + WebSocket: Hono on Node
+bun run --cwd apps/example-server codegen   # SDL → src/generated.ts, src/schema.gql
+bun run --cwd apps/example-server start     # a day at the warehouse, end to end
+bun run --cwd apps/example-server test      # test/: the API through testClient
+bun run --cwd apps/example-server check-types  # includes test/type-checks.ts
+bun run --cwd apps/example-server serve     # the same app over HTTP + WebSocket: Hono on Node
 ```
 
 `serve` starts the ERP on `http://localhost:4000/graphql`, with subscriptions on the same URL as server-sent events (`Accept: text/event-stream`) or over WebSocket. Sign in with `mutation { login(email: "mia@erp.test", password: "demo") { ... on Session { token } } }`, then send `authorization: Bearer <token>`, or `connectionParams: { token }` on a WebSocket.
@@ -45,8 +46,9 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | A subscription and a typed pubsub | [`inventory/subscription.ts`](src/modules/inventory/subscription.ts), [`src/pubsub.ts`](src/pubsub.ts) |
 | `Fields[...]` types outside resolvers | [`inventory/service.ts`](src/modules/inventory/service.ts) |
 | A custom scalar from graphql-scalars | [`core/resolvers/scalars.ts`](src/modules/core/resolvers/scalars.ts) |
-| Compile-time contract checks | [`src/type-checks.ts`](src/type-checks.ts) |
-| Serving it: Hono on Node, subscriptions as server-sent events and over WebSocket | [`src/server.ts`](src/server.ts) |
+| Compile-time contract checks | [`test/type-checks.ts`](test/type-checks.ts) |
+| Serving it: Hono on Node, subscriptions as server-sent events and over WebSocket | [`src/server.ts`](src/server.ts), [`src/http.ts`](src/http.ts) |
+| A typed client test: `testClient` through the same handler | [`test/api.test.ts`](test/api.test.ts) |
 | Errors clients may see (`GraphQLError` with a code) vs. hidden ones | [`src/errors.ts`](src/errors.ts) |
 
 The data lives in memory (`store.ts` per module), so the example runs with no setup. Passwords are plain text for the same reason; that's marked in [`auth/store.ts`](src/modules/auth/store.ts).

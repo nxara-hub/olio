@@ -184,7 +184,7 @@ export const Subscription = subscription.users({
 - **Each yielded value is the field's value**, checked against the field type (with [mappers](#mappers) applied). Nested field resolvers run for every event.
 - **Middleware runs once**, when a client subscribes, which is the place for auth and logging. Per-event logic belongs in the iterator.
 - **Context:** subscription resolvers and `Subscription` middleware get `sub_ctx`, and `"*"` middleware can run on either kind: type it `MiddlewareFn<Context | SubscriptionContext>`. Without a separate `sub_ctx`, both are just `ctx`.
-- **The event source is yours** (in-memory, Redis, …). [`apps/example/src/pubsub.ts`](../../apps/example/src/pubsub.ts) has a small typed in-memory one. Serving subscriptions over a transport (graphql-ws, SSE) comes with the HTTP adapter; until then, run them with graphql's `subscribe()`.
+- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. Serving subscriptions over a transport (graphql-ws, SSE) comes with the HTTP adapter; until then, run them with graphql's `subscribe()`.
 
 ## Mappers
 

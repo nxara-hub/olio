@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/example",
+  "name": "@nxlab/example-server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,10 +7,12 @@
     "codegen": "bun run ./codegen.ts",
     "start": "bun run ./src/main.ts",
     "check-types": "tsc --noEmit",
-    "serve": "tsx src/server.ts"
+    "serve": "tsx src/server.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
+    "@nxlab/client": "workspace:*",
     "@nxlab/codegen": "workspace:*",
     "@nxlab/di": "workspace:*",
     "@nxlab/http": "workspace:*",

@@ -1,0 +1,23 @@
+mutation Login($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
+    __typename
+    ... on Session {
+      token
+    }
+    ... on UserError {
+      message
+    }
+  }
+}
+
+query Products($search: String) {
+  products(filter: { search: $search }) {
+    items {
+      sku
+      price {
+        amount
+        currency
+      }
+    }
+  }
+}

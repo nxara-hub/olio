@@ -13,5 +13,5 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true
   },
-  "include": ["src", "codegen.ts"]
+  "include": ["src", "test", "codegen.ts"]
 }
