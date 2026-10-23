@@ -147,6 +147,19 @@ test("node: serves node:http requests", async () => {
   expect(await response.json()).toEqual({ data: { whoami: "alan" } });
 });
 
+/** Resolves once `check` holds, polling every 10ms for up to 2s. */
+const until = (check: () => boolean): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (check() || Date.now() - started > 2000) {
+        clearInterval(timer);
+        if (check()) resolve();
+        else reject(new Error("timed out"));
+      }
+    }, 10);
+  });
+
 /** Every value a graphql-ws subscription emits. */
 async function collect(url: string, query: string, connectionParams = {}) {
   const client = createClient({
@@ -421,6 +434,79 @@ describe("a context hook that throws", () => {
       "password=hunter2",
       "password=hunter2",
       "password=hunter2"
+    ]);
+  });
+});
+
+describe("onOperationEnd", () => {
+  test("runs once per operation, with its context, on every transport", async () => {
+    const ended: string[] = [];
+    let n = 0;
+    const make = (label: string) => ({ user: `${label}-${++n}` });
+    const onOperationEnd = (ctx: unknown) =>
+      void ended.push((ctx as { user: string }).user);
+
+    // HTTP: after the response.
+    const handler = fetchHandler(app, {
+      context: () => make("http"),
+      subscriptionContext: () => make("sse"),
+      onOperationEnd
+    });
+    await post(handler, "{ hello }");
+    expect(ended).toEqual(["http-1"]);
+
+    // SSE: when the stream completes.
+    const sse = createSseClient({
+      url: "http://localhost/graphql",
+      fetchFn: ((input: string, init?: RequestInit) =>
+        handler(new Request(input, init))) as typeof fetch,
+      retryAttempts: 0
+    });
+    await sseCollect(sse, "subscription { ticks(upTo: 2) }");
+    sse.dispose();
+    expect(ended).toEqual(["http-1", "sse-2"]);
+
+    // WebSocket: when an operation completes, and when its socket closes early.
+    const server = createServer();
+    const port = await listen(server);
+    const close = wsServer(
+      app,
+      new WebSocketServer({ server, path: "/graphql" }),
+      {
+        context: () => make("ws"),
+        onOperationEnd
+      }
+    );
+    servers.push({ close });
+    const url = `ws://localhost:${port}/graphql`;
+    await collect(url, "subscription { ticks(upTo: 1) }");
+
+    const client = createClient({
+      url,
+      webSocketImpl: WebSocket,
+      retryAttempts: 0
+    });
+    const endless = client.iterate({
+      query: "subscription { ticks(upTo: 1000000) }"
+    });
+    await endless.next();
+    await client.dispose(); // closes the socket mid-subscription
+    await until(() => ended.length >= 4);
+    expect(ended).toEqual(["http-1", "sse-2", "ws-3", "ws-4"]);
+  });
+
+  test("a failing hook is reported, never sent to the client", async () => {
+    const reported: unknown[] = [];
+    const handler = fetchHandler(app, {
+      context: () => ({}),
+      onOperationEnd: () => {
+        throw new Error("cleanup failed");
+      },
+      onUnexpectedError: (e) => reported.push(e)
+    });
+    expect(await post(handler, "{ hello }")).toEqual({ data: { hello: "hi" } });
+    expect(reported.map((e) => (e as Error).message)).toEqual([
+      "cleanup failed"
     ]);
   });
 });

@@ -112,5 +112,6 @@ Options, on every adapter:
 | --- | --- | --- |
 | `context` | none | Builds `ctx`: from the request (`fetch`, `node`), or from `{ request, connectionParams }` (`ws`, `bun`) |
 | `subscriptionContext` | `context` | `fetch` and `node` only: builds `sub_ctx` for server-sent event requests |
+| `onOperationEnd` | none | Called once per operation when it's done: after the HTTP response, when an SSE stream completes, when a WebSocket operation completes or its socket closes. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
 | `onUnexpectedError` | `console.error` | Receives each hidden error |

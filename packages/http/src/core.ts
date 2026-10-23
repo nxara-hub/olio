@@ -33,6 +33,12 @@ export interface HttpOptions<Request> extends ErrorOptions {
    * `context`.
    */
   subscriptionContext?: (request: Request) => MaybePromise<SubscriptionContext>;
+  /**
+   * Called once an operation has finished: after the HTTP response is
+   * built, or when a server-sent event stream completes. Dispose
+   * per-operation resources here, such as `ctx.di.dispose()`.
+   */
+  onOperationEnd?: (ctx: Context | SubscriptionContext) => MaybePromise<void>;
 }
 
 /** Headers a server-sent events request carries, as graphql-sse sends them. */
@@ -107,6 +113,8 @@ export interface SubscriptionOptions<Request> extends ErrorOptions {
   context?: (
     connection: Connection<Request>
   ) => MaybePromise<SubscriptionContext>;
+  /** Called once an operation has completed, or its socket has closed. */
+  onOperationEnd?: (ctx: SubscriptionContext) => MaybePromise<void>;
 }
 
 /** Hides unexpected errors, per the options: one error, or a whole result. */
@@ -115,6 +123,8 @@ export function errorMasker(options: ErrorOptions): {
   result: (result: ExecutionResult) => ExecutionResult;
   /** A failure before execution (a throwing `context` hook), as a GraphQLError. */
   thrown: (error: unknown) => GraphQLError;
+  /** Hand an error to `onUnexpectedError`. */
+  report: (error: unknown) => void;
 } {
   const { maskErrors = true, onUnexpectedError = console.error } = options;
   const mask = (error: GraphQLError): GraphQLError => {
@@ -132,6 +142,7 @@ export function errorMasker(options: ErrorOptions): {
     error: mask,
     result: (result) =>
       result.errors ? { ...result, errors: result.errors.map(mask) } : result,
+    report: onUnexpectedError,
     thrown: (error) => {
       if (error instanceof GraphQLError) return error;
       onUnexpectedError(error);
@@ -212,5 +223,28 @@ export function sseFailure(
       "cache-control": "no-cache"
     },
     body: `event: next\ndata: ${result}\n\nevent: complete\ndata:\n\n`
+  };
+}
+
+/**
+ * `onOperationEnd`, made safe to call from transports: once per context, and
+ * a failure in it is reported rather than thrown.
+ */
+export function operationEnd<C>(
+  mask: ReturnType<typeof errorMasker>,
+  hook: ((ctx: C) => MaybePromise<void>) | undefined
+): (ctx: C | undefined) => Promise<void> {
+  const ended = new WeakSet<object>();
+  return async (ctx) => {
+    if (!hook || ctx === undefined) return;
+    if (typeof ctx === "object" && ctx !== null) {
+      if (ended.has(ctx)) return;
+      ended.add(ctx);
+    }
+    try {
+      await hook(ctx);
+    } catch (error) {
+      mask.report(error);
+    }
   };
 }

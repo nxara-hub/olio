@@ -49,6 +49,7 @@ bun run --cwd apps/example serve     # the example over HTTP + WebSocket (Hono o
 - Workspace packages resolve to `dist/`. After changing a package, run `bun run build` before type-checking or running the example.
 - `generated.ts` is generated (and lint/format ignored). Never hand-edit it; rerun codegen. `.gql` files are not formatted by oxfmt.
 - Relative imports use `.js` specifiers (`nodenext`). `noUncheckedIndexedAccess` is on.
+- `@nxlab/http`'s `onOperationEnd(ctx)` runs once per operation: after the HTTP response, when an SSE stream completes, or when a WebSocket operation completes or its socket closes.
 - Olio must work with and without codegen. `packages/olio/test` registers nothing, so its type-check covers the untyped mode (`createModule` and inline resolver maps, no implicit `any`).
 - `packages/olio/test/typed/` is olio's typed contract test: `check-types` regenerates `generated.ts` from its fixture SDL with codegen, then type-checks `contract.ts` against `src/` (it augments `src/types.ts`, not the build). Add an `@ts-expect-error` there for any new type behaviour.
 - Inline resolver maps in `module.<id>({ resolvers })` / `feature…({ resolvers })` are typed (`OwnerResolvers`). `loadResolvers` returns the branded `LoadedResolvers`, which passes through unchecked; the brand is what keeps inline maps from matching the loose type.
