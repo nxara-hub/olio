@@ -26,6 +26,8 @@ const run = async (
     contextValue: ctx
   });
   show(result);
+  // What onOperationEnd does in a server: release this operation's scope.
+  await ctx.di.dispose();
   return result;
 };
 
@@ -73,12 +75,13 @@ await run(
 );
 
 // Mia watches chair stock while the floor works.
+const watcher = createSubscriptionContext("ws-1", mia);
 const stream = await subscribe({
   schema: app.schema,
   document: parse(
     `subscription { stockChanged(sku: "CHAIR-01") { sku onHand updatedAt } }`
   ),
-  contextValue: createSubscriptionContext("ws-1", mia)
+  contextValue: watcher
 });
 if (!(Symbol.asyncIterator in stream)) throw new Error("subscription failed");
 const firstEvent = stream.next();
@@ -126,6 +129,7 @@ if (!event.done) {
   show(event.value);
 }
 await stream.return?.();
+await watcher.di.dispose();
 
 // sales adds Product.unitsSold (inventory's type) and Customer.orders.
 await run(

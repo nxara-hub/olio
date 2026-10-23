@@ -12,10 +12,12 @@
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "@nxlab/codegen": "workspace:*",
+    "@nxlab/di": "workspace:*",
     "@nxlab/http": "workspace:*",
     "@nxlab/olio": "workspace:*",
     "@nxlab/schema": "workspace:*",
     "@nxlab/tools": "workspace:*",
+    "dataloader": "^2.2.3",
     "graphql": "^17.0.2",
     "graphql-scalars": "^2.0.1",
     "hono": "^4.13.13",

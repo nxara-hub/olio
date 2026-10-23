@@ -27,7 +27,9 @@ const graphql = fetchHandler(app, {
       `sse-${streams}`,
       bearer(request.headers.get("authorization"))
     );
-  }
+  },
+  // Each operation's DI scope (DataLoaders, …) is disposed once it's done.
+  onOperationEnd: (ctx) => ctx.di.dispose()
 });
 
 const hono = new Hono();
@@ -54,6 +56,7 @@ wsServer(
         `ws-${connections}`,
         typeof token === "string" ? token : undefined
       );
-    }
+    },
+    onOperationEnd: (ctx) => ctx.di.dispose()
   }
 );

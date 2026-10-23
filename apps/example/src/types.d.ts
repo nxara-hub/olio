@@ -1,7 +1,14 @@
+import type { ScopeOf } from "@nxlab/di";
+
+import type { container } from "./di.js";
 import type { Application, Role } from "./generated.js";
 import type { EmployeeRow } from "./modules/auth/store.js";
 import type { ProductRow } from "./modules/inventory/store.js";
-import type { CustomerRow, OrderRow } from "./modules/sales/store.js";
+import type {
+  CustomerRow,
+  OrderLineRow,
+  OrderRow
+} from "./modules/sales/store.js";
 import type { PubSub } from "./pubsub.js";
 
 /** Who is calling, resolved from the session token. */
@@ -11,10 +18,17 @@ interface Viewer {
   token: string;
 }
 
-interface GQLCtx {
+/** What a request carries; providers (see src/di.ts) see this. */
+interface RequestInfo {
   requestId: string;
   viewer?: Viewer;
   pubsub: PubSub;
+}
+
+/** The context resolvers get: the request, plus its DI scope. */
+interface GQLCtx extends RequestInfo {
+  /** This operation's services, as named in src/di.ts: `ctx.di.productLoader`. */
+  di: ScopeOf<typeof container>;
 }
 
 /** Subscriptions live on a connection, so they also know which one. */
@@ -31,6 +45,7 @@ declare module "@nxlab/olio" {
       Product: ProductRow;
       Customer: CustomerRow;
       SalesOrder: OrderRow;
+      OrderLine: OrderLineRow;
     };
   }
 }
@@ -42,5 +57,11 @@ declare module "@nxlab/codegen" {
   /** Stored lowercase; the API still says CONFIRMED / CANCELLED. */
   interface CustomEnums {
     OrderStatus: "confirmed" | "cancelled";
+  }
+}
+
+declare module "@nxlab/di" {
+  interface Register {
+    ctx: RequestInfo;
   }
 }

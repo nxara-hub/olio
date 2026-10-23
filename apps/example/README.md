@@ -40,7 +40,8 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | Mappers: resolvers return rows, field resolvers derive the rest | [`inventory/resolvers/product.ts`](src/modules/inventory/resolvers/product.ts) |
 | Extending another module's type (`Product.unitsSold`) | [`orders.gql`](src/modules/sales/orders/typedefs/orders.gql), [`extensions.ts`](src/modules/sales/orders/resolvers/extensions.ts) |
 | A module split into features, with module-wide middleware | [`sales/index.ts`](src/modules/sales/index.ts), [`sales/orders/index.ts`](src/modules/sales/orders/index.ts) |
-| Modules calling each other through plain imports, no DI | [`inventory/service.ts`](src/modules/inventory/service.ts), used by [`sales/orders/mutation.ts`](src/modules/sales/orders/mutation.ts) |
+| Dependency injection: a per-operation DataLoader batching order-line products (one lookup per request, not per line), disposed with `onOperationEnd` | [`inventory/providers.ts`](src/modules/inventory/providers.ts), [`order.ts`](src/modules/sales/orders/resolvers/order.ts), [`src/di.ts`](src/di.ts), [`src/context.ts`](src/context.ts) |
+| Modules calling each other through plain imports | [`inventory/service.ts`](src/modules/inventory/service.ts), used by [`sales/orders/mutation.ts`](src/modules/sales/orders/mutation.ts) |
 | A subscription and a typed pubsub | [`inventory/subscription.ts`](src/modules/inventory/subscription.ts), [`src/pubsub.ts`](src/pubsub.ts) |
 | `Fields[...]` types outside resolvers | [`inventory/service.ts`](src/modules/inventory/service.ts) |
 | A custom scalar from graphql-scalars | [`core/resolvers/scalars.ts`](src/modules/core/resolvers/scalars.ts) |

@@ -117,3 +117,10 @@ const badLine = { sku: "X", quantity: "2" };
 export const badLines: Lines = [badLine];
 // @ts-expect-error not a Query field
 export type NoField = Fields["Query"]["nope"];
+
+// ---- Dependency injection ------------------------------------------------
+
+resolvers.sales.orders.OrderLine({
+  // @ts-expect-error only the services listed in src/di.ts are on ctx.di
+  product: (line, _args, ctx) => ctx.di.productStore.bySkus([line.sku])
+});

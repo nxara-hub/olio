@@ -10,13 +10,20 @@ export interface CustomerRow {
   updatedAt: Date;
 }
 
-/** How orders are stored: lines keep the price at the time of sale. */
+/** An order line as stored: the price at the time of sale. */
+export interface OrderLineRow {
+  sku: string;
+  quantity: number;
+  unitPriceCents: number;
+}
+
+/** How orders are stored. */
 export interface OrderRow {
   id: string;
   number: string;
   customerId: string;
   status: OrderStatus;
-  lines: { sku: string; quantity: number; unitPriceCents: number }[];
+  lines: OrderLineRow[];
   createdAt: Date;
   updatedAt: Date;
 }
