@@ -14,6 +14,8 @@ export type {
   FeatureConfig,
   FeatureId,
   FeatureMiddleware,
+  FieldExtensions,
+  FieldResolver,
   Fields,
   LoadedResolvers,
   Middleware,

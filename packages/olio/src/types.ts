@@ -1,5 +1,6 @@
 import type {
   DocumentNode,
+  GraphQLFieldExtensions,
   GraphQLResolveInfo,
   GraphQLScalarType
 } from "graphql";
@@ -267,13 +268,49 @@ export type CheckedMiddleware<T, Shape> = {
     : `"${Type & string}" has no fields this module or feature declares`;
 };
 
+/**
+ * What a field's `extensions` may hold, registered like `Olio` (`Source` and
+ * `Args` are the field's parent and arguments, for extensions that are
+ * functions). Strict: an unregistered key is a compile error.
+ *
+ * ```ts
+ * declare module "@nxlab/olio" {
+ *   interface FieldExtensions<Source, Args> {
+ *     complexity?: number | ((args: Args, childComplexity: number) => number);
+ *   }
+ * }
+ * ```
+ */
+// oxlint-disable-next-line typescript/no-empty-interface -- augmented by apps
+export interface FieldExtensions<Source, Args> {}
+
+// Keys libraries add to graphql's own interface count too; its index
+// signature (any key) doesn't, so typos stay errors.
+type KnownKeys<T> = {
+  [K in keyof T as string extends K ? never : K]: T[K];
+};
+
+type Extensions<Source, Args> = Untyped extends true
+  ? Record<string, unknown>
+  : FieldExtensions<Source, Args> &
+      KnownKeys<GraphQLFieldExtensions<Source, Context, Args>>;
+
+/** A resolver, or `{ resolve?, extensions? }` to attach extensions to the field too. */
+export type FieldResolver<Fn, Source, Args> =
+  | Fn
+  | { resolve?: Fn; extensions?: Extensions<Source, Args> };
+
 type RootResolvers<M extends string, R extends RootType> = {
-  [F in Owned<Entry<M, R>>]?: (
-    root: undefined,
-    args: Args<Entry<M, R>, F>,
-    ctx: Context,
-    info: GraphQLResolveInfo
-  ) => MaybePromise<Out<Entry<M, R>, F>>;
+  [F in Owned<Entry<M, R>>]?: FieldResolver<
+    (
+      root: undefined,
+      args: Args<Entry<M, R>, F>,
+      ctx: Context,
+      info: GraphQLResolveInfo
+    ) => MaybePromise<Out<Entry<M, R>, F>>,
+    undefined,
+    Args<Entry<M, R>, F>
+  >;
 };
 
 export type QueryResolvers<M extends string> = RootResolvers<
@@ -287,12 +324,18 @@ export type MutationResolvers<M extends string> = RootResolvers<
 
 /** Middleware runs once, when a client subscribes, not per event. */
 export type SubscriptionResolvers<M extends string> = {
-  [F in Owned<Entry<M, RootName<"subscription">>>]?: (
-    root: undefined,
-    args: Args<Entry<M, RootName<"subscription">>, F>,
-    ctx: SubscriptionContext,
-    info: GraphQLResolveInfo
-  ) => MaybePromise<AsyncIterable<Out<Entry<M, RootName<"subscription">>, F>>>;
+  [F in Owned<Entry<M, RootName<"subscription">>>]?: FieldResolver<
+    (
+      root: undefined,
+      args: Args<Entry<M, RootName<"subscription">>, F>,
+      ctx: SubscriptionContext,
+      info: GraphQLResolveInfo
+    ) => MaybePromise<
+      AsyncIterable<Out<Entry<M, RootName<"subscription">>, F>>
+    >,
+    undefined,
+    Args<Entry<M, RootName<"subscription">>, F>
+  >;
 };
 
 export type ModuleTypeName<M extends string> = M extends Owner
@@ -318,12 +361,16 @@ export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
       : {
           [F in Owned<Entry<M, T>>]?: F extends TypeHook
             ? TypeHookResolver<Entry<M, T>, F>
-            : (
-                root: Parent<Entry<M, T>>,
-                args: Args<Entry<M, T>, F>,
-                ctx: Context,
-                info: GraphQLResolveInfo
-              ) => MaybePromise<Out<Entry<M, T>, F>>;
+            : FieldResolver<
+                (
+                  root: Parent<Entry<M, T>>,
+                  args: Args<Entry<M, T>, F>,
+                  ctx: Context,
+                  info: GraphQLResolveInfo
+                ) => MaybePromise<Out<Entry<M, T>, F>>,
+                Parent<Entry<M, T>>,
+                Args<Entry<M, T>, F>
+              >;
         };
 
 type TypeName = { [O in Owner]: keyof App[O] & string }[Owner];
@@ -360,16 +407,19 @@ export type TypeSource = string | DocumentNode;
 
 export type ResolverMap = Record<string, object>;
 
+type UntypedResolver = (
+  root: unknown,
+  args: Record<string, unknown>,
+  ctx: Context,
+  info: GraphQLResolveInfo
+) => unknown;
+
 type UntypedInlineResolvers = Record<
   string,
   Record<
     string,
-    (
-      root: unknown,
-      args: Record<string, unknown>,
-      ctx: Context,
-      info: GraphQLResolveInfo
-    ) => unknown
+    | UntypedResolver
+    | { resolve?: UntypedResolver; extensions?: Record<string, unknown> }
   >
 >;
 

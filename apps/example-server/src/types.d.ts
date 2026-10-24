@@ -33,6 +33,10 @@ interface GQLCtx extends RequestInfo {
 type SubGQLCtx = GQLCtx & { connectionId: string };
 
 declare module "@nxlab/olio" {
+  /** What fields' `extensions` may hold (FieldResolver's object form). */
+  interface FieldExtensions<Source, Args> {
+    complexity?: number | ((args: Args) => number);
+  }
   interface Olio {
     application: Application;
     ctx: GQLCtx;

@@ -240,6 +240,47 @@ function applyScalar(type: GraphQLScalarType, value: object): void {
   }
 }
 
+interface FieldParts {
+  resolve?: Resolve;
+  extensions?: Record<string, unknown>;
+}
+
+// A field's value: its resolver, or `{ resolve?, extensions? }`.
+function fieldParts(
+  where: string,
+  key: string,
+  value: unknown,
+  subscription: boolean
+): FieldParts {
+  const expected = subscription
+    ? "a function returning an AsyncIterable (e.g. an async generator), or { resolve, extensions }"
+    : "a function, or { resolve, extensions }";
+  if (typeof value === "function") return { resolve: value as Resolve };
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${where}: "${key}" must be ${expected}`);
+  }
+  const { resolve, extensions, ...rest } = value as Record<string, unknown>;
+  const extra = Object.keys(rest)[0];
+  if (extra !== undefined) {
+    throw new TypeError(
+      `${where}: "${key}" must be ${expected}, not "${extra}"`
+    );
+  }
+  if (resolve !== undefined && typeof resolve !== "function") {
+    throw new TypeError(`${where}: "${key}".resolve must be a function`);
+  }
+  if (
+    extensions !== undefined &&
+    (typeof extensions !== "object" || extensions === null)
+  ) {
+    throw new TypeError(`${where}: "${key}".extensions must be an object`);
+  }
+  return {
+    resolve: resolve as Resolve | undefined,
+    extensions: extensions as Record<string, unknown> | undefined
+  };
+}
+
 function applyField(
   attach: Attach,
   type: GraphQLNamedType,
@@ -275,21 +316,36 @@ function applyField(
 
   claim(attach, key);
 
-  const chain = chainFor(appMiddleware, owner, type.name, fieldName);
-  if (typeof resolver !== "function") {
-    throw new TypeError(
-      type === schema.getSubscriptionType()
-        ? `${where}: "${key}" must be a function returning an AsyncIterable, e.g. an async generator`
-        : `${where}: "${key}" must be a function`
-    );
+  const subscription = type === schema.getSubscriptionType();
+  const { resolve, extensions } = fieldParts(
+    where,
+    key,
+    resolver,
+    subscription
+  );
+  if (extensions) {
+    (field as { extensions: Record<string, unknown> }).extensions = {
+      ...field.extensions,
+      ...extensions
+    };
   }
-  if (type === schema.getSubscriptionType()) {
+  if (!resolve) {
+    if (subscription) {
+      throw new TypeError(
+        `${where}: "${key}" needs a resolve: a function returning an AsyncIterable`
+      );
+    }
+    // The default resolver stays; wrapDefaults wraps it if middleware names it.
+    return;
+  }
+  const chain = chainFor(appMiddleware, owner, type.name, fieldName);
+  if (subscription) {
     // Each event is the field's value; middleware runs once, on subscribe.
-    field.subscribe = wrap(resolver as Resolve, chain);
+    field.subscribe = wrap(resolve, chain);
     field.resolve = (event) => event;
     return;
   }
-  field.resolve = wrap(resolver as Resolve, chain);
+  field.resolve = wrap(resolve, chain);
 }
 
 function applyEnum(

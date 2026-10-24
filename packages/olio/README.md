@@ -184,7 +184,34 @@ export const Subscription = subscription.users({
 - **Each yielded value is the field's value**, checked against the field type (with [mappers](#mappers) applied). Nested field resolvers run for every event.
 - **Middleware runs once**, when a client subscribes, which is the place for auth and logging. Per-event logic belongs in the iterator.
 - **Context:** subscription resolvers and `Subscription` middleware get `sub_ctx`, and `"*"` middleware can run on either kind: type it `MiddlewareFn<Context | SubscriptionContext>`. Without a separate `sub_ctx`, both are just `ctx`.
-- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. Serving subscriptions over a transport (graphql-ws, SSE) comes with the HTTP adapter; until then, run them with graphql's `subscribe()`.
+- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. To serve them, run graphql-ws or graphql-sse with `app.schema`; [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) does both.
+
+## Field extensions
+
+A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`.
+
+```ts
+export const Query = query.inventory({
+  products: {
+    resolve: (_root, { filter }) => listProducts(filter),
+    extensions: { complexity: ({ filter }) => filter?.pageSize ?? 20 }
+  }
+});
+resolvers.users.User({ email: { extensions: { roles: ["ADMIN"] } } }); // no resolve: the default resolver stays
+```
+
+Extensions are typed: register what they may hold, and anything else is a compile error. `Source` and `Args` are the field's parent and arguments, for extensions that are functions:
+
+```ts
+declare module "@nxlab/olio" {
+  interface FieldExtensions<Source, Args> {
+    complexity?: number | ((args: Args) => number);
+    roles?: Role[];
+  }
+}
+```
+
+Keys a library adds to graphql's own `GraphQLFieldExtensions` count too. Middleware still wraps `resolve`. Subscription fields take the same form, with the async generator as `resolve`. At runtime the object may hold only `resolve` and `extensions`. Without codegen, extensions are a plain `Record<string, unknown>`.
 
 ## Mappers
 

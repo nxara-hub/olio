@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
 import { copyDirective } from "@nxlab/schema";
-import { graphql, GraphQLScalarType, parse, subscribe } from "graphql";
+import {
+  graphql,
+  GraphQLScalarType,
+  parse,
+  subscribe,
+  type GraphQLObjectType
+} from "graphql";
 
 import {
   createFeature,
@@ -468,8 +474,116 @@ describe("olio", () => {
         ]
       })
     ).toThrow(
-      'Module "old": "Subscription.x" must be a function returning an AsyncIterable, e.g. an async generator'
+      'Module "old": "Subscription.x" must be a function returning an AsyncIterable (e.g. an async generator), or { resolve, extensions }, not "subscribe"'
     );
+  });
+
+  test("a field takes { resolve, extensions }: extensions land on the schema field", async () => {
+    const log: string[] = [];
+    const shop = createModule("shop", {
+      typeDefs: /* GraphQL */ `
+        type Item {
+          name: String!
+          price: Int!
+          secret: String
+        }
+        type Query {
+          item: Item!
+        }
+        type Subscription {
+          ticks: Int!
+        }
+      `,
+      resolvers: {
+        Query: {
+          item: {
+            resolve: () => ({ name: "chair", price: 3, secret: "s" }),
+            extensions: { complexity: 2 }
+          }
+        },
+        Item: {
+          price: { resolve: (row: { price: number }) => row.price * 100 },
+          // Extensions only: the default resolver stays.
+          secret: { extensions: { roles: ["ADMIN"] } }
+        },
+        Subscription: {
+          ticks: {
+            async *resolve() {
+              yield 1;
+            },
+            extensions: { complexity: 1 }
+          }
+        }
+      },
+      middleware: {
+        Item: { secret: [trace(log, "secret")] },
+        Query: { item: [trace(log, "item")] }
+      }
+    });
+    // A policy read from the field: one middleware instead of a list per field.
+    const policy = olio({
+      modules: [shop],
+      middleware: {
+        "*": {
+          "*": [
+            ({ info }, next) => {
+              const field = info.parentType.getFields()[info.fieldName];
+              return field?.extensions.roles ? null : next();
+            }
+          ]
+        }
+      }
+    });
+    const fields = (name: string) =>
+      (policy.schema.getType(name) as GraphQLObjectType).getFields();
+    expect(fields("Query").item?.extensions).toEqual({ complexity: 2 });
+    expect(fields("Item").secret?.extensions).toEqual({ roles: ["ADMIN"] });
+    expect(fields("Subscription").ticks?.extensions).toEqual({ complexity: 1 });
+
+    // Without the policy: resolve is wrapped, and so is the default resolver of
+    // the extensions-only field its middleware names.
+    const plain = await run(
+      olio({ modules: [shop] }),
+      "{ item { name price secret } }"
+    );
+    expect(plain.data).toEqual({
+      item: { name: "chair", price: 300, secret: "s" }
+    });
+    expect(log).toEqual(["item", "secret"]);
+    // The app's policy runs first and stops the field before its own middleware.
+    const guarded = await run(policy, "{ item { name price secret } }");
+    expect(guarded.data).toEqual({
+      item: { name: "chair", price: 300, secret: null }
+    });
+    expect(log).toEqual(["item", "secret", "item"]);
+
+    const stream = (await subscribe({
+      schema: policy.schema,
+      document: parse("subscription { ticks }")
+    })) as AsyncIterableIterator<unknown>;
+    expect((await stream.next()).value).toEqual({ data: { ticks: 1 } });
+  });
+
+  test("the object form takes resolve and extensions only", () => {
+    const build =
+      (resolvers: Record<string, object>, sdl = "type Query { x: Int }") =>
+      () =>
+        olio({ modules: [createModule("m", { typeDefs: sdl, resolvers })] });
+    expect(build({ Query: { x: { resolve: () => 1, cost: 2 } } })).toThrow(
+      'Module "m": "Query.x" must be a function, or { resolve, extensions }, not "cost"'
+    );
+    expect(build({ Query: { x: { resolve: 1 } } })).toThrow(
+      '"Query.x".resolve must be a function'
+    );
+    expect(build({ Query: { x: { extensions: "cheap" } } })).toThrow(
+      '"Query.x".extensions must be an object'
+    );
+    expect(
+      build(
+        { Subscription: { x: { extensions: {} } } },
+        "type Query { y: Int } type Subscription { x: Int }"
+      )
+    ).toThrow('"Subscription.x" needs a resolve');
   });
 
   test("enums can have internal values, in and out", async () => {

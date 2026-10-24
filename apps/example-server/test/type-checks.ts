@@ -124,3 +124,8 @@ resolvers.sales.orders.OrderLine({
   // @ts-expect-error only the services listed in src/di.ts are on ctx.di
   product: (line, _args, ctx) => ctx.di.productStore.bySkus([line.sku])
 });
+
+// ---- Field extensions --------------------------------------------------
+
+// @ts-expect-error not a registered extension (FieldExtensions in types.d.ts)
+query.inventory({ products: { extensions: { complexty: 1 } } });

@@ -27,6 +27,16 @@ declare module "../../src/types.js" {
     application: Application;
     mappers: { User: UserRow; Named: NamedRow };
   }
+  interface FieldExtensions<Source, Args> {
+    complexity?: number | ((args: Args) => number);
+    visible?: (row: Source) => boolean;
+  }
+}
+// What a library does: add a key to graphql's own field extensions.
+declare module "graphql" {
+  interface GraphQLFieldExtensions<_TSource, _TContext, _TArgs> {
+    cacheControl?: { maxAge: number };
+  }
 }
 declare module "@nxlab/codegen" {
   interface CustomEnums {
@@ -150,3 +160,53 @@ mw.content({ Nope: { x: [] } });
 // A typed map passes on as it is.
 const checked = mw.content({ Query: { node: [] } });
 module.content({ middleware: checked });
+
+// ---- Field extensions -------------------------------------------------------
+
+// { resolve, extensions }: extensions typed from FieldExtensions, with the
+// field's own args and parent.
+query.content({
+  usersByRole: {
+    resolve: () => [user],
+    extensions: { complexity: (args) => (args.role === 1 ? 2 : 1) }
+  }
+});
+resolvers.content.User({
+  name: { extensions: { visible: (row) => row.roleId === 1 } }
+});
+// @ts-expect-error not a registered extension
+query.content({ usersByRole: { extensions: { complexty: 2 } } });
+// @ts-expect-error complexity is a number or a function of the args
+query.content({ usersByRole: { extensions: { complexity: "high" } } });
+query.content({
+  usersByRole: {
+    extensions: {
+      // @ts-expect-error role is 1 | 2 here (CustomEnums), never "ADMIN"
+      complexity: (args) => (args.role === "ADMIN" ? 1 : 0)
+    }
+  }
+});
+resolvers.content.User({
+  name: {
+    extensions: {
+      // @ts-expect-error visible gets the User's row, which has no title
+      visible: (row) => row.title === "x"
+    }
+  }
+});
+// @ts-expect-error the object form takes resolve and extensions only
+query.content({ usersByRole: { resolve: () => [user], cost: 1 } });
+// @ts-expect-error resolve keeps its type in the object form
+query.content({ usersByRole: { resolve: () => 42 } });
+// Keys added to graphql's GraphQLFieldExtensions count, still type-checked.
+query.content({
+  usersByRole: { extensions: { cacheControl: { maxAge: 60 } } }
+});
+query.content({
+  usersByRole: {
+    extensions: {
+      // @ts-expect-error maxAge is a number
+      cacheControl: { maxAge: "1m" }
+    }
+  }
+});
