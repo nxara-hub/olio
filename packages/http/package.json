@@ -1,13 +1,12 @@
 {
   "name": "@nxlab/http",
   "version": "0.0.0",
-  "description": "Serve an olio app over HTTP and WebSocket, on any framework.",
+  "description": "Serve an olio app over HTTP, on any framework: GraphQL over HTTP with context, error masking and per-operation cleanup.",
   "keywords": [
     "graphql",
-    "graphql-ws",
+    "graphql-http",
     "http",
-    "nxara",
-    "websocket"
+    "nxara"
   ],
   "license": "MIT",
   "files": [
@@ -27,14 +26,6 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "default": "./dist/node.js"
-    },
-    "./ws": {
-      "types": "./dist/ws.d.ts",
-      "default": "./dist/ws.js"
-    },
-    "./bun": {
-      "types": "./dist/bun.d.ts",
-      "default": "./dist/bun.js"
     }
   },
   "publishConfig": {
@@ -46,24 +37,14 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "graphql-http": "^1.23.1",
-    "graphql-sse": "2.6.3",
-    "graphql-ws": "^6.4.1"
+    "graphql-http": "^1.23.1"
   },
   "devDependencies": {
     "@nxlab/olio": "workspace:*",
-    "@types/ws": "^8.18.1",
-    "graphql": "^16.14.2",
-    "ws": "^8.18.3"
+    "graphql": "^16.14.2"
   },
   "peerDependencies": {
     "@nxlab/olio": "workspace:*",
-    "graphql": "^16.13.0",
-    "ws": "^8.0.0"
-  },
-  "peerDependenciesMeta": {
-    "ws": {
-      "optional": true
-    }
+    "graphql": "^16.13.0"
   }
 }
