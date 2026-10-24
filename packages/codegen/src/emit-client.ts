@@ -10,6 +10,7 @@ import {
   typeFromAST,
   validate,
   visit,
+  type DefinitionNode,
   type DirectiveNode,
   type DocumentNode,
   type FieldNode,
@@ -28,8 +29,12 @@ import {
 
 import { BUILTIN_SCALARS, HEADER } from "./types.js";
 
+type TransportKind = "ws" | "sse";
+
 interface Context {
   schema: GraphQLSchema;
+  /** Each subscription's transport, from `@ws` (the default) or `@sse`. */
+  transports: ReadonlyMap<OperationDefinitionNode, TransportKind>;
   fragments: ReadonlyMap<string, FragmentDefinitionNode>;
   enums: Set<GraphQLEnumType>;
   inputs: Set<GraphQLInputObjectType>;
@@ -51,6 +56,62 @@ const location = (error: GraphQLError): string => {
   const file = error.source?.name;
   return at ? `${file ? `${file}:` : ""}${at.line}:${at.column}: ` : "";
 };
+
+const at = (node: {
+  loc?: {
+    source: { name: string };
+    startToken: { line: number; column: number };
+  };
+}): string => {
+  const token = node.loc?.startToken;
+  return token
+    ? `${node.loc?.source.name}:${token.line}:${token.column}: `
+    : "";
+};
+
+// `@ws` and `@sse` choose a subscription's transport. They're for the client
+// only: read here and removed, so neither validation nor the server sees them.
+function takeTransports(definitions: readonly DefinitionNode[]): {
+  definitions: DefinitionNode[];
+  transports: Map<OperationDefinitionNode, TransportKind>;
+} {
+  const transports = new Map<OperationDefinitionNode, TransportKind>();
+  const stripped = definitions.map((definition) => {
+    if (definition.kind !== Kind.OPERATION_DEFINITION) return definition;
+    const chosen = (definition.directives ?? []).filter(
+      (d) => d.name.value === "ws" || d.name.value === "sse"
+    );
+    for (const directive of chosen) {
+      if (definition.operation !== "subscription") {
+        throw new Error(
+          `${at(directive)}@${directive.name.value} only applies to subscriptions: queries and mutations go over HTTP`
+        );
+      }
+      if (directive.arguments?.length) {
+        throw new Error(
+          `${at(directive)}@${directive.name.value} takes no arguments`
+        );
+      }
+    }
+    if (chosen.length > 1) {
+      throw new Error(
+        `${at(chosen[1] as DirectiveNode)}A subscription takes one of @ws or @sse`
+      );
+    }
+    const operation: OperationDefinitionNode = {
+      ...definition,
+      directives: definition.directives?.filter((d) => !chosen.includes(d))
+    };
+    if (operation.operation === "subscription") {
+      transports.set(
+        operation,
+        (chosen[0]?.name.value ?? "ws") as TransportKind
+      );
+    }
+    return operation;
+  });
+  return { definitions: stripped, transports };
+}
 
 const conditional = (directives: readonly DirectiveNode[] = []): boolean =>
   directives.some((d) => d.name.value === "include" || d.name.value === "skip");
@@ -230,13 +291,12 @@ function emitOperation(
 ): string {
   const name = operation.name?.value;
   if (!name) {
-    const token = operation.loc?.startToken;
-    const file = operation.loc?.source.name;
     throw new Error(
-      `${token ? `${file}:${token.line}:${token.column}: ` : ""}An operation needs a name: its types are named after it`
+      `${at(operation)}An operation needs a name: its types are named after it`
     );
   }
   const base = typeName(operation);
+  const transport = ctx.transports.get(operation);
   const root = ctx.schema.getRootType(operation.operation) as GraphQLObjectType;
   const result = objectShape(
     ctx,
@@ -256,7 +316,7 @@ function emitOperation(
   return [
     `export type ${base} = ${result};`,
     `export type ${base}Variables = ${variables.length ? `{\n${variables.join("\n")}\n}` : "{}"};`,
-    `export const ${name}Document: TypedDocument<${base}, ${base}Variables, "${operation.operation}"> = {\n  operation: "${operation.operation}",\n  name: "${name}",\n  query: ${JSON.stringify(query)}\n};`
+    `export const ${name}Document: TypedDocument<${base}, ${base}Variables, "${operation.operation}"> = {\n  operation: "${operation.operation}",\n  name: "${name}",\n  query: ${JSON.stringify(query)}${transport ? `,\n  transport: "${transport}"` : ""}\n};`
   ].join("\n\n");
 }
 
@@ -290,10 +350,10 @@ export function emitClient(
   schema: GraphQLSchema,
   documents: readonly DocumentNode[]
 ): string {
-  const document: DocumentNode = {
-    kind: Kind.DOCUMENT,
-    definitions: documents.flatMap((d) => d.definitions)
-  };
+  const { definitions, transports } = takeTransports(
+    documents.flatMap((d) => d.definitions)
+  );
+  const document: DocumentNode = { kind: Kind.DOCUMENT, definitions };
   const errors = validate(schema, document);
   if (errors.length) {
     throw new Error(
@@ -311,6 +371,7 @@ export function emitClient(
   }
   const ctx: Context = {
     schema,
+    transports,
     fragments,
     enums: new Set(),
     inputs: new Set()
@@ -345,9 +406,14 @@ export function emitClient(
     calls.push(`    ${lowerFirst(name)}: ${name}Document`);
     byRoot.set(operation.operation, calls);
   }
-  const map = [...byRoot]
-    .map(([root, calls]) => `  ${root}: {\n${calls.join(",\n")}\n  }`)
-    .join(",\n");
+  // Only the transports some subscription uses, so an app bundles no other.
+  const used = [...new Set(transports.values())].sort();
+  const map = [
+    ...[...byRoot].map(
+      ([root, calls]) => `  ${root}: {\n${calls.join(",\n")}\n  }`
+    ),
+    ...(used.length ? [`  transports: { ${used.join(", ")} }`] : [])
+  ].join(",\n");
   const inputs = emitInputs(ctx);
   const enums = [...ctx.enums]
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -364,7 +430,10 @@ export function emitClient(
     .filter((name) => !BUILTIN_SCALARS.has(name));
   return `${[
     HEADER,
-    'import type { Scalar, TypedDocument } from "@nxlab/client";',
+    [
+      'import type { Scalar, TypedDocument } from "@nxlab/client";',
+      ...used.map((kind) => `import { ${kind} } from "@nxlab/client/${kind}";`)
+    ].join("\n"),
     "type Maybe<T> = T | null;",
     custom.length
       ? `// Custom scalars (${custom.join(", ")}) are \`unknown\` until registered:\n// declare module "@nxlab/client" { interface ClientScalars { ${custom[0]}: string } }`

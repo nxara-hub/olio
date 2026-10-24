@@ -8,6 +8,9 @@ const schema = buildSchema(/* GraphQL */ `
   type Query {
     me: User
   }
+  type Subscription {
+    ticks: Int!
+  }
   type User {
     name: String!
   }
@@ -43,5 +46,41 @@ describe("client operations", () => {
     ).toThrow(
       'Operations "Me" and "MeQuery" both name their result type MeQuery'
     );
+  });
+
+  test("subscriptions default to ws; @sse overrides; only used transports are imported", () => {
+    const wsOnly = emitClient(schema, [doc("subscription Ticks { ticks }")]);
+    expect(wsOnly).toContain('import { ws } from "@nxlab/client/ws";');
+    expect(wsOnly).not.toContain("@nxlab/client/sse");
+    expect(wsOnly).toContain('transport: "ws"');
+    expect(wsOnly).toContain("transports: { ws }");
+
+    const both = emitClient(schema, [
+      doc("subscription Ticks { ticks }\nsubscription Feed @sse { ticks }")
+    ]);
+    expect(both).toContain("transports: { sse, ws }");
+    // The directive is the client's: the query the server receives has none.
+    expect(both).toContain(
+      'query: "subscription Feed {\\n  ticks\\n}",\n  transport: "sse"'
+    );
+
+    const none = emitClient(schema, [doc("query Me { me { name } }")]);
+    expect(none).not.toContain("@nxlab/client/ws");
+    expect(none).not.toContain("transports");
+  });
+
+  test("@ws and @sse: subscriptions only, one at a time, no arguments", () => {
+    expect(() =>
+      emitClient(schema, [doc("query Me @ws { me { name } }")])
+    ).toThrow("ops/me.graphql:1:10: @ws only applies to subscriptions");
+    expect(() =>
+      emitClient(schema, [doc("subscription T @ws @sse { ticks }")])
+    ).toThrow("ops/me.graphql:1:20: A subscription takes one of @ws or @sse");
+    expect(() =>
+      emitClient(schema, [doc("subscription T @sse(x: 1) { ticks }")])
+    ).toThrow("@sse takes no arguments");
+    expect(() =>
+      emitClient(schema, [doc("subscription T @wss { ticks }")])
+    ).toThrow('Unknown directive "@wss"');
   });
 });

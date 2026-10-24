@@ -53,6 +53,8 @@ Set `schema` to write the final (transformed) GraphQL SDL to a file. Omit it to 
 
 `codegenClient({ schema, documents, output })` generates the types for [`@nxlab/client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schema` output above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors.
 
+Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` says the default explicitly. The directive is the client's: codegen records it in the document and removes it from the query the server receives, and imports only the transports the operations use. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
+
 Per operation it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Types are what a client sees on the wire: enums by name, scalars through `ClientScalars`.
 
 ```ts
