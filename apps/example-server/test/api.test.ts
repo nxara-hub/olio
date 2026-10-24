@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { testClient } from "@nxlab/client";
+import { testClient } from "@nxlab/client/test";
 
 import { graphqlHandler } from "../src/http.js";
 import { operations } from "./generated.js";

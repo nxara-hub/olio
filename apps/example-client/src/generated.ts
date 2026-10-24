@@ -2,6 +2,8 @@
 // oxlint-disable no-redeclare
 
 import type { Scalar, TypedDocument } from "@nxlab/client";
+import { sse } from "@nxlab/client/sse";
+import { ws } from "@nxlab/client/ws";
 
 type Maybe<T> = T | null;
 
@@ -110,7 +112,26 @@ export type StockChangedSubscriptionVariables = {
 export const StockChangedDocument: TypedDocument<StockChangedSubscription, StockChangedSubscriptionVariables, "subscription"> = {
   operation: "subscription",
   name: "StockChanged",
-  query: "subscription StockChanged($sku: String) {\n  stockChanged(sku: $sku) {\n    sku\n    onHand\n  }\n}"
+  query: "subscription StockChanged($sku: String) {\n  stockChanged(sku: $sku) {\n    sku\n    onHand\n  }\n}",
+  transport: "ws"
+};
+
+export type StockChangedOverSseSubscription = {
+  stockChanged: {
+    sku: Scalar<"String">;
+    onHand: Scalar<"Int">;
+  };
+};
+
+export type StockChangedOverSseSubscriptionVariables = {
+  sku?: Maybe<Scalar<"String", "input">>;
+};
+
+export const StockChangedOverSseDocument: TypedDocument<StockChangedOverSseSubscription, StockChangedOverSseSubscriptionVariables, "subscription"> = {
+  operation: "subscription",
+  name: "StockChangedOverSse",
+  query: "subscription StockChangedOverSse($sku: String) {\n  stockChanged(sku: $sku) {\n    sku\n    onHand\n  }\n}",
+  transport: "sse"
 };
 
 export type PlaceOrderMutation = {
@@ -150,6 +171,8 @@ export const operations = {
     products: ProductsDocument
   },
   subscription: {
-    stockChanged: StockChangedDocument
-  }
+    stockChanged: StockChangedDocument,
+    stockChangedOverSse: StockChangedOverSseDocument
+  },
+  transports: { sse, ws }
 } as const;

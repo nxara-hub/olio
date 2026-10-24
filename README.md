@@ -10,7 +10,7 @@ Modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. E
 | [`@nxlab/codegen`](./packages/codegen) | SDL → TypeScript: schema types, per-module contracts, `Application` |
 | [`@nxlab/schema`](./packages/schema) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
 | [`@nxlab/di`](./packages/di) | Typed dependency injection on Awilix: singletons and per-operation instances |
-| [`@nxlab/http`](./packages/http) | Serve an app over HTTP and WebSocket: Fetch, Node, `ws` and Bun adapters |
+| [`@nxlab/http`](./packages/http) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
 | [`@nxlab/client`](./packages/client) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
 | [`@nxlab/tools`](./packages/tools) | Load SDL and resolver files for a module |
 

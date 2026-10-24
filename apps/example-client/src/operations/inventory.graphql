@@ -24,3 +24,11 @@ subscription StockChanged($sku: String) {
     onHand
   }
 }
+
+# The same subscription as server-sent events: @sse picks the transport.
+subscription StockChangedOverSse($sku: String) @sse {
+  stockChanged(sku: $sku) {
+    sku
+    onHand
+  }
+}

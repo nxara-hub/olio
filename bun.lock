@@ -39,6 +39,8 @@
         "dataloader": "^2.2.3",
         "graphql": "^16.14.2",
         "graphql-scalars": "^2.0.1",
+        "graphql-sse": "2.6.3",
+        "graphql-ws": "^6.4.1",
         "hono": "^4.13.13",
         "ws": "^8.22.0",
       },
@@ -52,6 +54,7 @@
       "version": "0.0.0",
       "dependencies": {
         "graphql-sse": "2.6.3",
+        "graphql-ws": "^6.4.1",
       },
       "devDependencies": {
         "@nxlab/codegen": "workspace:*",
@@ -90,23 +93,15 @@
       "version": "0.0.0",
       "dependencies": {
         "graphql-http": "^1.23.1",
-        "graphql-sse": "2.6.3",
-        "graphql-ws": "^6.4.1",
       },
       "devDependencies": {
         "@nxlab/olio": "workspace:*",
-        "@types/ws": "^8.18.1",
         "graphql": "^16.14.2",
-        "ws": "^8.18.3",
       },
       "peerDependencies": {
         "@nxlab/olio": "workspace:*",
         "graphql": "^16.13.0",
-        "ws": "^8.0.0",
       },
-      "optionalPeers": [
-        "ws",
-      ],
     },
     "packages/olio": {
       "name": "@nxlab/olio",

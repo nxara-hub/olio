@@ -35,17 +35,19 @@ show(
   await client.query.products({ search: "desk" })
 );
 
-// Watch chair stock over server-sent events while it moves below.
-const changes = (async () => {
+// Watch chair stock over both transports while it moves below.
+const watch = async (events: AsyncIterableIterator<{ data: unknown }>) => {
   const seen: unknown[] = [];
-  for await (const { data } of client.subscription.stockChanged({
-    sku: "CHAIR-01"
-  })) {
-    seen.push(data?.stockChanged);
+  for await (const { data } of events) {
+    seen.push(data);
     if (seen.length === 2) break;
   }
   return seen;
-})();
+};
+const overWs = watch(client.subscription.stockChanged({ sku: "CHAIR-01" }));
+const overSse = watch(
+  client.subscription.stockChangedOverSse({ sku: "CHAIR-01" })
+);
 // ponytail: lets the stream open before stock moves; a UI subscribes early anyway.
 await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -64,7 +66,8 @@ show(
     lines: [{ sku: "CHAIR-01", quantity: 3 }]
   })
 );
-console.log("\n▸ Stock changes, as the subscription saw them");
-console.log(JSON.stringify(await changes));
+console.log("\n▸ Stock changes over WebSocket, then over server-sent events");
+console.log(JSON.stringify(await overWs));
+console.log(JSON.stringify(await overSse));
 
 show("Sign out", await client.mutation.logout());
