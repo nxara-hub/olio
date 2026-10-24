@@ -2,7 +2,6 @@
 
 ## Later
 
-- [ ] Client: subscriptions over WebSocket (graphql-ws), for apps on `@nxlab/http/ws`.
 - [ ] File uploads (the GraphQL multipart request spec), client and server.
 
 - [ ] Docs, including migration guides for people coming from GraphQL Yoga and Apollo Server.

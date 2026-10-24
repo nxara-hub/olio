@@ -2,6 +2,8 @@
 // oxlint-disable no-redeclare
 
 import type { Scalar, TypedDocument } from "@nxlab/client";
+import { sse } from "@nxlab/client/sse";
+import { ws } from "@nxlab/client/ws";
 
 type Maybe<T> = T | null;
 
@@ -164,7 +166,8 @@ export type TicksSubscriptionVariables = {
 export const TicksDocument: TypedDocument<TicksSubscription, TicksSubscriptionVariables, "subscription"> = {
   operation: "subscription",
   name: "Ticks",
-  query: "subscription Ticks($upTo: Int!) {\n  ticks(upTo: $upTo)\n}"
+  query: "subscription Ticks($upTo: Int!) {\n  ticks(upTo: $upTo)\n}",
+  transport: "ws"
 };
 
 export type RecentQuery = {
@@ -184,6 +187,34 @@ export const RecentDocument: TypedDocument<RecentQuery, RecentQueryVariables, "q
   query: "query Recent($after: DateTime!) {\n  recent(after: $after) {\n    name\n    createdAt\n  }\n}"
 };
 
+export type TicksOverSseSubscription = {
+  ticks: Scalar<"Int">;
+};
+
+export type TicksOverSseSubscriptionVariables = {
+  upTo: Scalar<"Int", "input">;
+};
+
+export const TicksOverSseDocument: TypedDocument<TicksOverSseSubscription, TicksOverSseSubscriptionVariables, "subscription"> = {
+  operation: "subscription",
+  name: "TicksOverSse",
+  query: "subscription TicksOverSse($upTo: Int!) {\n  ticks(upTo: $upTo)\n}",
+  transport: "sse"
+};
+
+export type ViewerSubscription = {
+  viewer: Maybe<Scalar<"String">>;
+};
+
+export type ViewerSubscriptionVariables = {};
+
+export const ViewerDocument: TypedDocument<ViewerSubscription, ViewerSubscriptionVariables, "subscription"> = {
+  operation: "subscription",
+  name: "Viewer",
+  query: "subscription Viewer {\n  viewer\n}",
+  transport: "ws"
+};
+
 /** For createClient(operations, { url }): `client.mutation.login(variables)`. */
 export const operations = {
   query: {
@@ -200,6 +231,9 @@ export const operations = {
     order: OrderDocument
   },
   subscription: {
-    ticks: TicksDocument
-  }
+    ticks: TicksDocument,
+    ticksOverSse: TicksOverSseDocument,
+    viewer: ViewerDocument
+  },
+  transports: { sse, ws }
 } as const;

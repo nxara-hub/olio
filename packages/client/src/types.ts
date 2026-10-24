@@ -1,3 +1,5 @@
+import type { Fetch, HeadersSource, Transport } from "./transport.js";
+
 /**
  * Scalar types, the way the server's `CustomScalars` works: one type, or
  * `{ input; output }` when variables and results differ. Unregistered custom
@@ -47,6 +49,8 @@ export interface TypedDocument<
   readonly operation: Op;
   readonly name: string;
   readonly query: string;
+  /** Subscriptions only: `@ws` (the default) or `@sse` in the operation. */
+  readonly transport?: "ws" | "sse";
   /**
    * Carries the types, never set. A string key rather than a symbol, so the
    * type still matches across copies of the package (built and source).
@@ -87,13 +91,22 @@ interface AnyDocument<Op extends Operation> {
   readonly operation: Op;
   readonly name: string;
   readonly query: string;
+  readonly transport?: "ws" | "sse";
 }
 
-/** What codegen emits as `operations`: each operation by root and name. */
+/**
+ * What codegen emits as `operations`: each operation by root and name, and
+ * the subscription transports they use (imported only if used, so an app
+ * bundles no transport it doesn't need).
+ */
 export interface Operations {
   readonly query?: Readonly<Record<string, AnyDocument<"query">>>;
   readonly mutation?: Readonly<Record<string, AnyDocument<"mutation">>>;
   readonly subscription?: Readonly<Record<string, AnyDocument<"subscription">>>;
+  readonly transports?: {
+    readonly ws?: Transport<unknown>;
+    readonly sse?: Transport<unknown>;
+  };
 }
 
 type Call<D> =
@@ -107,5 +120,47 @@ type Call<D> =
 
 /** `client.mutation.login(variables, options)`, one call per operation. */
 export type Client<O extends Operations> = {
-  readonly [Op in keyof O]: { readonly [K in keyof O[Op]]: Call<O[Op][K]> };
+  readonly [Op in keyof O & Operation]: {
+    readonly [K in keyof O[Op]]: Call<O[Op][K]>;
+  };
+} & {
+  /**
+   * Reconnects the WebSocket, so it sends fresh `connectionParams` (after
+   * sign-in, say). Live subscriptions resume on the new connection.
+   */
+  reconnect(): void;
+  /** Ends every subscription and closes the connections. */
+  close(): Promise<void>;
 };
+
+interface Endpoint {
+  /** Default: the client's `url`. */
+  url?: string | URL;
+  headers?: HeadersSource;
+  fetch?: Fetch;
+}
+
+type TransportOptions<O extends Operations> = O extends {
+  transports: infer T;
+}
+  ? {
+      [K in keyof T]?: T[K] extends Transport<infer Options> ? Options : never;
+    }
+  : unknown;
+
+/**
+ * The client's settings, plus overrides per transport: `http` for queries and
+ * mutations, `ws` and `sse` for subscriptions. `ws` and `sse` exist only when
+ * the operations use them.
+ */
+export type ClientOptions<O extends Operations> = {
+  url: string | URL;
+  headers?: HeadersSource;
+  /**
+   * Default: the global `fetch`. Anything fetch-shaped works, such as a ky
+   * instance; `fromAxios(axios)` adapts axios. SSE needs one that streams
+   * the response (fetch, ky), which axios can't.
+   */
+  fetch?: Fetch;
+  http?: Endpoint;
+} & TransportOptions<O>;

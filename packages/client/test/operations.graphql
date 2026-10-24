@@ -71,3 +71,11 @@ query Recent($after: DateTime!) {
     createdAt
   }
 }
+
+subscription TicksOverSse($upTo: Int!) @sse {
+  ticks(upTo: $upTo)
+}
+
+subscription Viewer {
+  viewer
+}

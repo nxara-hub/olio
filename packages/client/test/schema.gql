@@ -56,4 +56,5 @@ type Mutation {
 
 type Subscription {
   ticks(upTo: Int!): Int!
+  viewer: String
 }

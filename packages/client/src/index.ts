@@ -1,21 +1,25 @@
 import {
-  createClient as createSseClient,
-  type Client as SseClient
-} from "graphql-sse";
-
+  asResult,
+  resolveHeaders,
+  type Endpoint,
+  type Fetch,
+  type Subscriber,
+  type Transport
+} from "./transport.js";
 import type {
   CallOptions,
   Client,
-  GraphQLErrorJSON,
-  HeadersInit,
+  ClientOptions,
   Operations,
   Result,
   TypedDocument
 } from "./types.js";
 
+export type { Fetch, HeadersSource, Transport } from "./transport.js";
 export type {
   CallOptions,
   Client,
+  ClientOptions,
   ClientScalars,
   GraphQLErrorJSON,
   Operations,
@@ -24,87 +28,48 @@ export type {
   TypedDocument
 } from "./types.js";
 
-type Fetch = (url: string, init: RequestInit) => Promise<Response>;
-type MaybePromise<T> = T | Promise<T>;
+const ACCEPT = "application/graphql-response+json, application/json";
 
-export interface ClientOptions {
-  url: string | URL;
-  /** Sent with every request; a function for values that change, such as a token. */
-  headers?: HeadersInit | (() => MaybePromise<HeadersInit>);
-  /**
-   * Default: the global `fetch`. Anything fetch-shaped works, such as a ky
-   * instance; `fromAxios(axios)` adapts axios. Subscriptions need one that
-   * streams the response (fetch, ky), which axios can't.
-   */
+type Kind = "ws" | "sse";
+type AnyDocument = TypedDocument<unknown, unknown>;
+interface Section {
+  url?: string | URL;
+  headers?: Parameters<typeof resolveHeaders>[0];
   fetch?: Fetch;
 }
 
-const ACCEPT = "application/graphql-response+json, application/json";
-
-const asResult = (body: {
-  data?: unknown;
-  errors?: readonly GraphQLErrorJSON[];
-}): Result<never> => ({
-  data: (body.data ?? null) as never,
-  ...(body.errors ? { errors: body.errors } : {})
-});
-
 /**
  * A typed client for the operations codegen emitted:
- * `client.mutation.login({ email, password }, { headers })`.
+ * `client.mutation.login({ email, password }, { headers })`. Queries and
+ * mutations go over HTTP; subscriptions over WebSocket, or server-sent events
+ * for operations marked `@sse`.
  */
 export function createClient<O extends Operations>(
   operations: O,
-  options: ClientOptions
+  options: ClientOptions<O>
 ): Client<O> {
-  const fetchFn: Fetch = options.fetch ?? ((url, init) => fetch(url, init));
-  const url = String(options.url);
-  const headers = async (extra?: HeadersInit): Promise<Headers> => {
-    const base =
-      typeof options.headers === "function"
-        ? await options.headers()
-        : options.headers;
-    const merged = new Headers(base);
-    for (const [key, value] of new Headers(extra)) merged.set(key, value);
-    return merged;
-  };
-
-  let sse: SseClient | undefined;
-  async function* subscribe(
-    document: TypedDocument<unknown, unknown>,
-    variables: unknown,
-    call: Pick<CallOptions, "signal"> = {}
-  ): AsyncGenerator<Result<never>> {
-    sse ??= createSseClient({
-      url,
-      fetchFn,
-      headers: async () => Object.fromEntries(await headers())
-    });
-    const events = sse.iterate({
-      query: document.query,
-      variables: variables as Record<string, unknown> | undefined,
-      operationName: document.name
-    });
-    const stop = (): void => void events.return?.();
-    call.signal?.addEventListener("abort", stop, { once: true });
-    try {
-      for await (const event of events) yield asResult(event);
-    } finally {
-      call.signal?.removeEventListener("abort", stop);
-    }
-  }
+  const sections = options as unknown as Partial<
+    Record<Kind | "http", Section>
+  >;
+  const endpoint = (section: Section = {}, url?: string): Endpoint => ({
+    url: String(section.url ?? url ?? options.url),
+    fetch:
+      section.fetch ?? options.fetch ?? ((target, init) => fetch(target, init)),
+    headers: (extra) => resolveHeaders(options.headers, section.headers, extra)
+  });
+  const http = endpoint(sections.http);
 
   const request = async (
-    document: TypedDocument<unknown, unknown>,
+    document: AnyDocument,
     variables: unknown,
     call: CallOptions = {}
   ): Promise<Result<never>> => {
-    const request = await headers(call.headers);
-    request.set("accept", ACCEPT);
-    request.set("content-type", "application/json");
-    const response = await fetchFn(url, {
+    const headers = await http.headers(call.headers);
+    headers.set("accept", ACCEPT);
+    headers.set("content-type", "application/json");
+    const response = await http.fetch(http.url, {
       method: "POST",
-      headers: request,
+      headers,
       body: JSON.stringify({
         query: document.query,
         variables,
@@ -120,39 +85,61 @@ export function createClient<O extends Operations>(
     return asResult((await response.json()) as never);
   };
 
-  return Object.fromEntries(
-    Object.entries(operations).map(([root, documents]) => [
+  // Connected on first use, so a transport costs nothing until a
+  // subscription needs it.
+  const subscribers = new Map<Kind, Subscriber>();
+  const subscriber = (document: AnyDocument): Subscriber => {
+    const kind = document.transport ?? "ws";
+    const connected = subscribers.get(kind);
+    if (connected) return connected;
+    const transport = operations.transports?.[kind] as
+      | Transport<unknown>
+      | undefined;
+    if (!transport) {
+      throw new Error(
+        `${document.name} subscribes over ${kind}, but the operations don't include that transport; rerun codegen`
+      );
+    }
+    const wsUrl =
+      kind === "ws" ? String(options.url).replace(/^http/, "ws") : undefined;
+    const created = transport.connect(
+      endpoint(sections[kind], wsUrl),
+      sections[kind]
+    );
+    subscribers.set(kind, created);
+    return created;
+  };
+
+  const calls = Object.fromEntries(
+    (["query", "mutation", "subscription"] as const).map((root) => [
       root,
       Object.fromEntries(
         Object.entries(
-          documents as Record<string, TypedDocument<unknown, unknown>>
+          (operations[root] ?? {}) as Record<string, AnyDocument>
         ).map(([name, document]) => [
           name,
           (variables?: unknown, call?: CallOptions) =>
-            document.operation === "subscription"
-              ? subscribe(document, variables, call)
+            root === "subscription"
+              ? subscriber(document).subscribe(
+                  document,
+                  variables,
+                  call?.signal
+                )
               : request(document, variables, call)
         ])
       )
     ])
-  ) as unknown as Client<O>;
-}
-
-/**
- * The same client, answered in-process by a fetch handler (`fetchHandler`
- * from `@nxlab/http/fetch`): context, error masking and `onOperationEnd` all
- * run, and no server is started.
- */
-export function testClient<O extends Operations>(
-  operations: O,
-  handler: (request: Request) => MaybePromise<Response>,
-  options: Omit<ClientOptions, "url" | "fetch"> & { url?: string | URL } = {}
-): Client<O> {
-  return createClient(operations, {
-    ...options,
-    url: options.url ?? "http://localhost/graphql",
-    fetch: async (url, init) => handler(new Request(url, init))
-  });
+  );
+  return {
+    ...calls,
+    reconnect: () => {
+      for (const connected of subscribers.values()) connected.reconnect();
+    },
+    close: async () => {
+      await Promise.all([...subscribers.values()].map((s) => s.close()));
+      subscribers.clear();
+    }
+  } as unknown as Client<O>;
 }
 
 /** The part of axios `fromAxios` uses. */
@@ -173,7 +160,7 @@ interface Axios {
   }>;
 }
 
-/** Use an axios instance as the client's `fetch` (not for subscriptions). */
+/** Use an axios instance as the client's `fetch` (not for SSE: axios can't stream). */
 export function fromAxios(axios: Axios): Fetch {
   return async (url, init) => {
     const response = await axios.request({

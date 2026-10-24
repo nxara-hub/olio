@@ -18,6 +18,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./ws": {
+      "types": "./dist/ws.d.ts",
+      "default": "./dist/ws.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "default": "./dist/sse.js"
+    },
+    "./test": {
+      "types": "./dist/test.d.ts",
+      "default": "./dist/test.js"
     }
   },
   "publishConfig": {
@@ -29,7 +41,8 @@
     "check-types": "bun test/generate.ts && tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "graphql-sse": "2.6.3"
+    "graphql-sse": "2.6.3",
+    "graphql-ws": "^6.4.1"
   },
   "devDependencies": {
     "@nxlab/codegen": "workspace:*",

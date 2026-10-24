@@ -8,9 +8,13 @@ import { fetchHandler } from "@nxlab/http/fetch";
 import { createModule, olio } from "@nxlab/olio";
 import axios from "axios";
 import { GraphQLError, GraphQLScalarType } from "graphql";
+import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
+import { makeHandler } from "graphql-ws/use/bun";
 import ky from "ky";
 
-import { createClient, fromAxios, testClient } from "../src/index.js";
+import { createClient, fromAxios } from "../src/index.js";
+import { testClient } from "../src/test.js";
+import { ws } from "../src/ws.js";
 import { operations } from "./generated.js";
 
 declare module "@nxlab/client" {
@@ -101,6 +105,11 @@ const app = olio({
         Subscription: {
           async *ticks(_root, args) {
             for (let n = 1; n <= Number(args.upTo); n++) yield n;
+          },
+          // Yields who's asking, then stays open until the client leaves.
+          async *viewer(_root, _args, ctx) {
+            yield (ctx as { user?: string }).user ?? null;
+            await new Promise(() => {});
           }
         }
       }
@@ -113,7 +122,21 @@ const handler = fetchHandler(app, {
   context: (request) => ({ user: request.headers.get("x-user") ?? undefined }),
   onOperationEnd: (ctx) => void ended.push(ctx)
 });
-const client = testClient(operations, handler, {
+// WebSocket subscriptions get the user from connectionParams, which the
+// client fills with its headers by default.
+// Subscriptions run in memory (WebSocket and SSE) against the schema; their
+// context comes from the client's headers.
+const subscriptionContext = (headers: Headers) => {
+  const user = headers.get("x-user") ?? undefined;
+  if (user === "banned") throw new GraphQLError("Banned");
+  return { user };
+};
+const handlers = {
+  http: handler,
+  schema: app.schema,
+  context: subscriptionContext
+};
+const client = testClient(operations, handlers, {
   headers: { "x-user": "ada" }
 });
 
@@ -188,7 +211,7 @@ describe("queries and mutations", () => {
     expect(ended).toHaveLength(3);
 
     let token = "t1";
-    const rotating = testClient(operations, handler, {
+    const rotating = testClient(operations, handlers, {
       headers: () => ({ "x-user": token })
     });
     expect((await rotating.query.whoami()).data?.whoami).toBe("t1");
@@ -227,18 +250,120 @@ describe("scalars", () => {
 });
 
 describe("subscriptions", () => {
-  test("stream over server-sent events on the same URL", async () => {
-    const values: unknown[] = [];
-    for await (const event of client.subscription.ticks({ upTo: 3 })) {
-      values.push(event.data?.ticks);
+  const take = async <T>(
+    events: AsyncIterableIterator<T>,
+    count: number
+  ): Promise<T[]> => {
+    const seen: T[] = [];
+    for await (const event of events) {
+      seen.push(event);
+      if (seen.length === count) break;
     }
-    expect(values).toEqual([1, 2, 3]);
+    return seen;
+  };
+
+  test("over WebSocket by default, server-sent events with @sse", async () => {
+    const overWs = await take(client.subscription.ticks({ upTo: 3 }), 3);
+    expect(overWs.map((e) => e.data?.ticks)).toEqual([1, 2, 3]);
+    const overSse = await take(
+      client.subscription.ticksOverSse({ upTo: 2 }),
+      2
+    );
+    expect(overSse.map((e) => e.data?.ticks)).toEqual([1, 2]);
+  });
+
+  test("the socket authenticates with the client's headers; reconnect() sends new ones", async () => {
+    let user = "t1";
+    const rotating = testClient(operations, handlers, {
+      headers: () => ({ "x-user": user })
+    });
+    const held = rotating.subscription.viewer();
+    expect((await held.next()).value?.data).toEqual({ viewer: "t1" });
+    user = "t2";
+    // Same socket, so still t1 until it reconnects.
+    expect((await take(rotating.subscription.viewer(), 1))[0]?.data).toEqual({
+      viewer: "t1"
+    });
+    rotating.reconnect();
+    expect((await take(rotating.subscription.viewer(), 1))[0]?.data).toEqual({
+      viewer: "t2"
+    });
+    await held.return?.();
+    await rotating.close();
+  });
+
+  test("a refused connection is an error result, as over SSE; close() ends everything", async () => {
+    const banned = testClient(operations, handlers, {
+      headers: { "x-user": "banned" }
+    });
+    const [refused] = await take(banned.subscription.viewer(), 1);
+    expect(refused).toEqual({
+      data: null,
+      errors: [
+        {
+          message: "Banned",
+          extensions: { code: "WEBSOCKET_CLOSED", closeCode: 4500 }
+        }
+      ]
+    });
+
+    const open = testClient(operations, handlers);
+    const watching = open.subscription.viewer();
+    await watching.next();
+    const done = watching.next();
+    await open.close();
+    expect((await done).done).toBe(true);
+  });
+
+  test("subscriptions need the schema, and testClient says so", () => {
+    expect(() => testClient(operations, handler)).toThrow("schema: app.schema");
+  });
+
+  test("against a real server: the socket URL comes from `url`, http read as ws", async () => {
+    // The app's own graphql-ws server, as in production: @nxlab/http serves
+    // only HTTP.
+    const server = Bun.serve({
+      port: 0,
+      fetch: (request, bun) =>
+        bun.upgrade(request) ? undefined : handler(request),
+      websocket: makeHandler({
+        schema: app.schema,
+        context: ({ connectionParams }) => ({
+          user: (
+            connectionParams?.headers as Record<string, string> | undefined
+          )?.["x-user"]
+        })
+      })
+    });
+    try {
+      const live = createClient(operations, {
+        url: `http://localhost:${server.port}/graphql`,
+        headers: { "x-user": "lin" }
+      });
+      expect((await take(live.subscription.viewer(), 1))[0]?.data).toEqual({
+        viewer: "lin"
+      });
+      expect((await take(live.subscription.ticks({ upTo: 2 }), 2)).length).toBe(
+        2
+      );
+      await live.close();
+    } finally {
+      await server.stop(true);
+    }
   });
 });
 
 describe("custom fetch", () => {
   test("ky and axios (through fromAxios) work as the client's fetch", async () => {
-    const server = Bun.serve({ port: 0, fetch: handler });
+    // HTTP through @nxlab/http, SSE through the app's own graphql-sse handler.
+    const sse = createSseHandler({ schema: app.schema });
+    const server = Bun.serve({
+      port: 0,
+      fetch: (request) =>
+        request.headers.get("accept")?.includes("text/event-stream")
+          ? sse(request)
+          : handler(request)
+    });
     const url = `http://localhost:${server.port}/graphql`;
     try {
       const withKy = createClient(operations, {
@@ -249,7 +374,9 @@ describe("custom fetch", () => {
       });
       expect((await withKy.query.whoami()).data).toEqual({ whoami: "ky" });
       const ticks: unknown[] = [];
-      for await (const { data } of withKy.subscription.ticks({ upTo: 2 })) {
+      for await (const { data } of withKy.subscription.ticksOverSse({
+        upTo: 2
+      })) {
         ticks.push(data?.ticks);
       }
       expect(ticks).toEqual([1, 2]);
@@ -295,6 +422,18 @@ describe("codegen", () => {
 });
 
 describe("types", () => {
+  test("ws and sse options exist only for transports the operations use", () => {
+    const wsOnly = { query: {}, transports: { ws } } as const;
+    createClient(wsOnly, {
+      url: "http://x",
+      ws: { connectionParams: { token: "t" } }
+    });
+    // @ts-expect-error no operation subscribes over SSE
+    createClient(wsOnly, { url: "http://x", sse: {} });
+    // @ts-expect-error nor over WebSocket
+    createClient({ query: {} } as const, { url: "http://x", ws: {} });
+  });
+
   test("variables and results are typed from the operation", () => {
     const check = async () => {
       const { data } = await client.query.products({ first: 1 });
