@@ -50,7 +50,7 @@ export const directives = [implementsDirective(), copyDirective()];
 // codegen.ts
 await codegen({
   modules: "src/modules",
-  typeDefs: "**/*.gql",
+  typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
   directives
 });

@@ -23,7 +23,7 @@ import { codegen } from "@nxlab/codegen";
 
 await codegen({
   modules: "src/modules",
-  typeDefs: "**/*.gql",
+  typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts"
 });
 ```
@@ -40,7 +40,7 @@ import { copyDirective, implementsDirective } from "@nxlab/schema";
 
 await codegen({
   modules: "src/modules",
-  typeDefs: "**/*.gql",
+  typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
   schema: "src/schema.graphql",
   directives: [implementsDirective(), copyDirective()]
@@ -76,15 +76,21 @@ Every direct child directory of `modules` is one module. The directory name is t
 ```
 src/modules/
 ├── auth/
-│   ├── auth.gql
-│   └── resolvers.ts
+│   ├── typedefs/auth.gql
+│   └── query.ts
 ├── user/
-│   └── user.gql
-└── app/
-    └── app.gql
+│   └── typedefs/user.gql
+└── sales/
+    ├── typedefs/sales.gql
+    └── orders/
+        └── typedefs/orders.gql
 ```
 
-This yields modules `auth`, `user`, and `app`. A direct subfolder of a module in which `typeDefs` finds files of its own is a **feature** of that module (for example `sales/orders/typedefs/*.gql`), and gets its own entry in `Application` (`"sales/orders"`). Features don't nest. `typeDefs: "**/*.gql"` resolves to `src/modules/auth/**/*.gql`, `src/modules/user/**/*.gql`, and so on - each module's files belong exclusively to that module. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
+This yields modules `auth`, `user`, and `sales`. `typeDefs` resolves inside each module (`src/modules/auth/**/typedefs/**/*.gql`, and so on), so each module's files belong exclusively to that module.
+
+A direct subfolder of a module in which `typeDefs` finds files of its own is a **feature** of that module: here `sales/orders`, with its own entry in `Application` (`"sales/orders"`). Features don't nest.
+
+So the glob decides what is a feature, because codegen runs it inside each subfolder. `**/typedefs/**/*.gql` finds nothing inside `users/typedefs/` itself (there's no `typedefs/` in it), so that folder stays the module's own SDL. `**/*.gql` does find its files, so it makes `typedefs` a feature of every module (`"users/typedefs"`), and `users` ends up with no fields. Keep SDL in `typedefs/` folders and use `**/typedefs/**/*.gql`. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
 
 ## Application
 
