@@ -29,6 +29,7 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
+    "@nxlab/core": "workspace:*",
     "@nxlab/schema": "workspace:*"
   },
   "devDependencies": {

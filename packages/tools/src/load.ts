@@ -8,7 +8,7 @@ import type {
   Pattern,
   ResolverMap
 } from "@nxlab/core";
-import { loadSDLFile, matchFiles } from "@nxlab/core/files";
+import { loadGraphQLFile, matchFiles } from "@nxlab/core/files";
 import type { DocumentNode } from "graphql";
 
 export type { Pattern, ResolverMap, TypeSource } from "@nxlab/core";
@@ -18,7 +18,7 @@ export async function loadTypeDefs(
   ...patterns: Pattern[]
 ): Promise<DocumentNode[]> {
   const loaded = await Promise.all(
-    (await matchFiles(patterns)).map(loadSDLFile)
+    (await matchFiles(patterns)).map(loadGraphQLFile)
   );
   return loaded.filter((doc): doc is DocumentNode => doc !== undefined);
 }

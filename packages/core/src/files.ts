@@ -26,7 +26,7 @@ export async function matchFiles(
 }
 
 // With its file name, so errors point at `file:line:column`.
-function parseSDL(source: string, file: string): DocumentNode {
+function parseFile(source: string, file: string): DocumentNode {
   try {
     return parse(new Source(source, file));
   } catch (error) {
@@ -42,11 +42,12 @@ function parseSDL(source: string, file: string): DocumentNode {
 }
 
 /**
- * One SDL file: `.graphql` / `.gql`, or a `.ts` / `.js` module whose default
- * export is SDL or a DocumentNode. `undefined` for a file with only comments
- * (or no default export), so a placeholder doesn't fail the load.
+ * One GraphQL file (SDL or operations): `.graphql` / `.gql`, or a `.ts` /
+ * `.js` module whose default export is GraphQL source or a DocumentNode.
+ * `undefined` for a file with only comments (or no default export), so a
+ * placeholder doesn't fail the load.
  */
-export async function loadSDLFile(
+export async function loadGraphQLFile(
   file: string
 ): Promise<DocumentNode | undefined> {
   const ext = extname(file);
@@ -54,7 +55,7 @@ export async function loadSDLFile(
     const source = await readFile(file, "utf8");
     return source.replace(COMMENT, "").trim() === ""
       ? undefined
-      : parseSDL(source, file);
+      : parseFile(source, file);
   }
   if (ext === ".ts" || ext === ".js") {
     const mod = (await import(pathToFileURL(file).href)) as {
@@ -62,10 +63,8 @@ export async function loadSDLFile(
     };
     if (!mod.default) return undefined;
     return typeof mod.default === "string"
-      ? parseSDL(mod.default, file)
+      ? parseFile(mod.default, file)
       : mod.default;
   }
-  throw new Error(
-    `Cannot load type definitions from "${file}" (unknown extension)`
-  );
+  throw new Error(`Cannot load GraphQL from "${file}" (unknown extension)`);
 }

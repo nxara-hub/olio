@@ -9,13 +9,12 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
+import { loadGraphQLFile, matchFiles } from "@nxlab/core/files";
 import {
   buildASTSchema,
   buildClientSchema,
   getIntrospectionQuery,
-  parse,
   printSchema,
-  Source,
   type DocumentNode,
   type GraphQLSchema,
   type IntrospectionQuery
@@ -31,26 +30,6 @@ import {
   type CodegenOptions
 } from "./types.js";
 
-const COMMENT = /#[^\n]*/g;
-
-function isEmptySDL(source: string): boolean {
-  return source.replace(COMMENT, "").trim() === "";
-}
-
-function parseFile(filePath: string, source: string): DocumentNode {
-  try {
-    return parse(new Source(source, filePath));
-  } catch (error) {
-    const err = error as {
-      message: string;
-      locations?: readonly { line: number; column: number }[];
-    };
-    const loc = err.locations?.[0];
-    const where = loc ? `${filePath}:${loc.line}:${loc.column}` : filePath;
-    throw new Error(`Failed to parse ${where}: ${err.message}`);
-  }
-}
-
 interface Part {
   id: string;
   files: string[];
@@ -63,7 +42,9 @@ interface ModuleDefinition {
   features: string[];
 }
 
-async function matchFiles(
+// Relative to one directory, and empty is an answer: it's how a subfolder
+// shows it isn't a feature.
+async function filesIn(
   moduleDir: string,
   patterns: readonly string[]
 ): Promise<string[]> {
@@ -106,20 +87,20 @@ async function discoverModules(
   const load = async (id: string, files: readonly string[]): Promise<Part> => {
     const part: Part = { id, files: [], typeDefs: [] };
     for (const file of files) {
-      const source = await readFile(file, "utf8");
-      if (isEmptySDL(source)) {
+      const document = await loadGraphQLFile(file);
+      if (!document) {
         onSkip(file);
         continue;
       }
       part.files.push(file);
-      part.typeDefs.push(parseFile(file, source));
+      part.typeDefs.push(document);
     }
     return part;
   };
 
   for (const id of childDirs) {
     const directory = join(root, id);
-    const files = await matchFiles(directory, patterns);
+    const files = await filesIn(directory, patterns);
     if (files.length === 0) {
       throw new Error(
         `Module "${id}" contains no matching typeDefs for "${patterns.join('", "')}"`
@@ -134,7 +115,7 @@ async function discoverModules(
       .sort();
     const features: { name: string; files: string[] }[] = [];
     for (const name of subdirs) {
-      const own = await matchFiles(join(directory, name), patterns);
+      const own = await filesIn(join(directory, name), patterns);
       if (own.length > 0) features.push({ name, files: own });
     }
     const inFeature = new Set(
@@ -285,7 +266,9 @@ async function loadSchema(
   headers: Record<string, string> = {}
 ): Promise<GraphQLSchema> {
   if (!/^https?:\/\//.test(source)) {
-    return buildASTSchema(parseFile(source, await readFile(source, "utf8")));
+    const document = await loadGraphQLFile(source);
+    if (!document) throw new Error(`Schema file "${source}" is empty`);
+    return buildASTSchema(document);
   }
   const response = await fetch(source, {
     method: "POST",
@@ -311,16 +294,9 @@ async function loadSchema(
 async function loadDocuments(
   patterns: string | string[]
 ): Promise<DocumentNode[]> {
-  const documents: DocumentNode[] = [];
-  for (const pattern of [patterns].flat()) {
-    const files = (await Array.fromAsync(glob(pattern))).sort();
-    if (files.length === 0) throw new Error(`No files match "${pattern}"`);
-    for (const file of files) {
-      const source = await readFile(file, "utf8");
-      if (!isEmptySDL(source)) documents.push(parseFile(file, source));
-    }
-  }
-  return documents;
+  const files = await matchFiles([patterns].flat());
+  const documents = await Promise.all(files.map(loadGraphQLFile));
+  return documents.filter((d): d is DocumentNode => d !== undefined);
 }
 
 /**

@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { print } from "graphql";
 
-import { loadSDLFile, matchFiles } from "../src/files.js";
+import { loadGraphQLFile, matchFiles } from "../src/files.js";
 
 async function withDir(
   files: Record<string, string>,
@@ -24,7 +24,7 @@ async function withDir(
   }
 }
 
-describe("loadSDLFile", () => {
+describe("loadGraphQLFile", () => {
   test("reads SDL files and .ts default exports alike", async () => {
     await withDir(
       {
@@ -34,29 +34,31 @@ describe("loadSDLFile", () => {
         "no-default.ts": "export const x = 1;"
       },
       async (dir) => {
-        const a = await loadSDLFile(join(dir, "a.gql"));
-        const b = await loadSDLFile(join(dir, "b.ts"));
+        const a = await loadGraphQLFile(join(dir, "a.gql"));
+        const b = await loadGraphQLFile(join(dir, "b.ts"));
         expect(a && print(a)).toBe("type Query {\n  a: Int\n}");
         expect(b && print(b)).toBe("type B {\n  b: Int\n}");
         expect(
-          await loadSDLFile(join(dir, "only-comments.gql"))
+          await loadGraphQLFile(join(dir, "only-comments.gql"))
         ).toBeUndefined();
-        expect(await loadSDLFile(join(dir, "no-default.ts"))).toBeUndefined();
+        expect(
+          await loadGraphQLFile(join(dir, "no-default.ts"))
+        ).toBeUndefined();
       }
     );
   });
 
   test("syntax errors point at the file, line and column", async () => {
     await withDir({ "bad.gql": "type Query {\n  a: \n}" }, async (dir) => {
-      await expect(loadSDLFile(join(dir, "bad.gql"))).rejects.toThrow(
+      await expect(loadGraphQLFile(join(dir, "bad.gql"))).rejects.toThrow(
         /bad\.gql:3:1: Syntax Error/
       );
     });
   });
 
   test("an unknown extension throws", async () => {
-    await expect(loadSDLFile("schema.txt")).rejects.toThrow(
-      'Cannot load type definitions from "schema.txt" (unknown extension)'
+    await expect(loadGraphQLFile("schema.txt")).rejects.toThrow(
+      'Cannot load GraphQL from "schema.txt" (unknown extension)'
     );
   });
 });

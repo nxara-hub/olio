@@ -209,6 +209,20 @@ describe("codegen", () => {
     });
   });
 
+  test("reads SDL default-exported from .ts files, as loadTypeDefs does", async () => {
+    await withTempDir(async (dir) => {
+      const { modules, output } = await scaffold(dir, {
+        "query.ts": 'export default "type Query { viewer: User }";',
+        "user.gql": "type User { id: ID! }"
+      });
+      const schema = join(dir, "schema.graphql");
+
+      await codegen({ modules, typeDefs: "**/*.{gql,ts}", output, schema });
+
+      expect(await readFile(schema, "utf8")).toContain("viewer: User");
+    });
+  });
+
   test("writes no schema when schema is omitted", async () => {
     await withTempDir(async (dir) => {
       const { modules, output } = await scaffold(dir);

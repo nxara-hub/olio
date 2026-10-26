@@ -1,7 +1,7 @@
+import type { TypeSource } from "@nxlab/core";
 import type { SchemaDirective } from "@nxlab/schema";
-import type { DocumentNode } from "graphql";
 
-export type TypeSource = string | DocumentNode;
+export type { TypeSource };
 
 export interface CodegenModule {
   id: string;

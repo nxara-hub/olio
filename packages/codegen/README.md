@@ -30,6 +30,8 @@ await codegen({
 
 `modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
 
+SDL files are read exactly as `loadTypeDefs` in `@nxlab/tools` reads them (both go through `@nxlab/core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
+
 ### Directives
 
 Pass `directives` to apply `@nxlab/schema` transformations before generation:
