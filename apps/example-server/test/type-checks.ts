@@ -1,6 +1,20 @@
 // Compile-time only: each @ts-expect-error proves the generated types close
 // that door. Checked by `bun run check-types`.
+import { fetchHandler } from "@nxlab/http/fetch";
+import { nodeHandler } from "@nxlab/http/node";
 import { mw, query, resolvers, subscription, type Fields } from "@nxlab/olio";
+
+import { createContext } from "../src/context.js";
+import { app } from "../src/index.js";
+
+// ---- HTTP handlers -----------------------------------------------------
+
+// With a ctx registered, every resolver expects one: the handler must build it.
+// @ts-expect-error context is required once Olio registers ctx
+fetchHandler(app);
+// @ts-expect-error and an options object without it isn't enough
+nodeHandler(app, { maskErrors: false });
+fetchHandler(app, { context: () => createContext() });
 
 // ---- Middleware targets ------------------------------------------------
 

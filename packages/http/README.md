@@ -15,7 +15,7 @@ bun add @nxlab/http
 | `@nxlab/http/fetch` | Anything that speaks the Fetch API: Hono, Elysia, Bun.serve, Deno, Cloudflare Workers, Next.js route handlers, SvelteKit, Remix |
 | `@nxlab/http/node` | Node's `IncomingMessage` / `ServerResponse`: `node:http`, Express, Connect, Koa (`ctx.req`, `ctx.res`), Fastify (`request.raw`, `reply.raw`) |
 
-Your `context` hook receives the framework's request: a Fetch `Request`, or a Node `IncomingMessage`.
+Your `context` hook receives the framework's request: a Fetch `Request`, or a Node `IncomingMessage`. Once your app registers a `ctx` type (`interface Olio { ctx: … }`), the hook is required: without it graphql-http passes no context, and every resolver reading `ctx` would fail at runtime. So `fetchHandler(app)` is then a compile error (`Expected 2 arguments`), as is an options object without `context`.
 
 ```ts
 import { fetchHandler } from "@nxlab/http/fetch";
@@ -62,7 +62,7 @@ throw new Error("connection refused"); // the client sees "Unexpected error."
 
 | Option | Default |  |
 | --- | --- | --- |
-| `context` | none | Builds `ctx` from the request |
+| `context` | none | Builds `ctx` from the request. Required once the app registers a `ctx` type |
 | `onOperationEnd` | none | Called once per operation, after the response is built. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
 | `onUnexpectedError` | `console.error` | Receives each hidden error |

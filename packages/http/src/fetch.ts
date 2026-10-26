@@ -5,13 +5,14 @@ import {
   errorMasker,
   operationEnd,
   type HttpOptions,
+  type OptionsArgs,
   type Servable
 } from "./core.js";
 
 /** GraphQL over HTTP for anything that speaks the Fetch API. */
 export function fetchHandler(
   app: Servable,
-  options: HttpOptions<Request> = {}
+  ...[options = {} as HttpOptions<Request>]: OptionsArgs<Request>
 ): (request: Request) => Promise<Response> {
   const mask = errorMasker(options);
   const { context } = options;

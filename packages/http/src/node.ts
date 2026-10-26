@@ -7,13 +7,16 @@ import {
   errorMasker,
   operationEnd,
   type HttpOptions,
+  type OptionsArgs,
   type Servable
 } from "./core.js";
 
 /** GraphQL over HTTP for Node. Koa: pass `ctx.req`/`ctx.res`; Fastify: `request.raw`/`reply.raw`. */
 export function nodeHandler(
   app: Servable,
-  options: HttpOptions<IncomingMessage> = {}
+  ...[
+    options = {} as HttpOptions<IncomingMessage>
+  ]: OptionsArgs<IncomingMessage>
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const mask = errorMasker(options);
   const { context } = options;

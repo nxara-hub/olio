@@ -24,14 +24,27 @@ export interface ErrorOptions {
   onUnexpectedError?: (error: unknown) => void;
 }
 
-export interface HttpOptions<Request> extends ErrorOptions {
-  context?: (request: Request) => MaybePromise<Context>;
-  /**
-   * Called once an operation has finished, after the response is built.
-   * Dispose per-operation resources here, such as `ctx.di.dispose()`.
-   */
-  onOperationEnd?: (ctx: Context) => MaybePromise<void>;
-}
+type ContextHook<Request> = (request: Request) => MaybePromise<Context>;
+
+// Without a hook graphql-http passes no context at all, so once the app
+// registers a `ctx` type, every resolver reading it would fail at runtime.
+type ContextOption<Request> = undefined extends Context
+  ? { context?: ContextHook<Request> }
+  : { context: ContextHook<Request> };
+
+export type HttpOptions<Request> = ErrorOptions &
+  ContextOption<Request> & {
+    /**
+     * Called once an operation has finished, after the response is built.
+     * Dispose per-operation resources here, such as `ctx.di.dispose()`.
+     */
+    onOperationEnd?: (ctx: Context) => MaybePromise<void>;
+  };
+
+/** A handler's options, required once `context` is. */
+export type OptionsArgs<Request> = undefined extends Context
+  ? [options?: HttpOptions<Request>]
+  : [options: HttpOptions<Request>];
 
 export function errorMasker(options: ErrorOptions): {
   error: (error: GraphQLError) => GraphQLError;
