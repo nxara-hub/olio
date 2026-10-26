@@ -78,6 +78,8 @@ fetchHandler(app, {
 product: (line, _args, ctx) => ctx.di.productLoader.load(line.sku); // typed, autocompletes, created on first access
 ```
 
+Subscriptions work the same way: give each one a scope in its context and dispose it when it ends. With graphql-ws that's its `context(ctx, id)` hook, which runs once per subscription, and `onComplete`; with graphql-sse, `context` and `onComplete`. `@nxlab/http`'s README shows both.
+
 ## Tests
 
 ```ts

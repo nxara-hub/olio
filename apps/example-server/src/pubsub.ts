@@ -14,11 +14,21 @@ export function createPubSub<T extends object>() {
     publish<K extends keyof T>(topic: K, payload: T[K]): void {
       for (const listen of listeners.get(topic) ?? []) listen(payload as never);
     },
-    /** Events published from now on, until the consumer stops iterating. */
-    subscribe<K extends keyof T>(topic: K): AsyncIterableIterator<T[K]> {
+    /**
+     * Events published from now on, until the consumer stops iterating, the
+     * ones `filter` keeps. Return it from a resolver as it is: its `return()`
+     * ends it at once, even while it waits for an event, so a client that
+     * goes away is cleaned up right then. (An `async *` wrapped around it
+     * would only end at its next event.)
+     */
+    subscribe<K extends keyof T>(
+      topic: K,
+      filter: (payload: T[K]) => boolean = () => true
+    ): AsyncIterableIterator<T[K]> {
       const queue: T[K][] = [];
       const waiting: ((result: IteratorResult<T[K], undefined>) => void)[] = [];
       const listen = (payload: T[K]): void => {
+        if (!filter(payload)) return;
         const resolve = waiting.shift();
         if (resolve) resolve({ value: payload, done: false });
         else queue.push(payload);

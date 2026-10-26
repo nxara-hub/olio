@@ -199,22 +199,21 @@ Every key is checked when `olio()` builds the schema, even without codegen. A ke
 
 ## Subscriptions
 
-A subscription field is a function that returns an async iterable of the field's values. Usually that's an async generator:
+A subscription field is a function that returns an async iterable of the field's values. Return the event source's own iterator, filtered at the source:
 
 ```ts
 export const Subscription = subscription.users({
-  async *userUpdated(_root, { id }, ctx) {
-    for await (const row of ctx.pubsub.subscribe("user:updated")) {
-      if (row._id === id) yield row; // filter and map right here
-    }
-  }
+  userUpdated: (_root, { id }, ctx) =>
+    ctx.pubsub.subscribe("user:updated", (row) => row._id === id)
 });
 ```
+
+An async generator works too, for mapping events (`async *userUpdated() { for await (const row of …) yield … }`), with one catch: while it waits inside `for await`, it can only be ended at its next event. graphql-ws waits for that before running `onComplete` and `onClose`, so a client that leaves while nothing happens isn't cleaned up until something does. A source whose `return()` ends it at once (like [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts)'s) doesn't have that problem.
 
 - **Each yielded value is the field's value**, checked against the field type (with [mappers](#mappers) applied). Nested field resolvers run for every event.
 - **Middleware runs once**, when a client subscribes, which is the place for auth and logging. Per-event logic belongs in the iterator.
 - **Context:** subscription resolvers and `Subscription` middleware get `sub_ctx`, and `"*"` middleware can run on either kind: type it `MiddlewareFn<Context | SubscriptionContext>`. Without a separate `sub_ctx`, both are just `ctx`.
-- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. To serve them, run graphql-ws or graphql-sse with `app.schema`; [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) does both.
+- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. To serve them, run graphql-ws or graphql-sse with `app.schema`: `@nxlab/http`'s README has the setup.
 
 ## Field extensions
 

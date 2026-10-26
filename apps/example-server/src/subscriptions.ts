@@ -72,12 +72,9 @@ export function serveWebSockets(server: WebSocketServer): void {
       // A subscription that fails while starting is reported here instead.
       onError: (ctx, id, _payload, errors) =>
         errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
-      onComplete: (ctx, id) => end(ctx, id),
-      // A socket that closes mid-subscription never completes it.
-      onClose: async (ctx) => {
-        const ids = [...(live.get(ctx)?.keys() ?? [])];
-        await Promise.all(ids.map((id) => end(ctx, id)));
-      }
+      // Also when the socket closes mid-subscription: graphql-ws ends each one
+      // first (as long as its source can end right away, see src/pubsub.ts).
+      onComplete: (ctx, id) => end(ctx, id)
     },
     server
   );

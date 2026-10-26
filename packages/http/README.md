@@ -45,7 +45,68 @@ Not included, the way Apollo Server leaves them out: install and run the referen
 - [graphql-ws](https://github.com/enisdenjo/graphql-ws): subscriptions over WebSocket (`useServer` on a `ws` server, `makeHandler` on Bun).
 - [graphql-sse](https://github.com/enisdenjo/graphql-sse): subscriptions as server-sent events, on the same URL (route `Accept: text/event-stream` to its handler).
 
-Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) sets up both, with masking, DI disposal and the HTTP handler's validation rules. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
+Pass them `app.schema`; `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies its rules. Both, with a context (and DI scope) per subscription, disposed when it ends:
+
+```ts
+import { errorMasker, validateOperation } from "@nxlab/http";
+import type { SubscriptionContext } from "@nxlab/olio";
+import { createHandler } from "graphql-sse/lib/use/fetch";
+import { useServer } from "graphql-ws/use/ws";
+
+const mask = errorMasker<SubscriptionContext>();
+
+// graphql-sse: route requests with `Accept: text/event-stream` here, GET and
+// POST (what @nxlab/client sends; single-connection mode also needs PUT and DELETE).
+export const sseHandler = createHandler({
+  schema: app.schema,
+  context: (req) =>
+    createContext(req.raw.headers.get("authorization")) as never,
+  onSubscribe: (_req, params) => {
+    const errors = validateOperation(app.schema, params, validationRules);
+    return errors.length ? { data: null, errors: [...errors] } : undefined; // needs `data`
+  },
+  onNext: (ctx, _req, result) =>
+    mask.result(result, ctx as unknown as SubscriptionContext),
+  onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
+});
+
+// graphql-ws, on a `ws` server: `context` runs once per subscription, so the
+// scope is per operation; keep it by connection and id to end it.
+const live = new WeakMap<object, Map<string, SubscriptionContext>>();
+useServer(
+  {
+    schema: app.schema,
+    context: (ctx, id) => {
+      // A browser can't set WebSocket headers: @nxlab/client sends them here.
+      const headers = ctx.connectionParams?.headers as
+        | Record<string, string>
+        | undefined;
+      const value = createContext(headers?.authorization);
+      live.set(ctx, (live.get(ctx) ?? new Map()).set(id, value));
+      return value as never;
+    },
+    onSubscribe: (_ctx, _id, payload) => {
+      const errors = validateOperation(app.schema, payload, validationRules);
+      return errors.length ? errors : undefined;
+    },
+    onNext: (ctx, id, _payload, _args, result) =>
+      mask.result(result, live.get(ctx)?.get(id)),
+    onError: (ctx, id, _payload, errors) =>
+      errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
+    // Also runs when the socket closes mid-subscription (see the note below).
+    onComplete: async (ctx, id) => {
+      const value = live.get(ctx)?.get(id);
+      live.get(ctx)?.delete(id);
+      await value?.di.dispose();
+    }
+  },
+  new WebSocketServer({ server, path: "/graphql" })
+);
+```
+
+When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
+
+With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
 
 ## Validation rules
 
