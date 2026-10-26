@@ -1,5 +1,6 @@
 export { errorMasker, validateOperation } from "./core.js";
 export type {
+  ErrorInfo,
   ErrorMasker,
   ErrorOptions,
   HttpOptions,

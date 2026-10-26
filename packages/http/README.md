@@ -101,21 +101,31 @@ throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // t
 throw new Error("connection refused"); // the client sees "Unexpected error."
 ```
 
-`errorMasker(options?)`, from `@nxlab/http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives:
+`onUnexpectedError(error, { ctx, request })` gets what the error happened in, so logs can tie it to a request: `ctx` is the operation's context (`undefined` when the `context` hook itself failed), `request` the adapter's (a Fetch `Request`, or Node's `IncomingMessage`).
+
+```ts
+fetchHandler(app, {
+  context,
+  onUnexpectedError: (error, { ctx, request }) =>
+    log.error({ error, requestId: ctx?.requestId, url: request.url })
+});
+```
+
+`errorMasker(options?)`, from `@nxlab/http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives the functions below. Each takes the operation's context as a last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there); type it with `errorMasker<SubscriptionContext>()`:
 
 |  |  |
 | --- | --- |
-| `mask.result(result)` | The result with its errors masked, any shape: graphql's `ExecutionResult`, or what graphql-sse's and graphql-ws's `onNext` hand you |
-| `mask.error(error)` | One error, or any caught value: a `GraphQLError` passes (unless it wraps an unexpected error), anything else becomes "Unexpected error." and is reported |
-| `mask.report(error)` | Sends an error to `onUnexpectedError` |
+| `mask.result(result, ctx?)` | The result with its errors masked, any shape: graphql's `ExecutionResult`, or what graphql-sse's and graphql-ws's `onNext` hand you |
+| `mask.error(error, ctx?)` | One error, or any caught value: a `GraphQLError` passes (unless it wraps an unexpected error), anything else becomes "Unexpected error." and is reported |
+| `mask.report(error, ctx?)` | Sends an error to `onUnexpectedError` |
 
 ```ts
 import { errorMasker } from "@nxlab/http";
 
-const mask = errorMasker();
+const mask = errorMasker<SubscriptionContext>();
 createHandler({
   schema: app.schema,
-  onNext: (_ctx, _req, result) => mask.result(result)
+  onNext: (ctx, _req, result) => mask.result(result, ctx)
 }); // graphql-sse
 ```
 
@@ -127,4 +137,4 @@ createHandler({
 | `validationRules` | none | Rules run with graphql's own before execution: a list, or `({ variables, operationName }) => rules`. See [Validation rules](#validation-rules) |
 | `onOperationEnd` | none | Called once per operation, after the response is built. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
-| `onUnexpectedError` | `console.error` | Receives each hidden error |
+| `onUnexpectedError` | `console.error` of the error | `(error, { ctx, request }) => void`: receives each hidden error, with the context and request it happened in (`ctx` is `undefined` when the `context` hook failed) |

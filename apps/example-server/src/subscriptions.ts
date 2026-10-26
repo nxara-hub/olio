@@ -12,7 +12,7 @@ import { validationRules } from "./limits.js";
 // @nxlab/http serves GraphQL over HTTP only; subscriptions are the app's own,
 // on the reference libraries. Both transports hide unexpected errors the way
 // the HTTP handler does, and dispose each operation's DI scope once it ends.
-const mask = errorMasker();
+const mask = errorMasker<SubscriptionContext>();
 let connections = 0;
 const connectionId = (kind: string): string => `${kind}-${++connections}`;
 
@@ -30,7 +30,8 @@ export const sseHandler = createHandler({
     // graphql-sse reads it as a result only with `data`.
     return errors.length ? { data: null, errors: [...errors] } : undefined;
   },
-  onNext: (_ctx, _req, result) => mask.result(result),
+  onNext: (ctx, _req, result) =>
+    mask.result(result, ctx as unknown as SubscriptionContext),
   onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
 });
 
@@ -66,10 +67,11 @@ export function serveWebSockets(server: WebSocketServer): void {
         const errors = validateOperation(app.schema, payload, validationRules);
         return errors.length ? errors : undefined;
       },
-      onNext: (_ctx, _id, _payload, _args, result) => mask.result(result),
+      onNext: (ctx, id, _payload, _args, result) =>
+        mask.result(result, live.get(ctx)?.get(id)),
       // A subscription that fails while starting is reported here instead.
-      onError: (_ctx, _id, _payload, errors) =>
-        errors.map((e) => mask.error(e).toJSON()),
+      onError: (ctx, id, _payload, errors) =>
+        errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
       onComplete: (ctx, id) => end(ctx, id),
       // A socket that closes mid-subscription never completes it.
       onClose: async (ctx) => {

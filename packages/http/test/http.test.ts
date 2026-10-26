@@ -221,6 +221,57 @@ describe("validationRules", () => {
   });
 });
 
+describe("onUnexpectedError", () => {
+  test("gets the ctx and request each hidden error happened in", async () => {
+    const seen: { message: string; ctx: unknown; url: string }[] = [];
+    const handler = fetchHandler(app, {
+      context: (request) => {
+        if (request.headers.get("x-fail")) throw new Error("no session store");
+        return { requestId: "req-1" };
+      },
+      onOperationEnd: () => {
+        throw new Error("cleanup failed");
+      },
+      onUnexpectedError: (error, { ctx, request }) =>
+        seen.push({ message: (error as Error).message, ctx, url: request.url })
+    });
+    await post(handler, "{ broken }");
+    await post(handler, "{ hello }", { "x-fail": "1" });
+    expect(seen).toEqual([
+      // A resolver's error, then the failing onOperationEnd: both with ctx.
+      {
+        message: "database is down",
+        ctx: { requestId: "req-1" },
+        url: "http://localhost/graphql"
+      },
+      {
+        message: "cleanup failed",
+        ctx: { requestId: "req-1" },
+        url: "http://localhost/graphql"
+      },
+      // The context hook itself failed, so there's no ctx, only the request.
+      {
+        message: "no session store",
+        ctx: undefined,
+        url: "http://localhost/graphql"
+      }
+    ]);
+  });
+
+  test("errorMasker passes on the ctx each call is given", () => {
+    const seen: unknown[] = [];
+    const mask = errorMasker<{ connectionId: string }>({
+      onUnexpectedError: (_error, info) => seen.push(info)
+    });
+    mask.error(new Error("boom"), { connectionId: "ws-1" });
+    mask.report(new Error("late"));
+    expect(seen).toEqual([
+      { ctx: { connectionId: "ws-1" }, request: undefined },
+      { ctx: undefined, request: undefined }
+    ]);
+  });
+});
+
 describe("a context hook that throws", () => {
   const leak = () => {
     throw new Error("password=hunter2");
