@@ -417,6 +417,26 @@ describe("olio", () => {
     );
   });
 
+  test("middleware values must be lists of functions", () => {
+    const fn: MiddlewareFn = (_params, next) => next();
+    const build = (config: Partial<Parameters<typeof olio>[0]>) => () =>
+      olio({ modules: [root, users()], ...config });
+    expect(
+      // @ts-expect-error a function, not a list of them
+      build({ middleware: { Query: { "*": fn } } })
+    ).toThrow(
+      'Application middleware "Query.*" must be a list of middleware functions'
+    );
+    expect(
+      build({
+        // @ts-expect-error a list with something else in it
+        modules: [root, users({ middleware: { Query: { user: [fn, "x"] } } })]
+      })
+    ).toThrow(
+      'Module "users": middleware "Query.user" must be a list of middleware functions'
+    );
+  });
+
   test("rejects middleware keys that match nothing", () => {
     const build = (config: Partial<Parameters<typeof olio>[0]>) => () =>
       olio({ modules: [root, users()], ...config });

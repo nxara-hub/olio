@@ -499,13 +499,24 @@ function declarations(ownership: Ownership): Map<string, string> {
   return declared;
 }
 
+// The types say so, but plain JavaScript or a cast gets here too: a bare
+// function would slip into the chain, and a non-function fail per request.
+function checkFns(where: string, target: string, fns: unknown): void {
+  if (!Array.isArray(fns) || fns.some((fn) => typeof fn !== "function")) {
+    throw new TypeError(
+      `${where} ${target} must be a list of middleware functions`
+    );
+  }
+}
+
 function checkAppMiddleware(
   schema: GraphQLSchema,
   middleware: MiddlewareMap
 ): void {
   for (const [type, fields] of Object.entries(middleware)) {
-    for (const key of Object.keys(fields ?? {})) {
+    for (const [key, fns] of Object.entries(fields ?? {})) {
       const target = `"${type}.${key}"`;
+      checkFns("Application middleware", target, fns);
       if (type === "*") {
         if (key !== "*") {
           throw new Error(
@@ -537,7 +548,8 @@ function checkOwnerMiddleware(
   declared: ReadonlyMap<string, string>
 ): void {
   for (const [type, fields] of Object.entries(owner.middleware)) {
-    for (const key of Object.keys(fields ?? {})) {
+    for (const [key, fns] of Object.entries(fields ?? {})) {
+      checkFns(`${owner.label}: middleware`, `"${type}.${key}"`, fns);
       if (!isObjectType(schema.getType(type))) {
         throw new Error(
           `${owner.label}: middleware "${type}.${key}" targets ${type}, which has no fields to wrap`
