@@ -149,6 +149,8 @@ const requireAuth =
   };
 ```
 
+Written inline under a field key, in `mw.<id>()` or a module's `middleware`, a middleware gets that field's types: `root` is its parent (the mapper, if any) and `args` its arguments, so `mw.users({ User: { email: [({ root }, next) => …] } })` sees the `User` row. Root types have `root: undefined`, and `"*"` keys stay loose since they span fields. A middleware written on its own, like `requireAuth`, is typed `MiddlewareFn`: `root: unknown` and `args: Record<string, unknown>`, so it fits any key.
+
 Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the chain runs top-down:
 
 1. app `*.*`

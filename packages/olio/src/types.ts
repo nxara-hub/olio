@@ -163,9 +163,18 @@ type Args<E, F> = E extends { args: infer A }
     : Record<string, never>
   : Record<string, never>;
 
-export interface MiddlewareParams<Ctx = Context> {
-  root: unknown;
-  args: Record<string, unknown>;
+/**
+ * Inline under a field key (in `mw.<id>()` or a module's `middleware`),
+ * `root` and `args` are that field's parent and arguments. A middleware
+ * written on its own keeps these defaults, so it fits any key.
+ */
+export interface MiddlewareParams<
+  Ctx = Context,
+  Root = unknown,
+  A = Record<string, unknown>
+> {
+  root: Root;
+  args: A;
   ctx: Ctx;
   info: GraphQLResolveInfo;
 }
@@ -174,10 +183,11 @@ export interface MiddlewareParams<Ctx = Context> {
  * `"*"` middleware also runs on subscriptions: type it
  * `MiddlewareFn<Context | SubscriptionContext>`.
  */
-export type MiddlewareFn<Ctx = Context> = (
-  params: MiddlewareParams<Ctx>,
-  next: () => unknown
-) => unknown;
+export type MiddlewareFn<
+  Ctx = Context,
+  Root = unknown,
+  A = Record<string, unknown>
+> = (params: MiddlewareParams<Ctx, Root, A>, next: () => unknown) => unknown;
 
 type ContextOf<T> = T extends "*"
   ? Context | SubscriptionContext
@@ -185,7 +195,11 @@ type ContextOf<T> = T extends "*"
     ? SubscriptionContext
     : Context;
 
-type Fns<T = string> = readonly MiddlewareFn<ContextOf<T>>[];
+type Fns<
+  T = string,
+  Root = unknown,
+  A = Record<string, unknown>
+> = readonly MiddlewareFn<ContextOf<T>, Root, A>[];
 
 export type MiddlewareMap = Partial<
   Record<string, Partial<Record<string, Fns>>>
@@ -205,7 +219,11 @@ export type Middleware = Untyped extends true
             : T
           : T
       ]?: {
-        [K in "*" | (T extends RootType ? RootFields<T> : never)]?: Fns<T>;
+        [K in "*" | (T extends RootType ? RootFields<T> : never)]?: Fns<
+          T,
+          T extends RootType ? undefined : unknown,
+          K extends "*" ? Record<string, unknown> : Args<Declaring<T, K>, K>
+        >;
       };
     };
 
@@ -213,6 +231,19 @@ type MiddlewareFields<O extends Owner, T> = Exclude<
   Owned<Entry<O, T>>,
   TypeHook
 >;
+
+type MiddlewareRoot<Os extends Owner, T> = T extends RootType
+  ? undefined
+  : { [O in Os]: Parent<Entry<O, T>> }[Os];
+
+// "*" keys span fields with different arguments, so they keep the loose type.
+type MiddlewareArgs<Os extends Owner, T, K> = K extends "*" | "-*"
+  ? Record<string, unknown>
+  : {
+      [O in Os]: (K extends `-${infer F}` ? F : K) extends Owned<Entry<O, T>>
+        ? Args<Entry<O, T>, K extends `-${infer F}` ? F : K>
+        : never;
+    }[Os];
 
 type MiddlewareFor<Os extends Owner> = {
   [
@@ -228,7 +259,7 @@ type MiddlewareFor<Os extends Owner> = {
         | "-*"
         | { [O in Os]: MiddlewareFields<O, T> }[Os]
         | `-${{ [O in Os]: MiddlewareFields<O, T> }[Os]}`
-    ]?: Fns<T>;
+    ]?: Fns<T, MiddlewareRoot<Os, T>, MiddlewareArgs<Os, T, K>>;
   };
 };
 

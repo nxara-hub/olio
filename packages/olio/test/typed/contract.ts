@@ -8,7 +8,8 @@ import {
   mw,
   query,
   resolvers,
-  type LoadedResolvers
+  type LoadedResolvers,
+  type MiddlewareFn
 } from "../../src/index.js";
 import type { Application } from "./generated.js";
 
@@ -177,6 +178,49 @@ mw.content({ Nope: { x: [] } });
 // A typed map passes on as it is.
 const checked = mw.content({ Query: { node: [] } });
 module.content({ middleware: checked });
+
+// Inline under a field key, root and args are that field's parent and args.
+mw.content({
+  Query: { usersByRole: [({ args }, next) => (args.role === 1 ? next() : [])] },
+  User: { name: [({ root }, next) => (root.roleId === 1 ? next() : "")] }
+});
+mw.content({
+  Query: {
+    usersByRole: [
+      // @ts-expect-error role is 1 | 2 (CustomEnums), never "ADMIN"
+      ({ args }, next) => (args.role === "ADMIN" ? next() : [])
+    ]
+  }
+});
+mw.content({
+  // @ts-expect-error a User row has no title
+  User: { name: [({ root }, next) => (root.title ? next() : "")] }
+});
+// The same in a module's own middleware, and in a feature's.
+module.content({
+  middleware: {
+    // @ts-expect-error a User row has no title
+    User: { name: [({ root }, next) => (root.title ? next() : "")] }
+  }
+});
+mw.content.blog({
+  // @ts-expect-error a User row has no title
+  User: { articleCount: [({ root }, next) => (root.title ? next() : 0)] }
+});
+// A root type has no parent; "*" keys span fields, so they stay loose.
+mw({
+  Query: {
+    node: [({ root, args }, next) => ((root ?? args.id) ? next() : null)]
+  }
+});
+mw.content({
+  User: {
+    "*": [({ root }, next) => (typeof root === "object" ? next() : null)]
+  }
+});
+// A middleware written on its own is the exception: loose, so it fits any key.
+const logged: MiddlewareFn = (_params, next) => next();
+mw.content({ Query: { usersByRole: [logged] }, User: { name: [logged] } });
 
 // ---- Field extensions -------------------------------------------------------
 
