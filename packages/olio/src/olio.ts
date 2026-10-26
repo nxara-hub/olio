@@ -28,6 +28,10 @@ import {
   type GraphQLScalarType,
   type GraphQLSchema
 } from "graphql";
+// ponytail: deep imports, like compose's validateSDL; graphql's own
+// "Did you mean" wording, so olio's suggestions read like graphql's.
+import { didYouMean } from "graphql/jsutils/didYouMean.js";
+import { suggestionList } from "graphql/jsutils/suggestionList.js";
 
 import type {
   FeatureConfig,
@@ -58,6 +62,11 @@ export interface OlioApp {
 }
 
 type Resolve = GraphQLFieldResolver<unknown, unknown, Record<string, unknown>>;
+
+function suggest(name: string, options: Iterable<string>): string {
+  const hint = didYouMean(suggestionList(name, [...options]));
+  return hint && `.${hint}`;
+}
 
 const toList = <T>(value: T | readonly T[] | undefined): readonly T[] => {
   if (value === undefined) return [];
@@ -350,7 +359,11 @@ function applyField(
     throw new Error(`${where}: ${type.name} only accepts __resolveType`);
   }
   const field = type.getFields()[fieldName];
-  if (!field) throw new Error(`${where}: unknown field "${key}"`);
+  if (!field) {
+    throw new Error(
+      `${where}: unknown field "${key}"${suggest(fieldName, Object.keys(type.getFields()))}`
+    );
+  }
 
   claim(attach, key);
 
@@ -413,7 +426,12 @@ function applyEnum(
     const key = `${type.name}.${name}`;
     const value = type.getValue(name);
     if (!value) {
-      throw new Error(`${attach.owner.label}: unknown enum value "${key}"`);
+      throw new Error(
+        `${attach.owner.label}: unknown enum value "${key}"${suggest(
+          name,
+          type.getValues().map((v) => v.name)
+        )}`
+      );
     }
     claim(attach, key);
     (value as { value: unknown }).value = internal;
@@ -494,7 +512,10 @@ function unknownType({ schema, owner }: Attach, name: string): string {
   ].find((t) => t?.getFields()[name]);
   const hint = root
     ? `. It's a ${root.name} field: key resolvers by type, e.g. { ${root.name}: { ${name}: ... } }`
-    : "";
+    : suggest(
+        name,
+        Object.keys(schema.getTypeMap()).filter((t) => !t.startsWith("__"))
+      );
   return `${owner.label}: unknown type "${name}"${hint}`;
 }
 
@@ -604,7 +625,9 @@ function checkAppMiddleware(
         );
       }
       if (key !== "*" && !root.getFields()[key]) {
-        throw new Error(`Application middleware ${target}: unknown field`);
+        throw new Error(
+          `Application middleware ${target}: unknown field${suggest(key, Object.keys(root.getFields()))}`
+        );
       }
     }
   }

@@ -541,6 +541,32 @@ describe("olio", () => {
     );
   });
 
+  test("unknown names suggest the closest ones", () => {
+    const users = (resolvers: object, middleware?: object) =>
+      olio({
+        modules: [
+          createModule("users", {
+            typeDefs:
+              "type Query { user: Int users: Int } type User { id: ID } enum Role { ADMIN }",
+            resolvers: resolvers as never
+          })
+        ],
+        middleware: middleware as never
+      });
+    expect(() => users({ Query: { usr: () => 1 } })).toThrow(
+      'Module "users": unknown field "Query.usr". Did you mean "user" or "users"?'
+    );
+    expect(() => users({ Usr: {} })).toThrow(
+      'Module "users": unknown type "Usr". Did you mean "User"?'
+    );
+    expect(() => users({ Role: { ADMN: "a" } })).toThrow(
+      'Module "users": unknown enum value "Role.ADMN". Did you mean "ADMIN"?'
+    );
+    expect(() => users({}, { Query: { usr: [] } })).toThrow(
+      'Application middleware "Query.usr": unknown field. Did you mean "user" or "users"?'
+    );
+  });
+
   test("an SDL syntax error has its location in the message", () => {
     expect(() =>
       createModule("users", { typeDefs: "type User { name String }" })
