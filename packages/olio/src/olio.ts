@@ -118,6 +118,18 @@ function resolverMap(
   return [resolvers as ResolverMap];
 }
 
+// Typed configs only have `enums` when the owner has a custom enum.
+function enumMap(owner: string, config: object): ResolverMap {
+  const enums = "enums" in config ? config.enums : undefined;
+  if (enums === undefined) return {};
+  if (typeof enums !== "object" || enums === null || Array.isArray(enums)) {
+    throw new TypeError(
+      `${owner}: enums must be one map keyed by enum, e.g. { Role: { ADMIN: 1 } }`
+    );
+  }
+  return enums as ResolverMap;
+}
+
 // "/" separates a module from its features in owner ids ("sales/orders"), so
 // an id containing one would pass for a feature of another module.
 function checkId(kind: "Module" | "Feature", id: string): void {
@@ -137,6 +149,7 @@ export function createModule<M extends ModuleId>(
     id,
     typeDefs: parseAll(config.typeDefs, `module "${id}"`),
     resolvers: resolverMap(`Module "${id}"`, config.resolvers),
+    enums: enumMap(`Module "${id}"`, config),
     middleware: (config.middleware ?? {}) as MiddlewareMap,
     features: config.features ?? []
   };
@@ -153,6 +166,7 @@ export function createFeature<M extends ModuleId, F extends string>(
     id,
     typeDefs: parseAll(config.typeDefs, `feature "${module}/${id}"`),
     resolvers: resolverMap(`Feature "${module}/${id}"`, config.resolvers),
+    enums: enumMap(`Feature "${module}/${id}"`, config),
     middleware: (config.middleware ?? {}) as MiddlewareMap
   };
 }
@@ -163,6 +177,7 @@ interface Owner {
   label: string;
   typeDefs: readonly DocumentNode[];
   resolvers: readonly ResolverMap[];
+  enums: ResolverMap;
   middleware: MiddlewareMap;
   upperMiddleware: readonly MiddlewareMap[];
   canTarget: (owner: string) => boolean;
@@ -212,6 +227,7 @@ function owners(modules: readonly OlioModule[]): Owner[] {
         label: `Feature "${id}"`,
         typeDefs: f.typeDefs,
         resolvers: f.resolvers,
+        enums: f.enums,
         middleware: f.middleware,
         upperMiddleware: [m.middleware],
         canTarget: (owner) => owner === id
@@ -466,6 +482,56 @@ function applyEnum(
 
 // Setting `value` after the schema is built is safe: graphql builds its
 // internal-value lookup lazily. Defaults are another matter (`coerceDefaults`).
+function applyEnums(attach: Attach): void {
+  const { schema, owner } = attach;
+  for (const [name, values] of Object.entries(owner.enums)) {
+    const type = schema.getType(name);
+    if (!isEnumType(type)) {
+      const enums = Object.values(schema.getTypeMap()).filter(
+        (t) => isEnumType(t) && !t.name.startsWith("__")
+      );
+      throw new Error(
+        type
+          ? `${owner.label}: enums: "${name}" is not an enum`
+          : `${owner.label}: enums: unknown enum "${name}"${suggest(
+              name,
+              enums.map((t) => t.name)
+            )}`
+      );
+    }
+    if (typeof values !== "object" || values === null) {
+      throw new TypeError(
+        `${owner.label}: enums: "${name}" must map each value to its internal value`
+      );
+    }
+    applyEnum(attach, type, values);
+  }
+}
+
+// An enum nobody gave internal values serializes by name, so a resolver that
+// returns an internal value fails in every query; say why.
+function explainMissingValues(
+  schema: GraphQLSchema,
+  supplied: ReadonlySet<GraphQLEnumType>
+): void {
+  for (const type of Object.values(schema.getTypeMap())) {
+    // Introspection enums are graphql's singletons, shared by every schema.
+    if (!isEnumType(type) || supplied.has(type) || type.name.startsWith("__")) {
+      continue;
+    }
+    const serialize = type.serialize.bind(type);
+    type.serialize = (value) => {
+      try {
+        return serialize(value);
+      } catch (error) {
+        throw new GraphQLError(
+          `${(error as Error).message}. No module gave "${type.name}" internal values: pass them as { enums: { ${type.name}: { ... } } }`
+        );
+      }
+    };
+  }
+}
+
 function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
   for (const type of enums) {
     const seen = new Map<unknown, string>();
@@ -575,8 +641,9 @@ function applyType(
     return;
   }
   if (isEnumType(type)) {
-    applyEnum(attach, type, value);
-    return;
+    throw new Error(
+      `${attach.owner.label}: enum "${typeName}" takes its internal values through enums, not resolvers: { enums: { ${typeName}: { ... } } }`
+    );
   }
   if (!isObjectType(type) && !isInterfaceType(type) && !isUnionType(type)) {
     throw new Error(
@@ -717,16 +784,12 @@ export function olio(config: OlioConfig): OlioApp {
   const enums = new Set<GraphQLEnumType>();
   for (const owner of all) {
     checkOwnerMiddleware(schema, owner, declared);
-    applyResolvers({
-      schema,
-      owner,
-      appMiddleware,
-      declared,
-      bypass,
-      enums
-    });
+    const attach = { schema, owner, appMiddleware, declared, bypass, enums };
+    applyResolvers(attach);
+    applyEnums(attach);
   }
   checkEnums(enums);
+  explainMissingValues(schema, enums);
   coerceDefaults(schema);
   wrapDefaults(schema, appMiddleware, all, declared, bypass);
 

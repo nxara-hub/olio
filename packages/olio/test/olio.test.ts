@@ -559,7 +559,16 @@ describe("olio", () => {
     expect(() => users({ Usr: {} })).toThrow(
       'Module "users": unknown type "Usr". Did you mean "User"?'
     );
-    expect(() => users({ Role: { ADMN: "a" } })).toThrow(
+    expect(() =>
+      olio({
+        modules: [
+          createModule("users", {
+            typeDefs: "type Query { a: Int } enum Role { ADMIN }",
+            enums: { Role: { ADMN: "a" } }
+          })
+        ]
+      })
+    ).toThrow(
       'Module "users": unknown enum value "Role.ADMN". Did you mean "ADMIN"?'
     );
     expect(() => users({}, { Query: { usr: [] } })).toThrow(
@@ -721,8 +730,8 @@ describe("olio", () => {
           nested(filter: Filter!): Role!
         }
       `,
+      enums: { Role: { ADMIN: 1, GUEST: 2 } },
       resolvers: {
-        Role: { ADMIN: 1, GUEST: 2 },
         Query: {
           role: () => 1,
           roles: () => [2, 1],
@@ -767,10 +776,8 @@ describe("olio", () => {
       modules: [
         createModule("roles", {
           typeDefs: "enum Role { ADMIN GUEST } type Query { role: Role }",
-          resolvers: {
-            Role: { ADMIN: 1, GUEST: 2 },
-            Query: { role: () => "ADMIN" }
-          }
+          enums: { Role: { ADMIN: 1, GUEST: 2 } },
+          resolvers: { Query: { role: () => "ADMIN" } }
         })
       ]
     });
@@ -782,14 +789,14 @@ describe("olio", () => {
   test("rejects invalid enum mappings", () => {
     const sdl = "enum Role { ADMIN GUEST } type Query { role: Role }";
     const build =
-      (resolvers: Record<string, object>, extra = "") =>
+      (enums: Record<string, Record<string, unknown>>, extra = "") =>
       () =>
         olio({
           modules: [
             createModule("roles", { typeDefs: sdl + extra }),
             createModule("other", {
               typeDefs: "extend enum Role { BOT }",
-              resolvers
+              enums
             })
           ]
         });
@@ -804,7 +811,7 @@ describe("olio", () => {
         modules: [
           createModule("roles", {
             typeDefs: sdl,
-            resolvers: { Role: { ADMIN: 1, GUEST: 1 } }
+            enums: { Role: { ADMIN: 1, GUEST: 1 } }
           })
         ]
       })
@@ -815,7 +822,7 @@ describe("olio", () => {
         modules: [
           createModule("roles", {
             typeDefs: sdl,
-            resolvers: { Role: { ADMIN: 1 } }
+            enums: { Role: { ADMIN: 1 } }
           })
         ]
       })
@@ -835,6 +842,29 @@ describe("olio", () => {
       })
     ).toThrow(
       'middleware "Role.ADMIN" targets Role, which has no fields to wrap'
+    );
+  });
+
+  test("enum values go through enums, and their absence is explained", async () => {
+    const sdl = "enum Role { ADMIN GUEST } type Query { role: Role }";
+    const build = (config: object) => () =>
+      olio({ modules: [createModule("roles", { typeDefs: sdl, ...config })] });
+    expect(build({ resolvers: { Role: { ADMIN: 1, GUEST: 2 } } })).toThrow(
+      'Module "roles": enum "Role" takes its internal values through enums, not resolvers: { enums: { Role: { ... } } }'
+    );
+    expect(build({ enums: { Rol: { ADMIN: 1, GUEST: 2 } } })).toThrow(
+      'Module "roles": enums: unknown enum "Rol". Did you mean "Role"?'
+    );
+    expect(build({ enums: { Query: {} } })).toThrow(
+      'Module "roles": enums: "Query" is not an enum'
+    );
+    expect(build({ enums: [] })).toThrow(
+      'Module "roles": enums must be one map keyed by enum, e.g. { Role: { ADMIN: 1 } }'
+    );
+    // Values registered in types (CustomEnums) but never supplied: say why.
+    const app = build({ resolvers: { Query: { role: () => "admin" } } })();
+    expect((await run(app, "{ role }")).errors?.[0]?.message).toBe(
+      'Enum "Role" cannot represent value: "admin". No module gave "Role" internal values: pass them as { enums: { Role: { ... } } }'
     );
   });
 

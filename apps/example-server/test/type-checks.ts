@@ -2,7 +2,14 @@
 // that door. Checked by `bun run check-types`.
 import { fetchHandler } from "@nxlab/http/fetch";
 import { nodeHandler } from "@nxlab/http/node";
-import { mw, query, resolvers, subscription, type Fields } from "@nxlab/olio";
+import {
+  feature,
+  mw,
+  query,
+  resolvers,
+  subscription,
+  type Fields
+} from "@nxlab/olio";
 
 import { createContext } from "../src/context.js";
 import { app } from "../src/index.js";
@@ -121,6 +128,13 @@ subscription.inventory({
   // @ts-expect-error a subscription field is an iterable, not { subscribe }
   stockChanged: { subscribe: () => null }
 });
+
+// ---- Enum internal values ------------------------------------------------
+
+// @ts-expect-error OrderStatus has internal values (CustomEnums): enums is required
+feature.sales.orders({});
+// @ts-expect-error CANCELLED needs an internal value too
+feature.sales.orders({ enums: { OrderStatus: { CONFIRMED: "confirmed" } } });
 
 // ---- Field types outside resolvers --------------------------------------
 

@@ -156,14 +156,17 @@ declare module "@nxlab/codegen" {
 }
 ```
 
-Every generated position then uses it: object fields, arguments, and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime with olio's typed builder, which requires one for every value the module declares:
+Every generated position then uses it: object fields, arguments, and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime through the owning module's `enums` option. Once `CustomEnums` registers an enum, olio's types require it there, with a value for every value the module declares:
 
 ```ts
-export const OrderStatus = resolvers.sales.OrderStatus({
-  CONFIRMED: "confirmed",
-  CANCELLED: "cancelled"
+export const sales = module.sales({
+  typeDefs,
+  resolvers,
+  enums: { OrderStatus: { CONFIRMED: "confirmed", CANCELLED: "cancelled" } }
 });
 ```
+
+To keep a map in its own file, write it with the typed builder: `export const OrderStatus = resolvers.sales.OrderStatus({ ... })`, then `enums: { OrderStatus }`.
 
 ## Output
 

@@ -496,11 +496,42 @@ export type LoadedResolvers = { readonly [type: string]: never } & {
   readonly [loaded]: true;
 };
 
+type OwnEnum<O extends string> = {
+  [T in ModuleTypeName<O>]: Entry<O, T> extends { enum: string } ? T : never;
+}[ModuleTypeName<O>];
+
+// Codegen's `type` is what CustomEnums made of the enum, so a `type` other
+// than its GraphQL names means the enum has internal values.
+type CustomEnum<O extends string> = {
+  [T in OwnEnum<O>]: Entry<O, T> extends { enum: infer V; type: infer I }
+    ? [I] extends [V]
+      ? [V] extends [I]
+        ? never
+        : T
+      : T
+    : never;
+}[OwnEnum<O>];
+
+/** Internal values per enum, `{ Role: { ADMIN: 1, USER: 2 } }`; see `CustomEnums` in @nxlab/codegen. */
+export type EnumValues<O extends string> = Untyped extends true
+  ? Record<string, Record<string, unknown>>
+  : { [T in CustomEnum<O>]: TypeResolvers<O, T & ModuleTypeName<O>> };
+
+// Required once CustomEnums gives one of the owner's enums internal values:
+// without them graphql would fail on every value a resolver returns.
+type EnumsOption<O extends string> = Untyped extends true
+  ? { enums?: EnumValues<O> }
+  : [CustomEnum<O>] extends [never]
+    ? unknown
+    : { enums: EnumValues<O> };
+
 export type OwnerResolvers<O extends string> = Untyped extends true
   ? ResolverMap | UntypedInlineResolvers
   : O extends Owner
     ? {
-        [T in keyof App[O] & string]?: T extends RootName<"query">
+        [
+          T in Exclude<keyof App[O] & string, OwnEnum<O>>
+        ]?: T extends RootName<"query">
           ? QueryResolvers<O>
           : T extends RootName<"mutation">
             ? MutationResolvers<O>
@@ -510,7 +541,7 @@ export type OwnerResolvers<O extends string> = Untyped extends true
       } & { readonly [loaded]?: true }
     : never;
 
-export interface ModuleConfig<M extends ModuleId> {
+export type ModuleConfig<M extends ModuleId> = {
   typeDefs?: TypeSource | readonly TypeSource[];
   /**
    * One map: inline, or what `loadResolvers` returns. Not a list: a union
@@ -521,14 +552,14 @@ export interface ModuleConfig<M extends ModuleId> {
   middleware?: ModuleMiddleware<M>;
   /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
   features?: readonly OlioFeature[];
-}
+} & EnumsOption<M>;
 
-export interface FeatureConfig<M extends ModuleId, F extends string> {
+export type FeatureConfig<M extends ModuleId, F extends string> = {
   typeDefs?: TypeSource | readonly TypeSource[];
   /** One map, as for a module. */
   resolvers?: OwnerResolvers<`${M}/${F}`>;
   middleware?: FeatureMiddleware<M, F>;
-}
+} & EnumsOption<`${M}/${F}`>;
 
 /** Isolated: resolves only what its own SDL declares, like a module. */
 export interface OlioFeature {
@@ -536,6 +567,7 @@ export interface OlioFeature {
   readonly id: string;
   readonly typeDefs: readonly DocumentNode[];
   readonly resolvers: readonly ResolverMap[];
+  readonly enums: ResolverMap;
   readonly middleware: MiddlewareMap;
 }
 
@@ -543,6 +575,7 @@ export interface OlioModule {
   readonly id: string;
   readonly typeDefs: readonly DocumentNode[];
   readonly resolvers: readonly ResolverMap[];
+  readonly enums: ResolverMap;
   readonly middleware: MiddlewareMap;
   readonly features: readonly OlioFeature[];
 }

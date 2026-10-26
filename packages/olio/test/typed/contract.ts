@@ -109,26 +109,38 @@ mw.content({ Query: { node: [], articles: [] }, User: { articleCount: [] } });
 
 // ---- Inline resolver maps -------------------------------------------------
 
+// Role has internal values (CustomEnums), so every module.content() needs them.
+const enums = { Role: resolvers.content.Role({ ADMIN: 1, GUEST: 2 }) };
+// @ts-expect-error Role has internal values: enums is required
+module.content({ resolvers: fromFiles });
+// @ts-expect-error an enum's values go in enums, not resolvers
+module.content({ enums, resolvers: { Role: { ADMIN: 1, GUEST: 2 } } });
+// @ts-expect-error GUEST needs an internal value too
+module.content({ enums: { Role: { ADMIN: 1 } } });
+// The blog feature declares no enum, so it takes none.
+// @ts-expect-error no enums to give
+feature.content.blog({ enums });
+
 // Typed from the module, no builders needed: args, roots, enums, scalars.
 module.content({
+  enums,
   resolvers: {
     Query: {
       node: () => user,
       usersByRole: (_root, { role }) => [{ ...user, roleId: role }]
     },
     User: { role: (row) => row.roleId },
-    Role: { ADMIN: 1, GUEST: 2 },
     Upper: new GraphQLScalarType({ name: "Upper" })
   }
 });
 // @ts-expect-error unknown field
-module.content({ resolvers: { Query: { nope: () => null } } });
+module.content({ enums, resolvers: { Query: { nope: () => null } } });
 // @ts-expect-error role resolves to an internal value
-module.content({ resolvers: { User: { role: () => "ADMIN" } } });
+module.content({ enums, resolvers: { User: { role: () => "ADMIN" } } });
 // @ts-expect-error articles belongs to the blog feature
-module.content({ resolvers: { Query: { articles: () => [] } } });
+module.content({ enums, resolvers: { Query: { articles: () => [] } } });
 // @ts-expect-error a scalar's implementation is a GraphQLScalarType
-module.content({ resolvers: { Upper: { serialize: () => 1 } } });
+module.content({ enums, resolvers: { Upper: { serialize: () => 1 } } });
 
 // Features too.
 feature.content.blog({
@@ -151,6 +163,7 @@ feature.content.blog({ resolvers: { Query: { node: () => null } } });
 
 // A mistake is reported at the field, not on the whole map.
 module.content({
+  enums,
   resolvers: {
     Query: {
       usersByRole: (_root, { role }) => [{ ...user, roleId: role }],
@@ -167,10 +180,10 @@ module.content({
 
 // What loadResolvers returns passes through as the map.
 declare const fromFiles: LoadedResolvers;
-module.content({ resolvers: fromFiles });
+module.content({ enums, resolvers: fromFiles });
 feature.content.blog({ resolvers: fromFiles });
 // @ts-expect-error one map, not a list
-module.content({ resolvers: [fromFiles] });
+module.content({ enums, resolvers: [fromFiles] });
 
 // ---- Middleware maps --------------------------------------------------------
 
@@ -180,12 +193,12 @@ mw.content({ Query: { nope: [] } });
 // @ts-expect-error not a type
 mw.content({ Nope: { x: [] } });
 // @ts-expect-error not a field, in a module's own middleware
-module.content({ middleware: { Query: { nope: [] } } });
+module.content({ enums, middleware: { Query: { nope: [] } } });
 // @ts-expect-error a feature reaches only its own fields
 feature.content.blog({ middleware: { Query: { node: [] } } });
 // A typed map passes on as it is.
 const checked = mw.content({ Query: { node: [] } });
-module.content({ middleware: checked });
+module.content({ enums, middleware: checked });
 
 // Inline under a field key, root and args are that field's parent and args.
 mw.content({
@@ -206,6 +219,7 @@ mw.content({
 });
 // The same in a module's own middleware, and in a feature's.
 module.content({
+  enums,
   middleware: {
     // @ts-expect-error a User row has no title
     User: { name: [({ root }, next) => (root.title ? next() : "")] }
