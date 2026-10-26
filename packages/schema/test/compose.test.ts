@@ -1,13 +1,24 @@
 import { describe, expect, test } from "bun:test";
 
-import { parse, Source } from "graphql";
+import { parse, printSchema, Source } from "graphql";
 
-import { compose, copyDirective, type Ownership } from "../src/index.js";
+import {
+  bypassDefinition,
+  compose,
+  copyDirective,
+  type Bypass,
+  type Ownership
+} from "../src/index.js";
 
 const mod = (id: string, sdl: string) => ({
   id,
   typeDefs: [parse(new Source(sdl, `${id}.gql`))]
 });
+
+const keys = (bypass: Bypass) =>
+  Object.fromEntries(
+    [...bypass].map(([field, set]) => [field, [...set].sort()])
+  );
 
 const plain = (ownership: Ownership) =>
   Object.fromEntries(
@@ -138,5 +149,72 @@ describe("compose", () => {
       RootMutation: ["log"]
     });
     expect(plain(ownership).users?.RootQuery).toEqual(["user"]);
+  });
+
+  test("@bypass: keys per field, from a field, a type or an extend block", () => {
+    const { bypass, schema } = compose([
+      mod(
+        "auth",
+        `
+          type Session @bypass(keys: "audit") { token: String! }
+          extend type Query { me: Session @bypass(keys: ["tokenCheck"]) }
+          extend type Mutation @bypass(keys: "tokenCheck") {
+            login: Session
+            signUp: Session @bypass(keys: ["rateLimit", "tokenCheck"])
+          }
+        `
+      ),
+      mod("admin", "extend type Mutation { ban: Boolean }")
+    ]);
+    expect(keys(bypass)).toEqual({
+      "Session.token": ["audit"],
+      "Query.me": ["tokenCheck"],
+      "Mutation.login": ["tokenCheck"],
+      "Mutation.signUp": ["rateLimit", "tokenCheck"]
+    });
+    // Another module's fields on the same type aren't covered, and the
+    // directive never reaches the schema.
+    expect(bypass.has("Mutation.ban")).toBe(false);
+    expect(printSchema(schema)).not.toContain("bypass");
+  });
+
+  test("@bypass: declaring it is optional; @copy doesn't carry it", () => {
+    const { bypass, schema } = compose(
+      [
+        mod(
+          "m",
+          `${bypassDefinition}
+          type A { a: Int @bypass(keys: "x") }
+          type B @copy(from: ["A"]) { b: Int }
+          extend type Query { a: A b: B }`
+        )
+      ],
+      [copyDirective()]
+    );
+    expect(keys(bypass)).toEqual({ "A.a": ["x"] });
+    expect(printSchema(schema)).not.toContain("bypass");
+  });
+
+  test("@bypass: rejected anywhere but object types and their fields", () => {
+    const sdl = (s: string) => () =>
+      compose([mod("m", `type Query { a: Int } ${s}`)]);
+    expect(sdl('interface I @bypass(keys: "x") { a: Int }')).toThrow(
+      "m.gql:1:35: @bypass applies to object types and their fields only"
+    );
+    expect(sdl('interface I { a: Int @bypass(keys: "x") }')).toThrow(
+      "@bypass applies to object types and their fields only"
+    );
+    expect(sdl('input I { a: Int @bypass(keys: "x") }')).toThrow(
+      "@bypass applies to object types and their fields only"
+    );
+    expect(sdl("type T { a: Int @bypass }")).toThrow(
+      '@bypass on "T.a" needs keys, e.g. @bypass(keys: ["tokenCheck"])'
+    );
+    expect(sdl('type T { a: Int @bypass(keys: [""]) }')).toThrow(
+      '@bypass on "T.a": keys are non-empty strings'
+    );
+    expect(sdl('type T @bypass(keys: "x", why: "y") { a: Int }')).toThrow(
+      '@bypass on "T" takes only keys, not "why"'
+    );
   });
 });

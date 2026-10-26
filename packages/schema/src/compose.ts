@@ -15,6 +15,7 @@ import {
 import { validateSDL } from "graphql/validation/validate.js";
 
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";
+import { extractBypass, type Bypass } from "./bypass.js";
 import { located } from "./directives/shared.js";
 
 /** Modules sharing an id are merged. */
@@ -38,6 +39,7 @@ export interface Composed {
   schema: GraphQLSchema;
   ownership: Ownership;
   roots: RootTypes;
+  bypass: Bypass;
 }
 
 function rootTypes(document: DocumentNode): RootTypes {
@@ -189,7 +191,11 @@ export function compose(
   }
   const grouped = [...merged].map(([id, typeDefs]) => ({ id, typeDefs }));
 
-  const sdl = concatAST(grouped.flatMap((m) => m.typeDefs));
+  // Before the other directives, so a bypass stays where it's written:
+  // @copy doesn't carry it to the fields it copies.
+  const { document: sdl, bypass } = extractBypass(
+    concatAST(grouped.flatMap((m) => m.typeDefs))
+  );
   const roots = rootTypes(sdl);
   const document = applyDirectives(withRootTypes(sdl, roots), directives);
   assertNoErrors(validateSDL(document), "Invalid SDL");
@@ -205,6 +211,7 @@ export function compose(
       grouped.map((m) => m.id),
       roots
     ),
-    roots
+    roots,
+    bypass
   };
 }

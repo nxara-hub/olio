@@ -32,7 +32,7 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | Registering types, context and mappers | [`src/types.d.ts`](src/types.d.ts) |
 | Context from a bearer token, as an HTTP adapter would build it | [`src/context.ts`](src/context.ts) |
 | App middleware layers: logging, auth, audit | [`src/index.ts`](src/index.ts), [`src/middleware.ts`](src/middleware.ts) |
-| `-` keys: public `login` / `me`, with the logger re-added | [`auth/index.ts`](src/modules/auth/index.ts) |
+| `@bypass`: public `login` / `me`, read by `requireAuth` and `auditLog` | [`auth.gql`](src/modules/auth/typedefs/auth.gql), [`src/middleware.ts`](src/middleware.ts) |
 | Role checks as module middleware | [`inventory/index.ts`](src/modules/inventory/index.ts), [`sales/orders/middleware.ts`](src/modules/sales/orders/middleware.ts) |
 | Middleware on a field with no resolver (`Customer.email`) | [`sales/customers/middleware.ts`](src/modules/sales/customers/middleware.ts) |
 | `@implements`, including a field-less error type | [`auth.gql`](src/modules/auth/typedefs/auth.gql), [`orders.gql`](src/modules/sales/orders/typedefs/orders.gql) |

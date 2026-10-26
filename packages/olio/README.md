@@ -107,7 +107,7 @@ export const salesModule = module.sales({
 - **Discovery.** Codegen treats a direct subfolder of a module as a feature when the `typeDefs` glob finds files of its own there. With `**/typedefs/**/*.gql`, `sales/orders/typedefs/` makes `orders` a feature, while `sales/typedefs/` stays the module's own SDL. Features don't nest: deeper folders belong to their feature.
 - **Isolation.** A feature owns the fields its SDL declares, like a module does, and only it can resolve them. To add a field to a sibling's type, `extend` it (`orders` adds `Customer.orders`).
 - **Builders.** Each feature has its own typed builders: `query.sales.orders`, `mutation.sales.orders`, `resolvers.sales.orders.SalesOrder`, `mw.sales.orders`. The module's are still there (`query.sales` for fields the module itself declares).
-- **Middleware nests.** For a feature's field, the chain runs app → module → feature. `mw.sales` reaches every feature's fields, and `mw.sales.orders` only orders'. A `-` key in a feature drops the module's layers as well as the app's.
+- **Middleware nests.** For a feature's field, the chain runs app → module → feature. `mw.sales` reaches every feature's fields, and `mw.sales.orders` only orders'.
 - **Names.** A feature folder can't share its name with a type the module declares, or with a function property (`name`, `length`, …), because both sit side by side in the builders. Codegen tells you if one does.
 
 ## Application
@@ -163,11 +163,39 @@ Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the 
 
 The application addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`. A module addresses the fields it and its features declare, including fields they add to other modules' types with `extend`; a feature, only its own.
 
-A **`-` key** stops a target from inheriting middleware from the layers above it. `{ Query: { "-login": [rateLimit()] } }` runs only `rateLimit` for `Query.login`, and `"-*"` does the same for every field of the type, while lower layers still apply. `"x"` and `"-x"` can't be combined in one map: they're opposite instructions for the same field, so it's a compile error (`"-logout" can't be combined with "logout"`), and `olio()` throws if it gets past the types. Across layers it's fine: a feature's `-logout` simply drops its module's `logout` layer.
+### Skipping middleware: `@bypass`
+
+A field tells its middleware what to skip with `@bypass` in the SDL, and each middleware decides for itself:
+
+```graphql
+extend type Query {
+  me: Employee @bypass(keys: "auth")
+}
+
+# On a type, or an extend block: every field declared in that block.
+extend type Mutation @bypass(keys: ["auth", "audit"]) {
+  login(email: String!, password: String!): LoginResult!
+}
+```
+
+```ts
+const requireAuth =
+  (): MiddlewareFn =>
+  ({ ctx, bypass }, next) => {
+    if (!ctx.userId && !bypass.has("auth")) throw unauthenticated();
+    return next();
+  };
+```
+
+- **Per field, never per request.** `bypass` holds the keys of the field being resolved, so marking `login` doesn't relax anything else in the same operation.
+- **Where it goes:** on a field of an object type, or on an object type (definition or `extend`), where it covers the fields declared in that block. A block in one module doesn't reach another module's fields on the same type. Anywhere else is an error with its location.
+- **Out of the schema.** olio and codegen read and remove it while composing, so it isn't in the served schema, `schema.gql` or introspection. You don't need to declare it; `bypassDefinition` from `@nxlab/schema` is its SDL, for editor tooling. `@copy` doesn't carry it to copied fields.
+- **Typed.** With codegen, `bypass` is a `ReadonlySet` of the keys used anywhere in the SDL (`BypassKey`), so `bypass.has("auht")` is a compile error. Untyped, it's a set of strings.
+- **Nothing is dropped for you.** Other middleware, such as a logger, keeps running on a field marked `@bypass(keys: "auth")`.
 
 Middleware wraps the resolvers modules define, and any field it names explicitly. `"*"` keys only reach fields with a resolver, but naming a field (`User: { email: [redact()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs.
 
-Every key is checked when `olio()` builds the schema, even without codegen. A key that matches no field, an application key on a non-root type, or a `-` key at the application level throws.
+Every key is checked when `olio()` builds the schema, even without codegen. A key that matches no field, or an application key on a non-root type, throws.
 
 ## Subscriptions
 

@@ -234,8 +234,18 @@ export type Application = {
       args: {
         login: { email: Scalars["String"]["input"]; password: Scalars["String"]["input"] };
       };
+      bypass: {
+        login: "audit" | "auth";
+      };
     };
-    Query: { type: Query; fields: "me"; root: "query" };
+    Query: {
+      type: Query;
+      fields: "me";
+      root: "query";
+      bypass: {
+        me: "auth";
+      };
+    };
     Role: { type: Role; fields: never; enum: "ADMIN" | "CLERK" | "MANAGER" };
     Session: { type: Session; fields: "__isTypeOf" | "employee" | "token" };
   };

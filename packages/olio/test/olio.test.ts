@@ -107,45 +107,92 @@ describe("olio", () => {
     ]);
   });
 
-  test("a `-` key drops every upper layer for that target", async () => {
+  test("@bypass hands each field its keys; the middleware decides", async () => {
     const log: string[] = [];
+    const tokenCheck: MiddlewareFn = ({ bypass, info }, next) => {
+      if (!bypass.has("tokenCheck")) log.push(`check ${info.fieldName}`);
+      return next();
+    };
     const app = olio({
-      middleware: { "*": { "*": [trace(log, "app *.*")] } },
+      middleware: {
+        "*": { "*": [trace(log, "log")] },
+        Query: { "*": [tokenCheck] },
+        Mutation: { "*": [tokenCheck] }
+      },
       modules: [
         root,
-        users({
-          middleware: {
-            Query: {
-              "*": [trace(log, "mod Query.*")],
-              "-user": [trace(log, "only")]
+        createModule("auth", {
+          typeDefs: /* GraphQL */ `
+            extend type Query {
+              me: String @bypass(keys: "tokenCheck")
+              secret: String
             }
+            extend type Mutation @bypass(keys: ["tokenCheck"]) {
+              login: String
+            }
+          `,
+          resolvers: {
+            Query: { me: () => "ada", secret: () => "s" },
+            Mutation: { login: () => "token" }
           }
+        }),
+        createModule("admin", {
+          typeDefs: "extend type Mutation { ban: Boolean }",
+          resolvers: { Mutation: { ban: () => true } }
         })
       ]
     });
-    await run(app, `{ user(id: "1") { id } users { id } }`);
-    // Query.user: only its own; Query.users still inherits everything.
-    expect(log).toEqual(["only", "app *.*", "mod Query.*"]);
+    await run(app, "{ me secret }");
+    // The logger still runs everywhere: only the check reads the key.
+    expect(log.splice(0)).toEqual(["log", "log", "check secret"]);
+    await run(app, "mutation { login ban }");
+    // The extend block covers its own fields, not another module's.
+    expect(log.splice(0)).toEqual(["log", "log", "check ban"]);
   });
 
-  test("`-*` drops the app layer but keeps lower module layers", async () => {
-    const log: string[] = [];
+  test("@bypass reaches default resolvers and subscriptions too", async () => {
+    const seen: string[] = [];
+    const record: MiddlewareFn = ({ bypass, info }, next) => {
+      seen.push(`${info.fieldName}: ${[...bypass].join(",")}`);
+      return next();
+    };
     const app = olio({
-      middleware: { Query: { "*": [trace(log, "app")] } },
       modules: [
         root,
-        users({
-          middleware: {
-            Query: {
-              "-*": [trace(log, "mod -*")],
-              user: [trace(log, "mod user")]
+        createModule("live", {
+          typeDefs: /* GraphQL */ `
+            type Item {
+              name: String @bypass(keys: "redact")
             }
+            extend type Query {
+              item: Item
+            }
+            extend type Subscription {
+              tick: Int @bypass(keys: "rateLimit")
+            }
+          `,
+          resolvers: {
+            Query: { item: () => ({ name: "chair" }) },
+            Subscription: {
+              async *tick() {
+                yield 1;
+              }
+            }
+          },
+          middleware: {
+            Item: { name: [record] },
+            Subscription: { tick: [record] }
           }
         })
       ]
     });
-    await run(app, `{ user(id: "1") { id } }`);
-    expect(log).toEqual(["mod -*", "mod user"]);
+    await run(app, "{ item { name } }");
+    const events = await subscribe({
+      schema: app.schema,
+      document: parse("subscription { tick }")
+    });
+    await (events as AsyncGenerator<unknown>).next();
+    expect(seen).toEqual(["name: redact", "tick: rateLimit"]);
   });
 
   test("features own their fields; middleware nests app → module → feature", async () => {
@@ -171,7 +218,9 @@ describe("olio", () => {
             Query: { orderCount: () => 2 },
             Customer: { orders: () => 2 }
           },
-          middleware: { Query: { "-orderCount": [trace(log, "orders only")] } }
+          middleware: {
+            Query: { orderCount: [trace(log, "orders orderCount")] }
+          }
         })
       ]
     });
@@ -190,8 +239,12 @@ describe("olio", () => {
     ]);
 
     await run(app, "{ orderCount }");
-    // A feature's "-" drops the module's layers and the app's.
-    expect(log.splice(0)).toEqual(["orders only"]);
+    // A feature's own layer runs last.
+    expect(log.splice(0)).toEqual([
+      "app Query.*",
+      "sales Query.*",
+      "orders orderCount"
+    ]);
 
     expect((await run(app, "{ customer { orders } }")).data).toEqual({
       customer: { orders: 2 }
@@ -373,20 +426,10 @@ describe("olio", () => {
     expect(build({ middleware: { Query: { nope: [] } } })).toThrow(
       'Application middleware "Query.nope": unknown field'
     );
-    expect(build({ middleware: { Query: { "-user": [] } } })).toThrow(
-      '"-" keys only apply to module middleware'
-    );
     expect(
       build({ modules: [root, users({ middleware: { User: { nmae: [] } } })] })
     ).toThrow(
       'Module "users": middleware "User.nmae" targets a field the module doesn\'t declare'
-    );
-    expect(
-      build({
-        modules: [root, users({ middleware: { Query: { "-_empty": [] } } })]
-      })
-    ).toThrow(
-      'middleware "Query.-_empty" targets a field the module doesn\'t declare'
     );
   });
 
@@ -762,13 +805,6 @@ describe("olio", () => {
     });
   });
 
-  test("middleware maps with `x` and `-x` don't compile, even untyped", () => {
-    const conflicting = { Query: { a: [], "-a": [] } } as const;
-    // @ts-expect-error "-a" can't be combined with "a"
-    const build = () => createModule("x", { middleware: conflicting });
-    expect(build).toBeFunction();
-  });
-
   test("module.<id> builds a module with that id", () => {
     expect(module.users?.({}).id).toBe("users");
   });
@@ -844,13 +880,5 @@ describe("olio", () => {
         ]
       })
     ).toThrow('Module "x": unknown field "Query.nope"');
-    expect(() =>
-      olio({
-        modules: [
-          root,
-          users({ middleware: { Query: { user: [], "-user": [] } } })
-        ]
-      })
-    ).toThrow('Middleware "Query.user" cannot be combined with "Query.-user"');
   });
 });

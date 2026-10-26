@@ -22,10 +22,11 @@ union LoginResult = Session | InvalidCredentials
 
 extend type Query {
   "The signed-in employee, or null."
-  me: Employee
+  me: Employee @bypass(keys: "auth")
 }
 
 extend type Mutation {
   login(email: String!, password: String!): LoginResult!
+    @bypass(keys: ["auth", "audit"])
   logout: Boolean!
 }

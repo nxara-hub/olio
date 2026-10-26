@@ -169,6 +169,42 @@ describe("generate: Application", () => {
     );
   });
 
+  test("lists each owned field's @bypass keys", () => {
+    expect(
+      application(
+        gen(`
+          type Query { me: String @bypass(keys: ["tokenCheck", "audit"]) }
+          type Mutation @bypass(keys: "tokenCheck") { login(email: String!): String }
+        `)
+      )
+    ).toBe(
+      `export type Application = {
+  auth: {
+    Mutation: {
+      type: Mutation;
+      fields: "login";
+      root: "mutation";
+      args: {
+        login: { email: Scalars["String"]["input"] };
+      };
+      bypass: {
+        login: "tokenCheck";
+      };
+    };
+    Query: {
+      type: Query;
+      fields: "me";
+      root: "query";
+      bypass: {
+        me: "audit" | "tokenCheck";
+      };
+    };
+  };
+};
+`
+    );
+  });
+
   test("a module owns the fields it adds with extend, on any type", () => {
     const app = application(
       generate([

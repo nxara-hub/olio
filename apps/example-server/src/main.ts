@@ -45,7 +45,7 @@ const login = async (email: string): Promise<string> => {
   return session.token;
 };
 
-// auth: login and me are public ("-login" / "-me"), everything else is not.
+// auth: login and me are public (@bypass(keys: "auth")), everything else is not.
 await run(
   "A wrong password is a typed result, not an error",
   `mutation { login(email: "carl@erp.test", password: "nope") {

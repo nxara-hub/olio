@@ -37,5 +37,5 @@ type Query {
   node(id: ID!): Node
   items: [Item!]!
   named: [Named!]!
-  usersByRole(role: Role!): [User!]!
+  usersByRole(role: Role!): [User!]! @bypass(keys: "tokenCheck")
 }

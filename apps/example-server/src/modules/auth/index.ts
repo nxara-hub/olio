@@ -2,7 +2,6 @@ import { module, mw, type MiddlewareFn } from "@nxlab/olio";
 import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
 
 import { clientError } from "../../errors.js";
-import { requestLogger } from "../../middleware.js";
 
 /** At most `max` login attempts per email per process; enough for a demo. */
 const rateLimit = (max: number): MiddlewareFn => {
@@ -24,10 +23,6 @@ export const authModule = module.auth({
     new URL("{query,mutation}.{js,ts}", import.meta.url),
     new URL("resolvers/*.{js,ts}", import.meta.url)
   ),
-  // "-" drops every layer above (the app's requireAuth, and its logger too),
-  // so these two fields are public. Re-add what they should keep.
-  middleware: mw.auth({
-    Query: { "-me": [requestLogger()] },
-    Mutation: { "-login": [requestLogger(), rateLimit(5)] }
-  })
+  // me and login are public through @bypass in auth.gql; login gets a limit.
+  middleware: mw.auth({ Mutation: { login: [rateLimit(5)] } })
 });

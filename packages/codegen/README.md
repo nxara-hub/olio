@@ -112,6 +112,7 @@ export type Application = {
 - **`args`** appears only for fields that take arguments.
 - **Enums** appear as `{ type; fields: never; enum: "A" | "B" }`, listing the values the module declares (an `extend enum` belongs to the extending module).
 - **Scalars** appear as `{ type; fields: never; scalar: true }` under the module that defines them, which supplies the implementation.
+- **`bypass`** lists, per owned field, the keys its `@bypass` gives it (`bypass: { login: "audit" | "auth" }`). olio types middleware's `bypass` set from every key listed here.
 - **`root`** marks a root type with its operation (`root: "query"`), so olio finds the roots whatever they're named. A hand-written `Application` needs it too.
 
 Middleware targets aren't emitted: a module's targets are its owned fields, and the application's are the root fields.

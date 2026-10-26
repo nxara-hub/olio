@@ -1,6 +1,7 @@
 import {
   compose,
   SCALAR,
+  type Bypass,
   type Ownership,
   type SchemaDirective
 } from "@nxlab/schema";
@@ -84,10 +85,10 @@ function resolverMap(
   return [resolvers as ResolverMap];
 }
 
-export function createModule<
-  M extends ModuleId,
-  const MW extends ModuleMiddleware<M> = ModuleMiddleware<M>
->(id: M, config: ModuleConfig<M, MW>): OlioModule {
+export function createModule<M extends ModuleId>(
+  id: M,
+  config: ModuleConfig<M>
+): OlioModule {
   return {
     id,
     typeDefs: parseAll(config.typeDefs, `module "${id}"`),
@@ -97,11 +98,11 @@ export function createModule<
   };
 }
 
-export function createFeature<
-  M extends ModuleId,
-  F extends string,
-  const MW extends FeatureMiddleware<M, F> = FeatureMiddleware<M, F>
->(module: M, id: F, config: FeatureConfig<M, F, MW>): OlioFeature {
+export function createFeature<M extends ModuleId, F extends string>(
+  module: M,
+  id: F,
+  config: FeatureConfig<M, F>
+): OlioFeature {
   return {
     module,
     id,
@@ -159,56 +160,41 @@ function owners(modules: readonly OlioModule[]): Owner[] {
   return result;
 }
 
-interface Layer {
-  fns: readonly MiddlewareFn[];
-  dropsAbove: boolean;
-}
-
-function layer(
-  middleware: MiddlewareMap,
-  type: string,
-  key: string
-): Layer | undefined {
-  const fields = middleware[type];
-  const adding = fields?.[key];
-  const dropping = fields?.[`-${key}`];
-  if (adding && dropping) {
-    throw new Error(
-      `Middleware "${type}.${key}" cannot be combined with "${type}.-${key}"`
-    );
-  }
-  if (dropping) return { fns: dropping, dropsAbove: true };
-  return adding ? { fns: adding, dropsAbove: false } : undefined;
-}
-
 function chainFor(
   app: MiddlewareMap,
   owner: Owner,
   type: string,
   field: string
 ): MiddlewareFn[] {
-  const layers = [
-    layer(app, "*", "*"),
-    layer(app, type, "*"),
-    layer(app, type, field),
+  return [
+    app["*"]?.["*"],
+    app[type]?.["*"],
+    app[type]?.[field],
     ...[...owner.upperMiddleware, owner.middleware].flatMap((map) => [
-      layer(map, type, "*"),
-      layer(map, type, field)
+      map[type]?.["*"],
+      map[type]?.[field]
     ])
-  ];
-  const chain: MiddlewareFn[] = [];
-  for (const current of layers) {
-    if (!current) continue;
-    if (current.dropsAbove) chain.length = 0;
-    chain.push(...current.fns);
-  }
-  return chain;
+  ].flatMap((fns) => fns ?? []);
 }
 
-function wrap(resolve: Resolve, chain: readonly MiddlewareFn[]): Resolve {
+// One shared empty set for every field without a @bypass.
+const NO_BYPASS: ReadonlySet<string> = new Set();
+
+function wrap(
+  resolve: Resolve,
+  chain: readonly MiddlewareFn[],
+  bypass: ReadonlySet<string>
+): Resolve {
   if (chain.length === 0) return resolve;
   return (root, args, ctx, info) => {
-    const params: MiddlewareParams = { root, args, ctx, info };
+    // The keys come from the same SDL BypassKey is generated from.
+    const params: MiddlewareParams = {
+      root,
+      args,
+      ctx,
+      info,
+      bypass: bypass as MiddlewareParams["bypass"]
+    };
     const run = (index: number): unknown => {
       const fn = chain[index];
       // Middleware may replace root/args/ctx on `params` before calling next.
@@ -225,6 +211,7 @@ interface Attach {
   owner: Owner;
   appMiddleware: MiddlewareMap;
   declared: ReadonlyMap<string, string>;
+  bypass: Bypass;
   resolved: Set<string>;
   enums: Set<GraphQLEnumType>;
 }
@@ -353,13 +340,14 @@ function applyField(
     return;
   }
   const chain = chainFor(appMiddleware, owner, type.name, fieldName);
+  const bypass = attach.bypass.get(key) ?? NO_BYPASS;
   if (subscription) {
     // Each event is the field's value; middleware runs once, on subscribe.
-    field.subscribe = wrap(resolve, chain);
+    field.subscribe = wrap(resolve, chain, bypass);
     field.resolve = (event) => event;
     return;
   }
-  field.resolve = wrap(resolve, chain);
+  field.resolve = wrap(resolve, chain, bypass);
 }
 
 function applyEnum(
@@ -492,11 +480,6 @@ function checkAppMiddleware(
   for (const [type, fields] of Object.entries(middleware)) {
     for (const key of Object.keys(fields ?? {})) {
       const target = `"${type}.${key}"`;
-      if (key.startsWith("-")) {
-        throw new Error(
-          `Application middleware ${target}: "-" keys only apply to module middleware`
-        );
-      }
       if (type === "*") {
         if (key !== "*") {
           throw new Error(
@@ -534,14 +517,13 @@ function checkOwnerMiddleware(
           `${owner.label}: middleware "${type}.${key}" targets ${type}, which has no fields to wrap`
         );
       }
-      const field = key.replace(/^-/, "");
       const reaches =
-        field === "*"
+        key === "*"
           ? [...declared].some(
               ([k, id]) => owner.canTarget(id) && k.startsWith(`${type}.`)
             )
-          : owner.canTarget(declared.get(`${type}.${field}`) ?? "") &&
-            !field.startsWith("__");
+          : owner.canTarget(declared.get(`${type}.${key}`) ?? "") &&
+            !key.startsWith("__");
       if (!reaches) {
         throw new Error(
           `${owner.label}: middleware "${type}.${key}" targets a field the ${owner.kind} doesn't declare`
@@ -557,15 +539,15 @@ function wrapDefaults(
   schema: GraphQLSchema,
   app: MiddlewareMap,
   all: readonly Owner[],
-  declared: ReadonlyMap<string, string>
+  declared: ReadonlyMap<string, string>,
+  bypass: Bypass
 ): void {
   const byId = new Map(all.map((o) => [o.id, o]));
   const targets = new Set<string>();
   for (const map of [app, ...all.map((o) => o.middleware)]) {
     for (const [type, fields] of Object.entries(map)) {
       for (const key of Object.keys(fields ?? {})) {
-        const field = key.replace(/^-/, "");
-        if (type !== "*" && field !== "*") targets.add(`${type}.${field}`);
+        if (type !== "*" && key !== "*") targets.add(`${type}.${key}`);
       }
     }
   }
@@ -578,7 +560,8 @@ function wrapDefaults(
     if (!field || field.resolve || !owner) continue;
     field.resolve = wrap(
       defaultFieldResolver as Resolve,
-      chainFor(app, owner, typeName, fieldName)
+      chainFor(app, owner, typeName, fieldName),
+      bypass.get(target) ?? NO_BYPASS
     );
   }
 }
@@ -586,7 +569,7 @@ function wrapDefaults(
 /** Middleware wraps the resolvers modules define, plus any field it names explicitly. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
-  const { schema, ownership } = compose(all, config.directives);
+  const { schema, ownership, bypass } = compose(all, config.directives);
   const declared = declarations(ownership);
   const appMiddleware = (config.middleware ?? {}) as MiddlewareMap;
   checkAppMiddleware(schema, appMiddleware);
@@ -595,11 +578,19 @@ export function olio(config: OlioConfig): OlioApp {
   const enums = new Set<GraphQLEnumType>();
   for (const owner of all) {
     checkOwnerMiddleware(schema, owner, declared);
-    applyResolvers({ schema, owner, appMiddleware, declared, resolved, enums });
+    applyResolvers({
+      schema,
+      owner,
+      appMiddleware,
+      declared,
+      bypass,
+      resolved,
+      enums
+    });
   }
   checkEnums(enums);
   coerceDefaults(schema);
-  wrapDefaults(schema, appMiddleware, all, declared);
+  wrapDefaults(schema, appMiddleware, all, declared, bypass);
 
   return { schema, modules: config.modules };
 }

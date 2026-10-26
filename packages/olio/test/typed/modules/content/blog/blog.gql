@@ -5,7 +5,7 @@ type Article {
   title: String!
 }
 
-extend type Query {
+extend type Query @bypass(keys: ["audit"]) {
   articles: [Article!]!
 }
 

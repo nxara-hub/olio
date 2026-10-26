@@ -22,10 +22,11 @@ export const requestLogger =
     }
   };
 
+/** Skipped for fields marked `@bypass(keys: "auth")`. */
 export const requireAuth =
   (): AnyOperationFn =>
-  ({ ctx, info }, next) => {
-    if (!ctx.viewer) {
+  ({ ctx, info, bypass }, next) => {
+    if (!ctx.viewer && !bypass.has("auth")) {
       throw clientError("UNAUTHENTICATED", `Unauthorized: ${info.fieldName}`);
     }
     return next();
@@ -43,9 +44,11 @@ export const requireRole =
     return next();
   };
 
+/** Skipped for fields marked `@bypass(keys: "audit")`. */
 export const auditLog =
   (): MiddlewareFn =>
-  ({ ctx, info }, next) => {
+  ({ ctx, info, bypass }, next) => {
+    if (bypass.has("audit")) return next();
     console.log(
       `  [${ctx.requestId}] audit ${ctx.viewer?.id} → ${info.fieldName}`
     );

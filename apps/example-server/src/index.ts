@@ -4,8 +4,8 @@ import { loadModules } from "@nxlab/tools";
 import { directives } from "./directives.js";
 import { auditLog, requestLogger, requireAuth } from "./middleware.js";
 
-// Application-wide layers. Modules add their own below these, and can opt a
-// field out with a "-" key (see modules/auth).
+// Application-wide layers. Modules add their own below these. A field opts out
+// of requireAuth or auditLog with @bypass in its SDL (see modules/auth).
 const middleware = mw({
   "*": { "*": [requestLogger()] },
   Query: { "*": [requireAuth()] },

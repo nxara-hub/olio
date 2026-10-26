@@ -96,7 +96,7 @@ export function compile(
   options: GenerateOptions = {}
 ): Compiled {
   // Same-named modules merge, so a module can be passed in pieces.
-  const { document, schema, ownership, roots } = compose(
+  const { document, schema, ownership, roots, bypass } = compose(
     modules.map((m) => ({
       id: m.id,
       typeDefs: (Array.isArray(m.typeDefs) ? m.typeDefs : [m.typeDefs]).map(
@@ -126,7 +126,7 @@ export function compile(
     region("Inputs", types.filter(isInputObjectType).map(emitInput)),
     region("Unions", types.filter(isUnionType).map(emitUnion)),
     region("Interfaces", types.filter(isInterfaceType).map(emitInterface)),
-    emitApplication(schema, ownership, roots)
+    emitApplication(schema, ownership, roots, bypass)
   ];
   return { document, code: `${parts.join("\n\n")}\n`, schema };
 }

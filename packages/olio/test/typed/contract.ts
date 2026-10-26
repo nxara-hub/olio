@@ -162,19 +162,15 @@ module.content({ resolvers: [fromFiles] });
 
 // ---- Middleware maps --------------------------------------------------------
 
-// "x" and "-x" in one map are opposite instructions: a compile error.
-// @ts-expect-error "-node" can't be combined with "node"
-mw.content({ Query: { "-node": [], node: [] } });
-// @ts-expect-error same check inline in a module
-module.content({ middleware: { Query: { node: [], "-node": [] } } });
-const featureConflict = { Query: { articles: [], "-articles": [] } } as const;
-// @ts-expect-error and in a feature
-feature.content.blog({ middleware: featureConflict });
-// Unknown keys are still rejected.
+// Unknown keys are rejected.
 // @ts-expect-error not a field
 mw.content({ Query: { nope: [] } });
 // @ts-expect-error not a type
 mw.content({ Nope: { x: [] } });
+// @ts-expect-error not a field, in a module's own middleware
+module.content({ middleware: { Query: { nope: [] } } });
+// @ts-expect-error a feature reaches only its own fields
+feature.content.blog({ middleware: { Query: { node: [] } } });
 // A typed map passes on as it is.
 const checked = mw.content({ Query: { node: [] } });
 module.content({ middleware: checked });
@@ -218,6 +214,14 @@ mw.content({
     "*": [({ root }, next) => (typeof root === "object" ? next() : null)]
   }
 });
+// bypass holds the keys @bypass uses anywhere in the SDL.
+const tokenCheck: MiddlewareFn = ({ bypass }, next) =>
+  bypass.has("tokenCheck") || bypass.has("audit") ? next() : next();
+const typo: MiddlewareFn = ({ bypass }, next) =>
+  // @ts-expect-error no @bypass uses "tokenChek"
+  bypass.has("tokenChek") ? next() : next();
+mw({ "*": { "*": [tokenCheck, typo] } });
+
 // A middleware written on its own is the exception: loose, so it fits any key.
 const logged: MiddlewareFn = (_params, next) => next();
 mw.content({ Query: { usersByRole: [logged] }, User: { name: [logged] } });

@@ -177,7 +177,23 @@ export interface MiddlewareParams<
   args: A;
   ctx: Ctx;
   info: GraphQLResolveInfo;
+  /**
+   * The keys `@bypass` gives this field in the SDL, on the field or on its
+   * type block: `if (bypass.has("tokenCheck")) return next();`.
+   */
+  bypass: ReadonlySet<BypassKey>;
 }
+
+/** Every key a `@bypass` in the SDL uses. */
+export type BypassKey = Untyped extends true
+  ? string
+  : {
+      [O in Owner]: {
+        [T in keyof App[O]]: App[O][T] extends { bypass: infer B }
+          ? B[keyof B]
+          : never;
+      }[keyof App[O]];
+    }[Owner];
 
 /**
  * `"*"` middleware also runs on subscriptions: type it
@@ -237,12 +253,10 @@ type MiddlewareRoot<Os extends Owner, T> = T extends RootType
   : { [O in Os]: Parent<Entry<O, T>> }[Os];
 
 // "*" keys span fields with different arguments, so they keep the loose type.
-type MiddlewareArgs<Os extends Owner, T, K> = K extends "*" | "-*"
+type MiddlewareArgs<Os extends Owner, T, K> = K extends "*"
   ? Record<string, unknown>
   : {
-      [O in Os]: (K extends `-${infer F}` ? F : K) extends Owned<Entry<O, T>>
-        ? Args<Entry<O, T>, K extends `-${infer F}` ? F : K>
-        : never;
+      [O in Os]: K extends Owned<Entry<O, T>> ? Args<Entry<O, T>, K> : never;
     }[Os];
 
 type MiddlewareFor<Os extends Owner> = {
@@ -253,51 +267,24 @@ type MiddlewareFor<Os extends Owner> = {
       ? never
       : T
   ]?: {
-    [
-      K in
-        | "*"
-        | "-*"
-        | { [O in Os]: MiddlewareFields<O, T> }[Os]
-        | `-${{ [O in Os]: MiddlewareFields<O, T> }[Os]}`
-    ]?: Fns<T, MiddlewareRoot<Os, T>, MiddlewareArgs<Os, T, K>>;
+    [K in "*" | { [O in Os]: MiddlewareFields<O, T> }[Os]]?: Fns<
+      T,
+      MiddlewareRoot<Os, T>,
+      MiddlewareArgs<Os, T, K>
+    >;
   };
 };
 
-/**
- * Reaches the module's features too. A `-` key (`"-user"`, `"-*"`) drops the
- * upper layers' middleware for that target instead of adding to it.
- */
+/** Reaches the module's features too. */
 export type ModuleMiddleware<M extends ModuleId> = Untyped extends true
   ? MiddlewareMap
   : MiddlewareFor<ModuleOwners<M> & Owner>;
 
-/** Runs after the module's layers; a `-` key drops those too. */
+/** Runs after the module's layers. */
 export type FeatureMiddleware<
   M extends ModuleId,
   F extends string
 > = Untyped extends true ? MiddlewareMap : MiddlewareFor<`${M}/${F}` & Owner>;
-
-type PresentKeys<T> = {
-  [K in keyof T]-?: object extends Pick<T, K> ? never : K;
-}[keyof T];
-
-// The builders take the map as a generic, which loses the excess-property
-// check; this puts it back, with a message on the offending key.
-export type CheckedMiddleware<T, Shape> = {
-  [Type in keyof T]: Type extends keyof Shape
-    ? {
-        [K in keyof T[Type]]: K extends keyof NonNullable<Shape[Type]>
-          ? K extends `-${infer F}`
-            ? F extends PresentKeys<T[Type]>
-              ? K extends PresentKeys<T[Type]>
-                ? `"${K}" can't be combined with "${F}"`
-                : T[Type][K]
-              : T[Type][K]
-            : T[Type][K]
-          : `"${Type & string}.${K & string}" isn't a field this module or feature declares`;
-      }
-    : `"${Type & string}" has no fields this module or feature declares`;
-};
 
 /**
  * What a field's `extensions` may hold, registered like `Olio` (`Source` and
@@ -492,7 +479,7 @@ export type OwnerResolvers<O extends string> = Untyped extends true
       } & { readonly [loaded]?: true }
     : never;
 
-export interface ModuleConfig<M extends ModuleId, MW = ModuleMiddleware<M>> {
+export interface ModuleConfig<M extends ModuleId> {
   typeDefs?: TypeSource | readonly TypeSource[];
   /**
    * One map: inline, or what `loadResolvers` returns. Not a list: a union
@@ -500,20 +487,16 @@ export interface ModuleConfig<M extends ModuleId, MW = ModuleMiddleware<M>> {
    */
   resolvers?: OwnerResolvers<M>;
   /** May target the features' fields too. */
-  middleware?: MW & CheckedMiddleware<MW, ModuleMiddleware<M>>;
+  middleware?: ModuleMiddleware<M>;
   /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
   features?: readonly OlioFeature[];
 }
 
-export interface FeatureConfig<
-  M extends ModuleId,
-  F extends string,
-  MW = FeatureMiddleware<M, F>
-> {
+export interface FeatureConfig<M extends ModuleId, F extends string> {
   typeDefs?: TypeSource | readonly TypeSource[];
   /** One map, as for a module. */
   resolvers?: OwnerResolvers<`${M}/${F}`>;
-  middleware?: MW & CheckedMiddleware<MW, FeatureMiddleware<M, F>>;
+  middleware?: FeatureMiddleware<M, F>;
 }
 
 /** Isolated: resolves only what its own SDL declares, like a module. */

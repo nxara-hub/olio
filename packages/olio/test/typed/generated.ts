@@ -99,6 +99,9 @@ export type Application = {
         node: { id: Scalars["ID"]["input"] };
         usersByRole: { role: Role };
       };
+      bypass: {
+        usersByRole: "tokenCheck";
+      };
     };
     Role: { type: Role; fields: never; enum: "ADMIN" | "GUEST" };
     Tag: { type: Tag; fields: "__isTypeOf" | "name" };
@@ -107,7 +110,14 @@ export type Application = {
   };
   "content/blog": {
     Article: { type: Article; fields: "__isTypeOf" | "id" | "title" };
-    Query: { type: Query; fields: "articles"; root: "query" };
+    Query: {
+      type: Query;
+      fields: "articles";
+      root: "query";
+      bypass: {
+        articles: "audit";
+      };
+    };
     User: { type: User; fields: "articleCount" };
   };
 };

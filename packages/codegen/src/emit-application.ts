@@ -1,4 +1,4 @@
-import type { Ownership, RootTypes } from "@nxlab/schema";
+import type { Bypass, Ownership, RootTypes } from "@nxlab/schema";
 import {
   isAbstractType,
   isEnumType,
@@ -21,6 +21,7 @@ const union = (names: readonly string[]): string =>
 function emitEntry(
   schema: GraphQLSchema,
   operations: ReadonlyMap<string, string>,
+  bypass: Bypass,
   name: string,
   owned: ReadonlySet<string>
 ): string {
@@ -55,13 +56,20 @@ function emitEntry(
       : [];
   });
 
-  if (args.length === 0) return `    ${name}: { ${members.join("; ")} };`;
+  const bypassed = fields.flatMap((f) => {
+    const keys = bypass.get(`${name}.${f}`);
+    return keys ? [`        ${f}: ${union([...keys].sort())};`] : [];
+  });
+
+  const sections = [
+    ...(args.length ? ["      args: {", ...args, "      };"] : []),
+    ...(bypassed.length ? ["      bypass: {", ...bypassed, "      };"] : [])
+  ];
+  if (sections.length === 0) return `    ${name}: { ${members.join("; ")} };`;
   return [
     `    ${name}: {`,
     ...members.map((m) => `      ${m};`),
-    "      args: {",
-    ...args,
-    "      };",
+    ...sections,
     "    };"
   ].join("\n");
 }
@@ -69,7 +77,8 @@ function emitEntry(
 export function emitApplication(
   schema: GraphQLSchema,
   ownership: Ownership,
-  roots: RootTypes
+  roots: RootTypes,
+  bypass: Bypass
 ): string {
   const operations = new Map(
     Object.entries(roots).map(([operation, name]) => [name, operation])
@@ -79,7 +88,9 @@ export function emitApplication(
     .map(([id, types]) => {
       const entries = [...types]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([name, owned]) => emitEntry(schema, operations, name, owned));
+        .map(([name, owned]) =>
+          emitEntry(schema, operations, bypass, name, owned)
+        );
       return entries.length
         ? `  ${moduleKey(id)}: {\n${entries.join("\n")}\n  };`
         : `  ${moduleKey(id)}: {};`;
