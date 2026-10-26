@@ -237,11 +237,10 @@ interface Attach {
   appMiddleware: MiddlewareMap;
   declared: ReadonlyMap<string, string>;
   bypass: Bypass;
-  resolved: Set<string>;
   enums: Set<GraphQLEnumType>;
 }
 
-function claim({ owner: self, declared, resolved }: Attach, key: string): void {
+function claim({ owner: self, declared }: Attach, key: string): void {
   const where = self.label;
   const owner = declared.get(key);
   if (owner !== self.id) {
@@ -251,9 +250,6 @@ function claim({ owner: self, declared, resolved }: Attach, key: string): void {
         : `${where}: "${key}" can't be resolved here`
     );
   }
-  if (resolved.has(key))
-    throw new Error(`${where}: "${key}" is resolved twice`);
-  resolved.add(key);
 }
 
 const SCALAR_METHODS = ["serialize", "parseValue", "parseLiteral"] as const;
@@ -668,7 +664,6 @@ export function olio(config: OlioConfig): OlioApp {
   const appMiddleware = (config.middleware ?? {}) as MiddlewareMap;
   checkAppMiddleware(schema, appMiddleware);
 
-  const resolved = new Set<string>();
   const enums = new Set<GraphQLEnumType>();
   for (const owner of all) {
     checkOwnerMiddleware(schema, owner, declared);
@@ -678,7 +673,6 @@ export function olio(config: OlioConfig): OlioApp {
       appMiddleware,
       declared,
       bypass,
-      resolved,
       enums
     });
   }
