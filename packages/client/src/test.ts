@@ -10,7 +10,8 @@ import { createClient } from "./index.js";
 import type { MaybePromise } from "./transport.js";
 import type { Client, ClientOptions, Operations } from "./types.js";
 
-export interface TestServer {
+/** `Ctx` is what `context` returns, and so what `onOperationEnd` receives. */
+export interface TestServer<Ctx = unknown> {
   /** Queries and mutations: the app's fetch handler, e.g. `fetchHandler(app, { context })`. */
   http: (request: Request) => MaybePromise<Response>;
   /** For subscriptions, which run in memory over both transports: `app.schema`. */
@@ -19,26 +20,27 @@ export interface TestServer {
    * Context for subscriptions, from the client's headers (over WebSocket, the
    * `connectionParams.headers` the client sends).
    */
-  context?: (headers: Headers) => MaybePromise<unknown>;
+  context?: (headers: Headers) => MaybePromise<Ctx>;
   /** Called once a subscription ends, as on the server: `(ctx) => ctx.di.dispose()`. */
-  onOperationEnd?: (ctx: unknown) => MaybePromise<void>;
+  // NoInfer: `context` decides Ctx, so a mismatched hook is the error.
+  onOperationEnd?: (ctx: NoInfer<Ctx>) => MaybePromise<void>;
 }
 
 type Listener = ((event: never) => void) | null;
 
 // Ends each subscription's context once: when it completes, or when its
 // socket closes first.
-function tracker(onOperationEnd: TestServer["onOperationEnd"]) {
-  const live = new WeakMap<object, Map<string, unknown>>();
+function tracker<Ctx>(onOperationEnd: TestServer<Ctx>["onOperationEnd"]) {
+  const live = new WeakMap<object, Map<string, Ctx>>();
   const end = async (connection: object, id: string): Promise<void> => {
     const contexts = live.get(connection);
     const ctx = contexts?.get(id);
     if (!contexts?.delete(id)) return;
-    await onOperationEnd?.(ctx);
+    await onOperationEnd?.(ctx as Ctx);
   };
   return {
-    start(connection: object, id: string, ctx: unknown): void {
-      const contexts = live.get(connection) ?? new Map<string, unknown>();
+    start(connection: object, id: string, ctx: Ctx): void {
+      const contexts = live.get(connection) ?? new Map<string, Ctx>();
       contexts.set(id, ctx);
       live.set(connection, contexts);
     },
@@ -57,8 +59,10 @@ const paramsHeaders = (params: Readonly<Record<string, unknown>> | undefined) =>
  * A WebSocket connected straight to a graphql-ws server for `schema`, with
  * no network: what `testClient` hands the client's WebSocket transport.
  */
-function memoryWebSocket(server: TestServer & { schema: GraphQLSchema }) {
-  const operations = tracker(server.onOperationEnd);
+function memoryWebSocket<Ctx>(
+  server: TestServer<Ctx> & { schema: GraphQLSchema }
+) {
+  const operations = tracker<Ctx>(server.onOperationEnd);
   const graphqlWs = makeServer<Record<string, unknown> | undefined, unknown>({
     schema: server.schema,
     context: server.context
@@ -66,7 +70,7 @@ function memoryWebSocket(server: TestServer & { schema: GraphQLSchema }) {
           const value = await server.context?.(
             paramsHeaders(ctx.connectionParams)
           );
-          operations.start(ctx, id, value);
+          operations.start(ctx, id, value as Ctx);
           return value as never;
         }
       : undefined,
@@ -146,12 +150,13 @@ function memoryWebSocket(server: TestServer & { schema: GraphQLSchema }) {
  * against an in-memory graphql-ws / graphql-sse server for `schema`. No
  * server is started. In production, you run your own subscription server.
  */
-export function testClient<O extends Operations>(
+export function testClient<O extends Operations, Ctx = unknown>(
   operations: O,
-  server: TestServer | TestServer["http"],
+  server: TestServer<Ctx> | TestServer["http"],
   options?: Omit<ClientOptions<O>, "url" | "fetch"> & { url?: string | URL }
 ): Client<O> {
-  const handlers = typeof server === "function" ? { http: server } : server;
+  const handlers: TestServer<Ctx> =
+    typeof server === "function" ? { http: server } : server;
   const { schema } = handlers;
   if (operations.transports && !schema) {
     throw new Error(
@@ -166,7 +171,8 @@ export function testClient<O extends Operations>(
           ? async (req) =>
               (await subscriptions.context?.(req.raw.headers)) as never
           : undefined,
-        onComplete: (ctx) => subscriptions.onOperationEnd?.(ctx)
+        // graphql-sse hands back what `context` returned.
+        onComplete: (ctx) => subscriptions.onOperationEnd?.(ctx as Ctx)
       })
     : undefined;
   const given = (options ?? {}) as { url?: string | URL; ws?: object };

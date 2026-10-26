@@ -336,6 +336,28 @@ describe("subscriptions", () => {
     expect((await done).done).toBe(true);
   });
 
+  test("onOperationEnd takes what the subscription context returns", async () => {
+    const ended: string[] = [];
+    const typed = testClient(
+      operations,
+      {
+        ...handlers,
+        // ctx is { user: string | undefined }, from subscriptionContext
+        onOperationEnd: (ctx) => void ended.push(ctx.user ?? "anonymous")
+      },
+      { headers: { "x-user": "ada" } }
+    );
+    await take(typed.subscription.ticks({ upTo: 1 }), 1);
+    await typed.close();
+    expect(ended).toEqual(["ada"]);
+
+    testClient(operations, {
+      ...handlers,
+      // @ts-expect-error the hook must take what context returns
+      onOperationEnd: (ctx: { id: number }) => void ctx.id
+    });
+  });
+
   test("subscriptions need the schema, and testClient says so", () => {
     expect(() => testClient(operations, handler)).toThrow("schema: app.schema");
   });
