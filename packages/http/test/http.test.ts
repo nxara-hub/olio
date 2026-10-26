@@ -3,10 +3,10 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { createModule, olio } from "@nxlab/olio";
-import { GraphQLError } from "graphql";
+import { GraphQLError, type ValidationRule } from "graphql";
 
 import { fetchHandler } from "../src/fetch.js";
-import { errorMasker } from "../src/index.js";
+import { errorMasker, validateOperation } from "../src/index.js";
 import { nodeHandler } from "../src/node.js";
 
 const app = olio({
@@ -144,6 +144,81 @@ test("node: serves node:http requests", async () => {
     body: JSON.stringify({ query: "{ whoami }" })
   });
   expect(await response.json()).toEqual({ data: { whoami: "alan" } });
+});
+
+// Rejects any selection of `field`, before a resolver runs.
+const forbid =
+  (field: string): ValidationRule =>
+  (context) => ({
+    Field(node) {
+      if (node.name.value === field) {
+        context.reportError(
+          new GraphQLError(`${field} is off limits`, { nodes: node })
+        );
+      }
+    }
+  });
+
+describe("validationRules", () => {
+  const ask = (
+    handler: (r: Request) => Promise<Response>,
+    query: string,
+    variables?: Record<string, unknown>
+  ) =>
+    handler(
+      new Request("http://localhost/graphql", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query, variables })
+      })
+    ).then((r) => r.json() as Promise<{ errors?: { message: string }[] }>);
+
+  test("run with graphql's own rules, before any resolver", async () => {
+    const handler = fetchHandler(app, { validationRules: [forbid("broken")] });
+    // broken throws if it runs; the rule's message means it never did.
+    expect((await ask(handler, "{ broken }")).errors?.[0]?.message).toBe(
+      "broken is off limits"
+    );
+    // graphql's rules still apply next to yours.
+    expect((await ask(handler, "{ nope }")).errors?.[0]?.message).toBe(
+      'Cannot query field "nope" on type "Query".'
+    );
+    expect(await ask(handler, "{ hello }")).toEqual({
+      data: { hello: "hi" }
+    } as never);
+  });
+
+  test("a function builds them per operation, from its variables", async () => {
+    const handler = fetchHandler(app, {
+      validationRules: ({ variables }) =>
+        variables.strict ? [forbid("hello")] : []
+    });
+    const query =
+      "query ($strict: Boolean!) { hello again: hello @skip(if: $strict) }";
+    expect(await ask(handler, query, { strict: false })).toEqual({
+      data: { hello: "hi", again: "hi" }
+    } as never);
+    expect(
+      (await ask(handler, query, { strict: true })).errors?.[0]?.message
+    ).toBe("hello is off limits");
+  });
+
+  test("validateOperation applies the same, for subscription servers", () => {
+    const rules = [forbid("hello")];
+    expect(
+      validateOperation(app.schema, { query: "{ whoami }" }, rules)
+    ).toEqual([]);
+    expect(
+      validateOperation(app.schema, { query: "{ hello }" }, rules).map(
+        (e) => e.message
+      )
+    ).toEqual(["hello is off limits"]);
+    expect(
+      validateOperation(app.schema, { query: "{ hello" }, rules).map(
+        (e) => e.message
+      )
+    ).toEqual(["Syntax Error: Expected Name, found <EOF>."]);
+  });
 });
 
 describe("a context hook that throws", () => {

@@ -1,4 +1,4 @@
-import { errorMasker } from "@nxlab/http";
+import { errorMasker, validateOperation } from "@nxlab/http";
 import type { SubscriptionContext } from "@nxlab/olio";
 import { createHandler } from "graphql-sse/lib/use/fetch";
 import { useServer } from "graphql-ws/use/ws";
@@ -7,6 +7,7 @@ import type { WebSocketServer } from "ws";
 import { createSubscriptionContext } from "./context.js";
 import { bearer } from "./http.js";
 import { app } from "./index.js";
+import { validationRules } from "./limits.js";
 
 // @nxlab/http serves GraphQL over HTTP only; subscriptions are the app's own,
 // on the reference libraries. Both transports hide unexpected errors the way
@@ -23,6 +24,12 @@ export const sseHandler = createHandler({
       connectionId("sse"),
       bearer(req.raw.headers.get("authorization"))
     ) as never,
+  // The HTTP handler's rules, so a subscription can't cost more than a query.
+  onSubscribe: (_req, params) => {
+    const errors = validateOperation(app.schema, params, validationRules);
+    // graphql-sse reads it as a result only with `data`.
+    return errors.length ? { data: null, errors: [...errors] } : undefined;
+  },
   onNext: (_ctx, _req, result) => mask.result(result),
   onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
 });
@@ -54,6 +61,10 @@ export function serveWebSockets(server: WebSocketServer): void {
         contexts.set(id, value);
         live.set(ctx, contexts);
         return value as never;
+      },
+      onSubscribe: (_ctx, _id, payload) => {
+        const errors = validateOperation(app.schema, payload, validationRules);
+        return errors.length ? errors : undefined;
       },
       onNext: (_ctx, _id, _payload, _args, result) => mask.result(result),
       // A subscription that fails while starting is reported here instead.

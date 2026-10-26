@@ -54,12 +54,31 @@ export const ProductsDocument: TypedDocument<ProductsQuery, ProductsQueryVariabl
   query: "query Products($search: String) {\n  products(filter: {search: $search}) {\n    items {\n      sku\n      price {\n        amount\n        currency\n      }\n    }\n  }\n}"
 };
 
+export type ProductPageQuery = {
+  products: {
+    items: {
+      sku: Scalar<"String">;
+    }[];
+  };
+};
+
+export type ProductPageQueryVariables = {
+  pageSize?: Maybe<Scalar<"Int", "input">>;
+};
+
+export const ProductPageDocument: TypedDocument<ProductPageQuery, ProductPageQueryVariables, "query"> = {
+  operation: "query",
+  name: "ProductPage",
+  query: "query ProductPage($pageSize: Int) {\n  products(filter: {pageSize: $pageSize}) {\n    items {\n      sku\n    }\n  }\n}"
+};
+
 /** For createClient(operations, { url }): `client.mutation.login(variables)`. */
 export const operations = {
   mutation: {
     login: LoginDocument
   },
   query: {
-    products: ProductsDocument
+    products: ProductsDocument,
+    productPage: ProductPageDocument
   }
 } as const;

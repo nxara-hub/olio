@@ -6,6 +6,7 @@ import {
   contextFailure,
   errorMasker,
   operationEnd,
+  handlerRules,
   type HttpOptions,
   type OptionsArgs,
   type Servable
@@ -36,6 +37,7 @@ export function nodeHandler(
           }
         }
       : undefined,
+    validationRules: handlerRules(options.validationRules),
     onOperation: (_req, _args, result) => mask.result(result)
   });
   return async (req, res) => {

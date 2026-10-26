@@ -21,3 +21,11 @@ query Products($search: String) {
     }
   }
 }
+
+query ProductPage($pageSize: Int) {
+  products(filter: { pageSize: $pageSize }) {
+    items {
+      sku
+    }
+  }
+}

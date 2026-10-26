@@ -1,5 +1,12 @@
 import type { Context } from "@nxlab/core";
-import { GraphQLError, type GraphQLSchema } from "graphql";
+import {
+  GraphQLError,
+  parse,
+  specifiedRules,
+  validate,
+  type GraphQLSchema,
+  type ValidationRule
+} from "graphql";
 import type { Response as HttpResponse } from "graphql-http";
 
 type MaybePromise<T> = T | Promise<T>;
@@ -28,8 +35,23 @@ type ContextOption<Request> = undefined extends Context
   ? { context?: ContextHook<Request> }
   : { context: ContextHook<Request> };
 
+/** What a rule set can depend on, e.g. a complexity rule pricing the variables. */
+export interface OperationInfo {
+  readonly variables: Readonly<Record<string, unknown>>;
+  readonly operationName: string | null | undefined;
+}
+
+export type ValidationRules =
+  | readonly ValidationRule[]
+  | ((operation: OperationInfo) => readonly ValidationRule[]);
+
 export type HttpOptions<Request> = ErrorOptions &
   ContextOption<Request> & {
+    /**
+     * Rules run with graphql's own before any resolver, such as a complexity
+     * or depth limit. Added to graphql's rules, never in place of them.
+     */
+    validationRules?: ValidationRules;
     /**
      * Called once an operation has finished, after the response is built.
      * Dispose per-operation resources here, such as `ctx.di.dispose()`.
@@ -107,6 +129,64 @@ export function contextFailure(
     }
   ];
 }
+
+interface Operation {
+  readonly variables?: Readonly<Record<string, unknown>> | null;
+  readonly operationName?: string | null;
+}
+
+// Always after graphql's own rules: graphql-http's hook could replace them,
+// and a rule set shouldn't be able to drop them by accident.
+function ruleSet(
+  rules: ValidationRules,
+  operation: Operation
+): readonly ValidationRule[] {
+  const custom =
+    typeof rules === "function"
+      ? rules({
+          variables: operation.variables ?? {},
+          operationName: operation.operationName
+        })
+      : rules;
+  return [...specifiedRules, ...custom];
+}
+
+/**
+ * Runs graphql's rules and `rules` on an operation, as the handlers do: for
+ * your own subscription servers' `onSubscribe`. Empty when it's valid.
+ */
+export function validateOperation(
+  schema: GraphQLSchema,
+  operation: Operation & { readonly query: string },
+  rules: ValidationRules
+): readonly GraphQLError[] {
+  let document: ReturnType<typeof parse>;
+  try {
+    document = parse(operation.query);
+  } catch (error) {
+    return [error as GraphQLError];
+  }
+  return validate(schema, document, ruleSet(rules, operation));
+}
+
+/** `validationRules` for graphql-http. */
+export const handlerRules = (
+  rules: ValidationRules | undefined
+):
+  | ((
+      req: unknown,
+      args: {
+        readonly variableValues?: Readonly<Record<string, unknown>> | null;
+        readonly operationName?: string | null;
+      }
+    ) => readonly ValidationRule[])
+  | undefined =>
+  rules &&
+  ((_req, args) =>
+    ruleSet(rules, {
+      variables: args.variableValues,
+      operationName: args.operationName
+    }));
 
 // Once per context, and a failure in it is reported rather than thrown.
 export function operationEnd<C>(

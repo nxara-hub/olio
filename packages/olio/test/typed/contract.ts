@@ -33,7 +33,9 @@ declare module "../../src/types.js" {
     mappers: { User: UserRow; Named: NamedRow };
   }
   interface FieldExtensions<Source, Args> {
-    complexity?: number | ((args: Args) => number);
+    complexity?:
+      | number
+      | ((estimate: { args: Args; childComplexity: number }) => number);
     visible?: (row: Source) => boolean;
   }
 }
@@ -265,7 +267,10 @@ mw.content({ Query: { usersByRole: [logged] }, User: { name: [logged] } });
 query.content({
   usersByRole: {
     resolve: () => [user],
-    extensions: { complexity: (args) => (args.role === 1 ? 2 : 1) }
+    extensions: {
+      complexity: ({ args, childComplexity }) =>
+        (args.role === 1 ? 2 : 1) * childComplexity
+    }
   }
 });
 resolvers.content.User({
@@ -273,13 +278,13 @@ resolvers.content.User({
 });
 // @ts-expect-error not a registered extension
 query.content({ usersByRole: { extensions: { complexty: 2 } } });
-// @ts-expect-error complexity is a number or a function of the args
+// @ts-expect-error complexity is a number or a function of the estimate
 query.content({ usersByRole: { extensions: { complexity: "high" } } });
 query.content({
   usersByRole: {
     extensions: {
       // @ts-expect-error role is 1 | 2 here (CustomEnums), never "ADMIN"
-      complexity: (args) => (args.role === "ADMIN" ? 1 : 0)
+      complexity: ({ args }) => (args.role === "ADMIN" ? 1 : 0)
     }
   }
 });
@@ -318,7 +323,7 @@ mw({
         const complexity = extensions?.complexity;
         const cost: number =
           typeof complexity === "function"
-            ? complexity(args)
+            ? complexity({ args, childComplexity: 1 })
             : (complexity ?? 1);
         // @ts-expect-error complexity is a number or a function, not a string
         const label: string | undefined = extensions?.complexity;

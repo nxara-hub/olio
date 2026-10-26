@@ -1,8 +1,10 @@
-export { errorMasker } from "./core.js";
+export { errorMasker, validateOperation } from "./core.js";
 export type {
   ErrorMasker,
   ErrorOptions,
   HttpOptions,
+  OperationInfo,
   OptionsArgs,
-  Servable
+  Servable,
+  ValidationRules
 } from "./core.js";

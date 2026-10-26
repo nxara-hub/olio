@@ -5,9 +5,11 @@ import { products } from "./store.js";
 export const Query = query.inventory({
   product: (_root, { sku }) => products.get(sku) ?? null,
   products: {
-    // A page costs its size: for a query-cost limit, such as
-    // graphql-query-complexity's fieldExtensionsEstimator.
-    extensions: { complexity: ({ filter }) => filter?.pageSize ?? 20 },
+    // A page costs its size times what each item selects (src/limits.ts).
+    extensions: {
+      complexity: ({ args, childComplexity }) =>
+        (args.filter?.pageSize ?? 20) * childComplexity
+    },
     resolve: (_root, { filter }) => {
       const page = filter?.page ?? 1;
       const pageSize = filter?.pageSize ?? 20;

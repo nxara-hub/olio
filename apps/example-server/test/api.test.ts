@@ -45,4 +45,16 @@ describe("the ERP over HTTP", () => {
       { sku: "CHAIR-01", price: { amount: 14_900, currency: "EUR" } }
     ]);
   });
+
+  test("an operation over the cost limit is rejected before any resolver", async () => {
+    // A page costs its size times its items' selection (src/limits.ts):
+    // 600 × 2 is over 1000, so even the session check never runs.
+    const expensive = await anonymous.query.productPage({ pageSize: 600 });
+    expect(expensive.errors?.[0]?.message).toBe(
+      "The query exceeds the maximum complexity of 1000. Actual complexity is 1200"
+    );
+    const carl = await signIn("carl@erp.test");
+    const { data } = await carl.query.productPage({ pageSize: 2 });
+    expect(data?.products.items).toHaveLength(2);
+  });
 });

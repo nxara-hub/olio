@@ -218,13 +218,16 @@ export const Subscription = subscription.users({
 
 ## Field extensions
 
-A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`. Read back there, registered keys keep their types (`complexity` is `number | ((args) => number)`); graphql's index signature still lets any other key through as `unknown`.
+A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`. Read back there, registered keys keep their types (`complexity` is a number, or a function of `{ args, childComplexity }`); graphql's index signature still lets any other key through as `unknown`.
 
 ```ts
 export const Query = query.inventory({
   products: {
     resolve: (_root, { filter }) => listProducts(filter),
-    extensions: { complexity: ({ filter }) => filter?.pageSize ?? 20 }
+    extensions: {
+      complexity: ({ args, childComplexity }) =>
+        (args.filter?.pageSize ?? 20) * childComplexity
+    }
   }
 });
 resolvers.users.User({ email: { extensions: { roles: ["ADMIN"] } } }); // no resolve: the default resolver stays
@@ -235,7 +238,10 @@ Extensions are typed: register what they may hold, and anything else is a compil
 ```ts
 declare module "@nxlab/olio" {
   interface FieldExtensions<Source, Args> {
-    complexity?: number | ((args: Args) => number);
+    // graphql-query-complexity's shape: the field's args and its selection's cost
+    complexity?:
+      | number
+      | ((estimate: { args: Args; childComplexity: number }) => number);
     roles?: Role[];
   }
 }

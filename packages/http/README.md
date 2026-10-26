@@ -45,7 +45,52 @@ Not included, the way Apollo Server leaves them out: install and run the referen
 - [graphql-ws](https://github.com/enisdenjo/graphql-ws): subscriptions over WebSocket (`useServer` on a `ws` server, `makeHandler` on Bun).
 - [graphql-sse](https://github.com/enisdenjo/graphql-sse): subscriptions as server-sent events, on the same URL (route `Accept: text/event-stream` to its handler).
 
-Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) sets up both, with masking and DI disposal, in about 70 lines. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
+Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) sets up both, with masking, DI disposal and the HTTP handler's validation rules. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
+
+## Validation rules
+
+`validationRules` run with graphql's own, before any resolver: a cost or depth limit, say. They're added to graphql's rules, never in their place. Pass a list, or a function of the operation (`{ variables, operationName }`) for rules that need its variables, like [graphql-query-complexity](https://github.com/slicknode/graphql-query-complexity) pricing a page by its size:
+
+```ts
+import {
+  createComplexityRule,
+  fieldExtensionsEstimator,
+  simpleEstimator
+} from "graphql-query-complexity";
+
+fetchHandler(app, {
+  context,
+  validationRules: ({ variables }) => [
+    createComplexityRule({
+      maximumComplexity: 1000,
+      variables,
+      estimators: [
+        fieldExtensionsEstimator(),
+        simpleEstimator({ defaultComplexity: 1 })
+      ]
+    })
+  ]
+});
+```
+
+`fieldExtensionsEstimator` reads each field's `complexity` extension, which olio sets from the resolver's `{ resolve, extensions }`. An operation over the limit gets the rule's error, and nothing runs.
+
+Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`; it returns the errors (none when the operation is valid):
+
+```ts
+import { validateOperation } from "@nxlab/http";
+
+// graphql-ws
+onSubscribe: (_ctx, _id, payload) => {
+  const errors = validateOperation(app.schema, payload, validationRules);
+  return errors.length ? errors : undefined;
+};
+// graphql-sse: a result needs `data` to be read as one
+onSubscribe: (_req, params) => {
+  const errors = validateOperation(app.schema, params, validationRules);
+  return errors.length ? { data: null, errors: [...errors] } : undefined;
+};
+```
 
 ## Errors
 
@@ -79,6 +124,7 @@ createHandler({
 | Option | Default |  |
 | --- | --- | --- |
 | `context` | none | Builds `ctx` from the request. Required once the app registers a `ctx` type |
+| `validationRules` | none | Rules run with graphql's own before execution: a list, or `({ variables, operationName }) => rules`. See [Validation rules](#validation-rules) |
 | `onOperationEnd` | none | Called once per operation, after the response is built. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
 | `onUnexpectedError` | `console.error` | Receives each hidden error |

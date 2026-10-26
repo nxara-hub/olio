@@ -21,6 +21,7 @@
     "@nxlab/tools": "workspace:*",
     "dataloader": "^2.2.3",
     "graphql": "^16.14.2",
+    "graphql-query-complexity": "^2.0.0",
     "graphql-scalars": "^2.0.1",
     "graphql-sse": "2.6.3",
     "graphql-ws": "^6.4.1",

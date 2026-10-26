@@ -35,7 +35,10 @@ type SubGQLCtx = GQLCtx & { connectionId: string };
 declare module "@nxlab/olio" {
   /** What fields' `extensions` may hold (FieldResolver's object form). */
   interface FieldExtensions<Source, Args> {
-    complexity?: number | ((args: Args) => number);
+    /** graphql-query-complexity's: a cost, or a function of the args and the selection's cost. */
+    complexity?:
+      | number
+      | ((estimate: { args: Args; childComplexity: number }) => number);
   }
   interface Olio {
     application: Application;
