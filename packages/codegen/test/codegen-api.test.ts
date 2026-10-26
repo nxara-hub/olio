@@ -181,7 +181,7 @@ describe("codegen", () => {
         modules,
         typeDefs: "**/*.gql",
         output,
-        schema,
+        schemaOutput: schema,
         directives: [implementsDirective()]
       });
 
@@ -200,7 +200,12 @@ describe("codegen", () => {
       });
       const schema = join(dir, "schema.graphql");
 
-      await codegen({ modules, typeDefs: "**/*.gql", output, schema });
+      await codegen({
+        modules,
+        typeDefs: "**/*.gql",
+        output,
+        schemaOutput: schema
+      });
 
       // Printed, not concatenated: the extension merged into its type.
       expect(await readFile(schema, "utf8")).toBe(
@@ -217,7 +222,12 @@ describe("codegen", () => {
       });
       const schema = join(dir, "schema.graphql");
 
-      await codegen({ modules, typeDefs: "**/*.{gql,ts}", output, schema });
+      await codegen({
+        modules,
+        typeDefs: "**/*.{gql,ts}",
+        output,
+        schemaOutput: schema
+      });
 
       expect(await readFile(schema, "utf8")).toContain("viewer: User");
     });
@@ -231,7 +241,7 @@ describe("codegen", () => {
         modules: "modules",
         typeDefs: "**/*.gql",
         output: "out/generated.ts",
-        schema: "out/schema.graphql",
+        schemaOutput: "out/schema.graphql",
         logs: false
       });
       expect(await readFile(join(dir, "out/schema.graphql"), "utf8")).toContain(
@@ -276,7 +286,7 @@ describe("codegen", () => {
         modules,
         typeDefs: "**/*.gql",
         output,
-        schema,
+        schemaOutput: schema,
         clear: true
       });
 
@@ -301,7 +311,7 @@ describe("codegen", () => {
         modules,
         typeDefs: "**/*.gql",
         output,
-        schema,
+        schemaOutput: schema,
         watch: true
       });
 
@@ -315,6 +325,44 @@ describe("codegen", () => {
 
       await waitFor(async () => (await read(output)).includes("logout"));
       await waitFor(async () => (await read(schema)).includes("logout"));
+    });
+  });
+
+  test("client watch reruns when an operation or the schema file changes", async () => {
+    await withTempDir(async (dir) => {
+      await mkdir(join(dir, "ops"));
+      const schema = join(dir, "schema.graphql");
+      const output = join(dir, "client.ts");
+      await writeFile(schema, AUTH_SDL);
+      await writeFile(
+        join(dir, "ops/viewer.graphql"),
+        "query Viewer { viewer { id } }"
+      );
+
+      void codegenClient({
+        root: dir,
+        schema: "schema.graphql",
+        documents: "ops/*.graphql",
+        output: "client.ts",
+        watch: true,
+        logs: false
+      });
+      await waitFor(async () => (await read(output)).includes("ViewerQuery"));
+
+      // A new operation file is picked up.
+      await writeFile(
+        join(dir, "ops/login.graphql"),
+        'mutation Login { login(email: "a", password: "b") { id } }'
+      );
+      await waitFor(async () => (await read(output)).includes("LoginMutation"));
+
+      // So is a schema change: the new field becomes selectable.
+      await writeFile(schema, `${AUTH_SDL}\nextend type User { age: Int }`);
+      await writeFile(
+        join(dir, "ops/viewer.graphql"),
+        "query Viewer { viewer { id age } }"
+      );
+      await waitFor(async () => (await read(output)).includes("age"));
     });
   });
 
@@ -355,7 +403,12 @@ describe("codegen", () => {
         const { modules, output } = await scaffold(dir);
         const schema = join(dir, "schema.graphql");
 
-        await codegen({ modules, typeDefs: "**/*.gql", output, schema });
+        await codegen({
+          modules,
+          typeDefs: "**/*.gql",
+          output,
+          schemaOutput: schema
+        });
         expect(lines[0]).toMatch(/@nxlab\/codegen.*generate/);
         expect(lines).toContainEqual(
           expect.stringMatching(/modules.*auth.*1 file/)
@@ -369,7 +422,12 @@ describe("codegen", () => {
 
         // Same content again: nothing is rewritten.
         lines.length = 0;
-        await codegen({ modules, typeDefs: "**/*.gql", output, schema });
+        await codegen({
+          modules,
+          typeDefs: "**/*.gql",
+          output,
+          schemaOutput: schema
+        });
         expect(lines).toContainEqual(
           expect.stringMatching(/generated\.ts .*unchanged/)
         );

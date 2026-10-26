@@ -23,7 +23,8 @@ export interface CodegenOptions {
   /** Glob(s) for type definition files, resolved relative to each module directory. */
   typeDefs: string | string[];
   output: string;
-  schema?: string;
+  /** Where to write the printed schema, e.g. for clients and schema tools. */
+  schemaOutput?: string;
   watch?: boolean;
   clear?: boolean;
   directives?: readonly SchemaDirective[];
@@ -43,6 +44,8 @@ export interface ClientCodegenOptions {
   output: string;
   /** Sent when introspecting a URL, e.g. for a server that needs a token. */
   headers?: Record<string, string>;
+  /** Rerun when an operation or the schema file changes. */
+  watch?: boolean;
   logs?: boolean;
 }
 

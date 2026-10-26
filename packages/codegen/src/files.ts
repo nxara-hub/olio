@@ -152,24 +152,58 @@ async function writeOutput(
   return true;
 }
 
-function watchModules(
-  modulesDir: string,
-  onChange: (changedPath: string) => Promise<void>
+interface WatchTarget {
+  dir: string;
+  recursive: boolean;
+  /** Only this file in `dir` counts (a schema file, watched through its folder). */
+  only?: string;
+}
+
+// Watches folders rather than files: editors that save by replacing a file
+// would end a watch on the file itself.
+function rerunOnChange(
+  targets: readonly WatchTarget[],
+  skip: ReadonlySet<string>,
+  run: () => Promise<void>,
+  log: (message: string) => void
 ): Promise<void> {
-  const root = resolve(modulesDir);
-
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const debounced = (changedPath: string): void => {
+  const changed = (path: string): void => {
     clearTimeout(timer);
-    timer = setTimeout(() => void onChange(changedPath), 50);
+    timer = setTimeout(async () => {
+      log(`\n${cyan("↻")} ${shortPath(path)}`);
+      try {
+        await run();
+      } catch (error) {
+        // Keep watching: the next save may fix it.
+        console.error(
+          `  ${red("✗")} ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }, 50);
   };
-
-  fsWatch(root, { recursive: true }, (_event, filename) => {
-    debounced(filename ? join(root, filename) : root);
-  });
+  for (const { dir, recursive, only } of targets) {
+    fsWatch(dir, { recursive }, (_event, filename) => {
+      const path = filename ? join(dir, filename) : dir;
+      if (skip.has(path) || (only && path !== only)) return;
+      changed(path);
+    });
+  }
+  log(
+    dim(
+      `\n  watching ${targets.map((t) => shortPath(t.only ?? t.dir)).join(", ")} for changes`
+    )
+  );
   return new Promise<void>(() => {
-    // Keep the process alive; the watcher closes when the process exits.
+    // Keep the process alive; the watchers close when the process exits.
   });
+}
+
+// The folder a glob starts from: its segments up to the first wildcard.
+function globBase(pattern: string): string {
+  const parts = pattern.split("/");
+  const wild = parts.findIndex((part) => /[*?[{]/.test(part));
+  return wild === -1 ? dirname(pattern) : parts.slice(0, wild).join("/") || "/";
 }
 
 export async function codegen(options: CodegenOptions): Promise<void> {
@@ -178,7 +212,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
   const at = (path: string): string => resolve(options.root ?? "", path);
   const modulesDir = at(options.modules);
   const output = at(options.output);
-  const schema = options.schema && at(options.schema);
+  const schemaOutput = options.schemaOutput && at(options.schemaOutput);
 
   const log = logs
     ? (message: string): void => {
@@ -228,12 +262,16 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       await writeOutput(output, compiled.code, clear),
       `${count(types, "type")} · ${count(modules.length, "module")}`
     );
-    if (schema) {
+    if (schemaOutput) {
       written(
-        schema,
+        schemaOutput,
         // Printed from the built schema: each type once, its extensions
         // merged in, so registries, linters and diff tools read it as is.
-        await writeOutput(schema, `${printSchema(compiled.schema)}\n`, clear)
+        await writeOutput(
+          schemaOutput,
+          `${printSchema(compiled.schema)}\n`,
+          clear
+        )
       );
     }
     log(dim(`  done in ${Math.round(performance.now() - started)}ms`));
@@ -242,19 +280,12 @@ export async function codegen(options: CodegenOptions): Promise<void> {
   log(`${bold("@nxlab/codegen")} ${dim(watch ? "watch" : "generate")}`);
   await run();
   if (!watch) return;
-
-  log(dim(`\n  watching ${shortPath(resolve(modulesDir))} for changes`));
-  await watchModules(modulesDir, async (changedPath) => {
-    log(`\n${cyan("↻")} ${shortPath(changedPath)}`);
-    try {
-      await run();
-    } catch (error) {
-      // Keep watching: the next save may fix it.
-      console.error(
-        `  ${red("✗")} ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  });
+  await rerunOnChange(
+    [{ dir: modulesDir, recursive: true }],
+    new Set([output, ...(schemaOutput ? [schemaOutput] : [])]),
+    run,
+    log
+  );
 }
 
 async function loadSchema(
@@ -302,19 +333,35 @@ async function loadDocuments(
 export async function codegenClient(
   options: ClientCodegenOptions
 ): Promise<void> {
-  const { logs = true } = options;
+  const { logs = true, watch = false } = options;
   const at = (path: string): string => resolve(options.root ?? "", path);
   const output = at(options.output);
-  const schema = await loadSchema(
-    /^https?:\/\//.test(options.schema) ? options.schema : at(options.schema),
-    options.headers
-  );
+  const remote = /^https?:\/\//.test(options.schema);
+  const schema = remote ? options.schema : at(options.schema);
   const documents = [options.documents].flat().map(at);
-  const code = emitClient(schema, await loadDocuments(documents));
-  const changed = await writeOutput(output, code, false);
-  if (logs) {
-    console.log(
-      `${bold("@nxlab/codegen")} ${dim("client")}\n  ${changed ? green("✓") : dim("·")} ${shortPath(output)}${changed ? "" : `  ${dim("unchanged")}`}`
+  const log = logs
+    ? (message: string): void => {
+        console.log(message);
+      }
+    : (_message: string): void => {};
+
+  const run = async (): Promise<void> => {
+    const loaded = await loadSchema(schema, options.headers);
+    const code = emitClient(loaded, await loadDocuments(documents));
+    const changed = await writeOutput(output, code, false);
+    log(
+      `  ${changed ? green("✓") : dim("·")} ${shortPath(output)}${changed ? "" : `  ${dim("unchanged")}`}`
     );
-  }
+  };
+  log(`${bold("@nxlab/codegen")} ${dim(watch ? "client watch" : "client")}`);
+  await run();
+  if (!watch) return;
+  // A server URL isn't watched: rerun, or save an operation, after it changes.
+  const targets: WatchTarget[] = documents.map((pattern) => ({
+    dir: globBase(pattern),
+    recursive: true
+  }));
+  if (!remote)
+    targets.push({ dir: dirname(schema), recursive: false, only: schema });
+  await rerunOnChange(targets, new Set([output]), run, log);
 }

@@ -7,7 +7,7 @@ await codegen({
   modules: "src/modules",
   typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
-  schema: "src/schema.gql",
+  schemaOutput: "src/schema.gql",
   directives,
   clear: true
 });

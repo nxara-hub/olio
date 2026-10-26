@@ -29,7 +29,7 @@ await codegen({
 });
 ```
 
-Relative paths (`modules`, `output`, `schema`) resolve against `root`, which defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `typeDefs` is the exception: it resolves inside each module. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
+Relative paths (`modules`, `output`, `schemaOutput`) resolve against `root`, which defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `typeDefs` is the exception: it resolves inside each module. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
 
 `modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
 
@@ -47,18 +47,18 @@ await codegen({
   modules: "src/modules",
   typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
-  schema: "src/schema.graphql",
+  schemaOutput: "src/schema.graphql",
   directives: [implementsDirective(), copyDirective()]
 });
 ```
 
 Their names land in `Application` as `"~directives"`, and olio's types then require the same `directives` in `olio()`.
 
-Set `schema` to write the final schema to a file, printed from the built schema: each type once with its extensions merged in, the directives applied, ready for schema registries, linters and diff tools. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
+Set `schemaOutput` to write the final schema to a file, printed from the built schema: each type once with its extensions merged in, the directives applied, ready for schema registries, linters and diff tools. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
 
 ## Client types
 
-`codegenClient({ schema, documents, output })` generates the types for [`@nxlab/client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schema` output above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors.
+`codegenClient({ schema, documents, output })` generates the types for [`@nxlab/client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schemaOutput` file above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors. `watch: true` reruns when an operation (including a new file) or the schema file changes; a server URL isn't watched.
 
 Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` says the default explicitly. The directive is the client's: codegen records it in the document and removes it from the query the server receives, and imports only the transports the operations use. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
 
