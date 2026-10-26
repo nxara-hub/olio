@@ -22,11 +22,14 @@ There is no bundled CLI; drive codegen from a short script:
 import { codegen } from "@nxlab/codegen";
 
 await codegen({
+  root: import.meta.dirname,
   modules: "src/modules",
   typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts"
 });
 ```
+
+Relative paths (`modules`, `output`, `schema`) resolve against `root`, which defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `typeDefs` is the exception: it resolves inside each module. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
 
 `modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
 
@@ -65,6 +68,7 @@ Per operation it emits the result type, the variables type and a typed document 
 import { codegenClient } from "@nxlab/codegen";
 
 await codegenClient({
+  root: import.meta.dirname,
   schema: "../server/src/schema.gql", // or "http://localhost:4000/graphql"
   documents: "src/operations/*.graphql",
   output: "src/generated.ts"

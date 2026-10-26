@@ -13,6 +13,11 @@ export interface GenerateOptions {
 }
 
 export interface CodegenOptions {
+  /**
+   * What relative paths resolve against; default: the working directory.
+   * Pass `import.meta.dirname` so the script runs the same from anywhere.
+   */
+  root?: string;
   /** Root directory containing one direct child directory per module. */
   modules: string;
   /** Glob(s) for type definition files, resolved relative to each module directory. */
@@ -26,6 +31,11 @@ export interface CodegenOptions {
 }
 
 export interface ClientCodegenOptions {
+  /**
+   * What relative paths resolve against; default: the working directory.
+   * Pass `import.meta.dirname` so the script runs the same from anywhere.
+   */
+  root?: string;
   /** A schema SDL file (such as the server's `schema` output), or a server URL to introspect. */
   schema: string;
   /** Glob(s) for the operations, `.graphql` or `.gql` files. */

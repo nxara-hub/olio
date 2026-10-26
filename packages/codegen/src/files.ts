@@ -173,16 +173,12 @@ function watchModules(
 }
 
 export async function codegen(options: CodegenOptions): Promise<void> {
-  const {
-    modules: modulesDir,
-    typeDefs,
-    output,
-    directives = [],
-    schema,
-    watch = false,
-    clear = false,
-    logs = true
-  } = options;
+  const { typeDefs, directives = [], watch = false, clear = false } = options;
+  const { logs = true } = options;
+  const at = (path: string): string => resolve(options.root ?? "", path);
+  const modulesDir = at(options.modules);
+  const output = at(options.output);
+  const schema = options.schema && at(options.schema);
 
   const log = logs
     ? (message: string): void => {
@@ -306,9 +302,15 @@ async function loadDocuments(
 export async function codegenClient(
   options: ClientCodegenOptions
 ): Promise<void> {
-  const { output, logs = true } = options;
-  const schema = await loadSchema(options.schema, options.headers);
-  const code = emitClient(schema, await loadDocuments(options.documents));
+  const { logs = true } = options;
+  const at = (path: string): string => resolve(options.root ?? "", path);
+  const output = at(options.output);
+  const schema = await loadSchema(
+    /^https?:\/\//.test(options.schema) ? options.schema : at(options.schema),
+    options.headers
+  );
+  const documents = [options.documents].flat().map(at);
+  const code = emitClient(schema, await loadDocuments(documents));
   const changed = await writeOutput(output, code, false);
   if (logs) {
     console.log(

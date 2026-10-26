@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { copyDirective, implementsDirective } from "@nxlab/schema";
 
-import { codegen } from "../src/index.js";
+import { codegen, codegenClient } from "../src/index.js";
 
 const AUTH_SDL = `
   interface Node { id: ID! }
@@ -220,6 +220,38 @@ describe("codegen", () => {
       await codegen({ modules, typeDefs: "**/*.{gql,ts}", output, schema });
 
       expect(await readFile(schema, "utf8")).toContain("viewer: User");
+    });
+  });
+
+  test("relative paths resolve against root, not the working directory", async () => {
+    await withTempDir(async (dir) => {
+      await scaffold(dir);
+      await codegen({
+        root: dir,
+        modules: "modules",
+        typeDefs: "**/*.gql",
+        output: "out/generated.ts",
+        schema: "out/schema.graphql",
+        logs: false
+      });
+      expect(await readFile(join(dir, "out/schema.graphql"), "utf8")).toContain(
+        "type Query"
+      );
+      await mkdir(join(dir, "ops"));
+      await writeFile(
+        join(dir, "ops/viewer.graphql"),
+        "query Viewer { viewer { id } }"
+      );
+      await codegenClient({
+        root: dir,
+        schema: "out/schema.graphql",
+        documents: "ops/*.graphql",
+        output: "out/client.ts",
+        logs: false
+      });
+      expect(await readFile(join(dir, "out/client.ts"), "utf8")).toContain(
+        "ViewerQuery"
+      );
     });
   });
 

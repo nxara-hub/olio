@@ -4,9 +4,10 @@ import { copyDirective } from "@nxlab/schema";
 // Regenerated on every check-types, so the contract test always runs against
 // what codegen emits today.
 await codegen({
-  modules: new URL("modules", import.meta.url).pathname,
+  root: import.meta.dirname,
+  modules: "modules",
   typeDefs: "*.gql",
-  output: new URL("generated.ts", import.meta.url).pathname,
+  output: "generated.ts",
   directives: [copyDirective()],
   logs: false
 });
