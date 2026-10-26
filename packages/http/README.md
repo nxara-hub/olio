@@ -56,7 +56,23 @@ throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // t
 throw new Error("connection refused"); // the client sees "Unexpected error."
 ```
 
-`errorMasker(options)` is the same masking, for your own subscription servers: `mask.result(result)` for an execution result, `mask.error(error)` for one error.
+`errorMasker(options?)`, from `@nxlab/http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives:
+
+|  |  |
+| --- | --- |
+| `mask.result(result)` | The result with its errors masked, any shape: graphql's `ExecutionResult`, or what graphql-sse's and graphql-ws's `onNext` hand you |
+| `mask.error(error)` | One error, or any caught value: a `GraphQLError` passes (unless it wraps an unexpected error), anything else becomes "Unexpected error." and is reported |
+| `mask.report(error)` | Sends an error to `onUnexpectedError` |
+
+```ts
+import { errorMasker } from "@nxlab/http";
+
+const mask = errorMasker();
+createHandler({
+  schema: app.schema,
+  onNext: (_ctx, _req, result) => mask.result(result)
+}); // graphql-sse
+```
 
 ## Options
 

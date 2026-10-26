@@ -1,6 +1,5 @@
 import { errorMasker } from "@nxlab/http";
 import type { SubscriptionContext } from "@nxlab/olio";
-import type { ExecutionResult } from "graphql";
 import { createHandler } from "graphql-sse/lib/use/fetch";
 import { useServer } from "graphql-ws/use/ws";
 import type { WebSocketServer } from "ws";
@@ -12,7 +11,7 @@ import { app } from "./index.js";
 // @nxlab/http serves GraphQL over HTTP only; subscriptions are the app's own,
 // on the reference libraries. Both transports hide unexpected errors the way
 // the HTTP handler does, and dispose each operation's DI scope once it ends.
-const mask = errorMasker({});
+const mask = errorMasker();
 let connections = 0;
 const connectionId = (kind: string): string => `${kind}-${++connections}`;
 
@@ -24,8 +23,7 @@ export const sseHandler = createHandler({
       connectionId("sse"),
       bearer(req.raw.headers.get("authorization"))
     ) as never,
-  onNext: (_ctx, _req, result) =>
-    mask.result(result as ExecutionResult) as never,
+  onNext: (_ctx, _req, result) => mask.result(result),
   onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
 });
 
@@ -57,8 +55,7 @@ export function serveWebSockets(server: WebSocketServer): void {
         live.set(ctx, contexts);
         return value as never;
       },
-      onNext: (_ctx, _id, _payload, _args, result) =>
-        mask.result(result as ExecutionResult) as never,
+      onNext: (_ctx, _id, _payload, _args, result) => mask.result(result),
       // A subscription that fails while starting is reported here instead.
       onError: (_ctx, _id, _payload, errors) =>
         errors.map((e) => mask.error(e).toJSON()),

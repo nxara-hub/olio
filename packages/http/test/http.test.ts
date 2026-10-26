@@ -6,6 +6,7 @@ import { createModule, olio } from "@nxlab/olio";
 import { GraphQLError } from "graphql";
 
 import { fetchHandler } from "../src/fetch.js";
+import { errorMasker } from "../src/index.js";
 import { nodeHandler } from "../src/node.js";
 
 const app = olio({
@@ -109,6 +110,26 @@ const listen = (server: Server): Promise<number> =>
   });
 afterAll(() => {
   for (const server of servers) server.close();
+});
+
+test("errorMasker: defaults, caught values, and any result shape", () => {
+  const reported: unknown[] = [];
+  const mask = errorMasker({ onUnexpectedError: (e) => reported.push(e) });
+  const forbidden = new GraphQLError("Forbidden");
+  expect(mask.error(forbidden)).toBe(forbidden);
+  expect(mask.error(new Error("db")).message).toBe("Unexpected error.");
+  expect(mask.error("not even an Error").message).toBe("Unexpected error.");
+  // graphql-sse's onNext also hands incremental results: kept as they are.
+  const patch = {
+    hasNext: true,
+    errors: [new GraphQLError("db", { originalError: new Error("db") })]
+  };
+  const masked = mask.result(patch);
+  expect(masked.hasNext).toBe(true);
+  expect(masked.errors.map((e) => e.message)).toEqual(["Unexpected error."]);
+  expect(reported).toHaveLength(3);
+  // No options needed.
+  expect(errorMasker().error(forbidden)).toBe(forbidden);
 });
 
 test("node: serves node:http requests", async () => {

@@ -1,9 +1,5 @@
 import type { Context } from "@nxlab/olio";
-import {
-  GraphQLError,
-  type ExecutionResult,
-  type GraphQLSchema
-} from "graphql";
+import { GraphQLError, type GraphQLSchema } from "graphql";
 import type { Response as HttpResponse } from "graphql-http";
 
 type MaybePromise<T> = T | Promise<T>;
@@ -46,39 +42,48 @@ export type OptionsArgs<Request> = undefined extends Context
   ? [options?: HttpOptions<Request>]
   : [options: HttpOptions<Request>];
 
-export function errorMasker(options: ErrorOptions): {
-  error: (error: GraphQLError) => GraphQLError;
-  result: (result: ExecutionResult) => ExecutionResult;
-  /** For failures before execution, such as a throwing `context` hook. */
-  thrown: (error: unknown) => GraphQLError;
+export interface ErrorMasker {
+  /**
+   * One error, or any caught value: a `GraphQLError` passes unless it wraps
+   * an unexpected error; anything else becomes "Unexpected error." and is
+   * reported.
+   */
+  error: (error: unknown) => GraphQLError;
+  /** A result's errors, masked: graphql's, or what graphql-sse / graphql-ws hand `onNext`. */
+  result: <R extends { readonly errors?: readonly GraphQLError[] }>(
+    result: R
+  ) => R;
+  /** Sends an error to `onUnexpectedError`. */
   report: (error: unknown) => void;
-} {
+}
+
+/** The handlers' masking, for your own subscription servers. */
+export function errorMasker(options: ErrorOptions = {}): ErrorMasker {
   const { maskErrors = true, onUnexpectedError = console.error } = options;
-  const mask = (error: GraphQLError): GraphQLError => {
-    const cause = error.originalError;
-    if (!cause || cause instanceof GraphQLError) return error;
+  const error = (thrown: unknown): GraphQLError => {
+    if (!(thrown instanceof GraphQLError)) {
+      onUnexpectedError(thrown);
+      return new GraphQLError(
+        maskErrors || !(thrown instanceof Error)
+          ? "Unexpected error."
+          : thrown.message
+      );
+    }
+    const cause = thrown.originalError;
+    if (!cause || cause instanceof GraphQLError) return thrown;
     onUnexpectedError(cause);
     return maskErrors
       ? new GraphQLError("Unexpected error.", {
-          nodes: error.nodes,
-          path: error.path
+          nodes: thrown.nodes,
+          path: thrown.path
         })
-      : error;
+      : thrown;
   };
   return {
-    error: mask,
+    error,
     result: (result) =>
-      result.errors ? { ...result, errors: result.errors.map(mask) } : result,
-    report: onUnexpectedError,
-    thrown: (error) => {
-      if (error instanceof GraphQLError) return error;
-      onUnexpectedError(error);
-      return new GraphQLError(
-        maskErrors || !(error instanceof Error)
-          ? "Unexpected error."
-          : error.message
-      );
-    }
+      result.errors ? { ...result, errors: result.errors.map(error) } : result,
+    report: onUnexpectedError
   };
 }
 
@@ -88,11 +93,11 @@ export function errorMasker(options: ErrorOptions): {
  * read it like any error; 500 for an unexpected one.
  */
 export function contextFailure(
-  mask: ReturnType<typeof errorMasker>,
+  mask: ErrorMasker,
   error: unknown
 ): HttpResponse {
   const deliberate = error instanceof GraphQLError;
-  const graphqlError = mask.thrown(error);
+  const graphqlError = mask.error(error);
   return [
     JSON.stringify({ errors: [graphqlError.toJSON()] }),
     {
@@ -105,7 +110,7 @@ export function contextFailure(
 
 // Once per context, and a failure in it is reported rather than thrown.
 export function operationEnd<C>(
-  mask: ReturnType<typeof errorMasker>,
+  mask: ErrorMasker,
   hook: ((ctx: C) => MaybePromise<void>) | undefined
 ): (ctx: C | undefined) => Promise<void> {
   const ended = new WeakSet<object>();
