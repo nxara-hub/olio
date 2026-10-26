@@ -35,6 +35,7 @@ import { suggestionList } from "graphql/jsutils/suggestionList.js";
 
 import type {
   FeatureConfig,
+  DirectiveName,
   FeatureMiddleware,
   Middleware,
   MiddlewareFn,
@@ -49,12 +50,22 @@ import type {
   TypeSource
 } from "./types.js";
 
-export interface OlioConfig {
+// Codegen records its directives in `Application`, so a typed app that leaves
+// them out of olio() fails to compile instead of failing on "Unknown directive".
+type DirectivesOption = [DirectiveName] extends [never]
+  ? {
+      /** Must be the same ones passed to codegen. */
+      directives?: readonly SchemaDirective[];
+    }
+  : {
+      /** The ones passed to codegen. */
+      directives: readonly SchemaDirective<DirectiveName>[];
+    };
+
+export type OlioConfig = {
   modules: readonly OlioModule[];
   middleware?: Middleware;
-  /** Must be the same ones passed to codegen. */
-  directives?: readonly SchemaDirective[];
-}
+} & DirectivesOption;
 
 export interface OlioApp {
   readonly schema: GraphQLSchema;

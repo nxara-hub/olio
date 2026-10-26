@@ -125,7 +125,7 @@ export const app = olio({
   modules: await loadModules(
     new URL("modules/*/index.{js,ts}", import.meta.url)
   ), // from @nxlab/tools
-  directives // the same list codegen uses
+  directives // the same list codegen uses; required once codegen had some
 });
 // app.schema → any GraphQL server (graphql-http, Yoga, Apollo, …)
 ```

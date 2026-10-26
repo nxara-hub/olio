@@ -47,6 +47,8 @@ await codegen({
 });
 ```
 
+Their names land in `Application` as `"~directives"`, and olio's types then require the same `directives` in `olio()`.
+
 Set `schema` to write the final (transformed) GraphQL SDL to a file. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
 
 ## Client types

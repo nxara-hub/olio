@@ -43,11 +43,19 @@ type ApplicationShape = Record<string, Record<string, TypeShape>>;
 type Registered<Key extends string, Fallback> =
   Olio extends Record<Key, infer T> ? T : Fallback;
 
+type Registration = Registered<"application", ApplicationShape>;
+
 type App =
-  Registered<"application", ApplicationShape> extends infer A extends
-    ApplicationShape
+  Omit<Registration, "~directives"> extends infer A extends ApplicationShape
     ? A
     : ApplicationShape;
+
+/** The schema directives codegen composed with; `olio()` needs the same. */
+export type DirectiveName = Registration extends {
+  "~directives": infer D extends string;
+}
+  ? D
+  : never;
 
 type Owner = keyof App & string;
 

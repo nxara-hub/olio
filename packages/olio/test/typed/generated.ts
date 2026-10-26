@@ -86,6 +86,7 @@ export type Node = {
 /* #endregion Interfaces */
 
 export type Application = {
+  "~directives": "copy";
   content: {
     Item: { type: Item; fields: "__resolveType"; resolveType: "Post" | "User" };
     Named: { type: Named; fields: "__resolveType"; resolveType: "Tag" | "User" };

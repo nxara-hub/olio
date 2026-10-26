@@ -6,7 +6,7 @@ import { fieldCopyDirective } from "./shared.js";
  * referenced types onto a type or input, without adding an `implements`
  * clause.
  */
-export function copyDirective(): SchemaDirective {
+export function copyDirective(): SchemaDirective<"copy"> {
   return fieldCopyDirective({
     name: "copy",
     definition: "directive @copy(from: [String!]!) on OBJECT | INPUT_OBJECT",

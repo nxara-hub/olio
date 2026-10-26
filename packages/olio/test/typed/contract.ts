@@ -1,11 +1,13 @@
 // Compile-time only: olio's types against real codegen output (see
 // generate.ts). Each @ts-expect-error must keep failing.
+import { copyDirective, implementsDirective } from "@nxlab/schema";
 import { GraphQLScalarType } from "graphql";
 
 import {
   feature,
   module,
   mw,
+  olio,
   query,
   resolvers,
   type LoadedResolvers,
@@ -305,3 +307,10 @@ mw({
     ]
   }
 });
+
+// generate.ts passed @copy to codegen, so olio() must get it too.
+// @ts-expect-error codegen composed with @copy: directives are required
+olio({ modules: [] });
+olio({ modules: [], directives: [copyDirective()] });
+// @ts-expect-error codegen wasn't given @implements
+olio({ modules: [], directives: [implementsDirective()] });

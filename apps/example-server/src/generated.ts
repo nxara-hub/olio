@@ -223,6 +223,7 @@ export type UserError = {
 /* #endregion Interfaces */
 
 export type Application = {
+  "~directives": "implements" | "copy";
   auth: {
     Employee: { type: Employee; fields: "__isTypeOf" | "email" | "id" | "name" | "role" };
     InvalidCredentials: { type: InvalidCredentials; fields: "__isTypeOf" | "message" };

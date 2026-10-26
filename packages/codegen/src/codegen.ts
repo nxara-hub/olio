@@ -126,7 +126,13 @@ export function compile(
     region("Inputs", types.filter(isInputObjectType).map(emitInput)),
     region("Unions", types.filter(isUnionType).map(emitUnion)),
     region("Interfaces", types.filter(isInterfaceType).map(emitInterface)),
-    emitApplication(schema, ownership, roots, bypass)
+    emitApplication(
+      schema,
+      ownership,
+      roots,
+      bypass,
+      (options.directives ?? []).map((d) => d.name)
+    )
   ];
   return { document, code: `${parts.join("\n\n")}\n`, schema };
 }

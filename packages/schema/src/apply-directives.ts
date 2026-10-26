@@ -14,8 +14,9 @@ export interface DirectiveContext {
  * A schema-design directive: validates its usages, then consumes them. The
  * output is plain GraphQL without the directive.
  */
-export interface SchemaDirective {
-  name: string;
+export interface SchemaDirective<Name extends string = string> {
+  /** A literal type, so codegen's `Application` can tell olio which ones to expect. */
+  name: Name;
   /** The directive's SDL definition, e.g. for editor tooling. */
   definition: string;
   /** Throw if any usage is invalid. Runs before any transform. */

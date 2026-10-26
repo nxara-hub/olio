@@ -59,6 +59,8 @@ await codegen({
 export const app = olio({ modules, directives });
 ```
 
+Codegen records the directives' names in `Application` (`"~directives": "implements" | "copy"`), so in a typed app `olio()` doesn't compile without the same ones. A directive's `name` is its literal type (`SchemaDirective<"copy">`) for that check.
+
 Or apply them yourself:
 
 ```ts

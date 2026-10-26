@@ -13,6 +13,7 @@ export type {
   Context,
   FeatureConfig,
   BypassKey,
+  DirectiveName,
   FeatureId,
   FeatureMiddleware,
   FieldExtensions,

@@ -111,6 +111,14 @@ describe("compose", () => {
     expect(plain(ownership).a?.Query).toEqual(["x", "y"]);
   });
 
+  test("an unknown directive says schema directives are passed as `directives`", () => {
+    expect(() =>
+      compose([mod("m", 'type Query @copy(from: ["Base"]) { a: Int }')])
+    ).toThrow(
+      'Invalid SDL:\n  m.gql:1:12: Unknown directive "@copy".\nA schema directive (e.g. @copy) must be passed as `directives`, to codegen and olio() alike.'
+    );
+  });
+
   test("a duplicate names every module that declares it", () => {
     expect(() =>
       compose([

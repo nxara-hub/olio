@@ -78,7 +78,8 @@ export function emitApplication(
   schema: GraphQLSchema,
   ownership: Ownership,
   roots: RootTypes,
-  bypass: Bypass
+  bypass: Bypass,
+  directives: readonly string[]
 ): string {
   const operations = new Map(
     Object.entries(roots).map(([operation, name]) => [name, operation])
@@ -95,5 +96,9 @@ export function emitApplication(
         ? `  ${moduleKey(id)}: {\n${entries.join("\n")}\n  };`
         : `  ${moduleKey(id)}: {};`;
     });
-  return `export type Application = {\n${modules.join("\n")}\n};`;
+  // "~" keeps it apart from owner ids; olio requires the same directives.
+  const used = directives.length
+    ? [`  "~directives": ${directives.map((d) => `"${d}"`).join(" | ")};`]
+    : [];
+  return `export type Application = {\n${[...used, ...modules].join("\n")}\n};`;
 }

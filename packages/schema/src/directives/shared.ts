@@ -206,15 +206,17 @@ function findCycle(edges: Edges): Cycle | undefined {
   return undefined;
 }
 
-export interface FieldCopySpec {
-  name: string;
+export interface FieldCopySpec<Name extends string> {
+  name: Name;
   definition: string;
   sourceKinds: Partial<Record<TargetKind, readonly string[]>>;
   addInterfaces?: boolean;
   overrides: boolean;
 }
 
-export function fieldCopyDirective(spec: FieldCopySpec): SchemaDirective {
+export function fieldCopyDirective<Name extends string>(
+  spec: FieldCopySpec<Name>
+): SchemaDirective<Name> {
   const { name } = spec;
   const targets = Object.keys(spec.sourceKinds).map((k) => `${k} types`);
 

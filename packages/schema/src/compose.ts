@@ -181,6 +181,13 @@ function assertNoErrors(errors: readonly GraphQLError[], title: string): void {
       ...nodes.slice(1).map((node) => `    also at ${position(node)}`)
     ].join("\n")
   );
+  // Typed apps can't forget them (olio's config type requires them); untyped
+  // ones only see graphql's "Unknown directive".
+  if (errors.some((e) => e.message.startsWith("Unknown directive"))) {
+    lines.push(
+      "A schema directive (e.g. @copy) must be passed as `directives`, to codegen and olio() alike."
+    );
+  }
   throw new Error(`${title}:\n${lines.join("\n")}`);
 }
 
