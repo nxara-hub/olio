@@ -167,7 +167,7 @@ type Edges = Map<
 >;
 
 interface Cycle {
-  directive: DirectiveNode | undefined;
+  usages: (DirectiveNode | undefined)[];
   path: string[];
 }
 
@@ -179,9 +179,10 @@ function findCycle(edges: Edges): Cycle | undefined {
   const visit = (type: string): Cycle | undefined => {
     const at = path.findIndex((step) => step.type === type);
     if (at !== -1) {
+      const steps = path.slice(at);
       return {
-        directive: path[at]?.via,
-        path: [...path.slice(at).map((step) => step.type), type]
+        usages: steps.map((step) => step.via),
+        path: [...steps.map((step) => step.type), type]
       };
     }
     if (done.has(type)) return undefined;
@@ -273,7 +274,13 @@ export function fieldCopyDirective(spec: FieldCopySpec): SchemaDirective {
       const cycle = findCycle(edges);
       if (cycle) {
         const chain = cycle.path.map((t) => `"${t}"`).join(" -> ");
-        throw new Error(located(cycle.directive, `@${name} cycle: ${chain}`));
+        const [first, ...others] = cycle.usages;
+        throw new Error(
+          [
+            located(first, `@${name} cycle: ${chain}`),
+            ...others.map((usage) => `  also at ${position(usage)}`)
+          ].join("\n")
+        );
       }
     },
 

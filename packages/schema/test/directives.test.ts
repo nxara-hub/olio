@@ -214,12 +214,14 @@ describe("applyDirectives", () => {
       run(
         `type A @copy(from: ["B"]) { a: Int } type B @copy(from: ["A"]) { b: Int }`
       )
-    ).toThrow(/^(.+:)?1:8: @copy cycle: "A" -> "B" -> "A"$/);
+    ).toThrow(
+      /^(.+:)?1:8: @copy cycle: "A" -> "B" -> "A"\n {2}also at (.+:)?1:45$/
+    );
     expect(() =>
       run(
         `type A @copy(from: ["B"]) { a: Int } type B @copy(from: ["C"]) { b: Int } type C @copy(from: ["B"]) { c: Int }`
       )
-    ).toThrow(/@copy cycle: "B" -> "C" -> "B"$/);
+    ).toThrow(/@copy cycle: "B" -> "C" -> "B"\n {2}also at schema.gql:1:82$/);
     expect(() => run(`type A @copy(from: ["A"]) { a: Int }`)).toThrow(
       /@copy cycle: "A" -> "A"$/
     );
