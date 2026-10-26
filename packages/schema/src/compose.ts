@@ -42,6 +42,19 @@ export interface Composed {
   bypass: Bypass;
 }
 
+function schemaRoots(schema: GraphQLSchema): RootTypes {
+  const roots: RootTypes = {};
+  const types = {
+    query: schema.getQueryType(),
+    mutation: schema.getMutationType(),
+    subscription: schema.getSubscriptionType()
+  };
+  for (const [operation, type] of Object.entries(types)) {
+    if (type) roots[operation as Operation] = type.name;
+  }
+  return roots;
+}
+
 function rootTypes(document: DocumentNode): RootTypes {
   const declared: RootTypes = {};
   let hasSchema = false;
@@ -210,11 +223,14 @@ export function compose(
   const { document: sdl, bypass } = extractBypass(
     concatAST(grouped.flatMap((m) => m.typeDefs))
   );
-  const roots = rootTypes(sdl);
-  const document = applyDirectives(withRootTypes(sdl, roots), directives);
+  // Candidates (default names without a schema block) until the schema
+  // says which exist.
+  const candidates = rootTypes(sdl);
+  const document = applyDirectives(withRootTypes(sdl, candidates), directives);
   assertNoErrors(validateSDL(document), "Invalid SDL");
   const schema = buildASTSchema(document, { assumeValidSDL: true });
   assertNoErrors(validateSchema(schema), "Invalid schema");
+  const roots = schemaRoots(schema);
 
   return {
     document,

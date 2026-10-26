@@ -103,6 +103,16 @@ describe("compose", () => {
     expect(plain(ownership).other).toEqual({});
   });
 
+  test("roots lists only the root types the schema has", () => {
+    expect(compose([mod("m", "extend type Query { a: Int }")]).roots).toEqual({
+      query: "Query"
+    });
+    expect(
+      compose([mod("m", "type Query { a: Int } type Mutation { b: Int }")])
+        .roots
+    ).toEqual({ query: "Query", mutation: "Mutation" });
+  });
+
   test("merges modules that share an id", () => {
     const { ownership } = compose([
       mod("a", "extend type Query { x: Int }"),

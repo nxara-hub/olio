@@ -30,7 +30,7 @@ const { document, schema, ownership } = compose(
 ```
 
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
-- **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports them: `{ query: "RootQuery" }`.
+- **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports the ones the schema has: `{ query: "RootQuery" }`, never a default with no type behind it.
 - **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`. Enum values are owned the same way, so only the declaring module can give them internal values. A scalar is owned by the module that defines it (marked `__scalar`).
 - **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name.
 - **`bypass`** (`Map<"Type.field", Set<key>>`) holds what `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema`, before the other directives run. olio hands the keys to middleware; see its README.
