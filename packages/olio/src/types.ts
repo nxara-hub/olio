@@ -496,6 +496,16 @@ export type LoadedResolvers = { readonly [type: string]: never } & {
   readonly [loaded]: true;
 };
 
+declare const loadedEnums: unique symbol;
+
+/**
+ * What `loadEnums` returns: it satisfies a required `enums` unchecked, as a
+ * loaded resolver map does `resolvers`; each file is typed by its builder.
+ */
+export type LoadedEnums = { readonly [type: string]: never } & {
+  readonly [loadedEnums]: true;
+};
+
 type OwnEnum<O extends string> = {
   [T in ModuleTypeName<O>]: Entry<O, T> extends { enum: string } ? T : never;
 }[ModuleTypeName<O>];
@@ -523,7 +533,7 @@ type EnumsOption<O extends string> = Untyped extends true
   ? { enums?: EnumValues<O> }
   : [CustomEnum<O>] extends [never]
     ? unknown
-    : { enums: EnumValues<O> };
+    : { enums: EnumValues<O> | LoadedEnums };
 
 export type OwnerResolvers<O extends string> = Untyped extends true
   ? ResolverMap | UntypedInlineResolvers

@@ -2,7 +2,12 @@ import { glob, readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { LoadedResolvers, OlioFeature, OlioModule } from "@nxlab/olio";
+import type {
+  LoadedEnums,
+  LoadedResolvers,
+  OlioFeature,
+  OlioModule
+} from "@nxlab/olio";
 import { parse, Source, type DocumentNode } from "graphql";
 
 export type TypeSource = string | DocumentNode;
@@ -86,6 +91,21 @@ const isPlainObject = (value: object): boolean =>
 export async function loadResolvers(
   ...patterns: Pattern[]
 ): Promise<LoadedResolvers> {
+  // Each file is typed where it's written, with olio's builders.
+  return (await loadMaps(patterns)) as LoadedResolvers;
+}
+
+/**
+ * Every named export is an enum's internal values, typed where it's written
+ * (`export const Role = resolvers.users.Role({ ADMIN: 1 })`), for a module's
+ * `enums`. Unlike an inline map, it isn't checked for every enum the module
+ * needs: a missing one fails per query, with an error naming it.
+ */
+export async function loadEnums(...patterns: Pattern[]): Promise<LoadedEnums> {
+  return (await loadMaps(patterns)) as LoadedEnums;
+}
+
+async function loadMaps(patterns: readonly Pattern[]): Promise<ResolverMap> {
   const files = await matchFiles(patterns);
   const modules = await Promise.all(
     files.map(
@@ -130,8 +150,7 @@ export async function loadResolvers(
   // olio reads it to name the file in its errors; Symbol.for, so it matches
   // across copies of the packages.
   Object.defineProperty(merged, Symbol.for("nxlab.origin"), { value: origin });
-  // Each file is typed where it's written, with olio's builders.
-  return merged as LoadedResolvers;
+  return merged;
 }
 
 function hasParts(value: unknown): value is Record<string, unknown> {

@@ -166,7 +166,7 @@ export const sales = module.sales({
 });
 ```
 
-To keep a map in its own file, write it with the typed builder: `export const OrderStatus = resolvers.sales.OrderStatus({ ... })`, then `enums: { OrderStatus }`.
+To keep a map in its own file, write it with the typed builder: `export const OrderStatus = resolvers.sales.OrderStatus({ ... })`, then `enums: { OrderStatus }`, or load such files with `enums: await loadEnums(...)` from `@nxlab/tools` (unchecked, like `loadResolvers`).
 
 ## Output
 

@@ -264,7 +264,7 @@ Mappers work for object types and interfaces, keyed by GraphQL type name:
 - **An interface without a mapper**: fields returning it return any implementer, each as its own mapper (`UserRow | Post`), because that is what graphql resolves. `__resolveType` receives the same union.
 - **Unions** map member by member.
 
-Enums with internal values are configured in codegen (`CustomEnums`) rather than here, because they also change argument and input types. See the codegen README. The values go in the owning module's (or feature's) `enums` option, never in `resolvers`; once `CustomEnums` registers an enum, `enums` is required, so they can't be forgotten. `resolvers.<id>.<Enum>({ ... })` types a map kept in its own file. In an untyped app nothing knows values were expected, so a resolver returning an internal value no module mapped fails with `Enum "Role" cannot represent value: 1. No module gave "Role" internal values: ...`.
+Enums with internal values are configured in codegen (`CustomEnums`) rather than here, because they also change argument and input types. See the codegen README. The values go in the owning module's (or feature's) `enums` option, never in `resolvers`; once `CustomEnums` registers an enum, `enums` is required, so they can't be forgotten. `resolvers.<id>.<Enum>({ ... })` types a map kept in its own file, and `loadEnums` from `@nxlab/tools` loads such files (unchecked, like `loadResolvers`). In an untyped app nothing knows values were expected, so a resolver returning an internal value no module mapped fails with `Enum "Role" cannot represent value: 1. No module gave "Role" internal values: ...`.
 
 ## Field types
 

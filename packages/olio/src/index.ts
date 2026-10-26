@@ -19,6 +19,7 @@ export type {
   FieldExtensions,
   FieldResolver,
   Fields,
+  LoadedEnums,
   LoadedResolvers,
   Middleware,
   MiddlewareFn,

@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createModule, olio } from "@nxlab/olio";
-import { print } from "graphql";
+import { graphql, print } from "graphql";
 
 import {
+  loadEnums,
   loadFeatures,
   loadModules,
   loadResolvers,
@@ -145,6 +146,36 @@ describe("loadResolvers", () => {
     try {
       await expect(build()).rejects.toThrow(
         /^Module "users": unknown type "helpers" \(exported by .*query\.ts\)$/
+      );
+    } finally {
+      await clean();
+    }
+  });
+
+  test("loadEnums gives a module its enums, naming the file in errors", async () => {
+    const { dir, clean } = await withDir({
+      "role.ts": "export const Role = { ADMIN: 1, GUEST: 2 };",
+      "bad.ts": "export const Rol = { ADMIN: 1 };"
+    });
+    const build = async (pattern: string) => {
+      const { schema } = olio({
+        modules: [
+          createModule("users", {
+            typeDefs: "enum Role { ADMIN GUEST } type Query { role: Role }",
+            resolvers: { Query: { role: () => 2 } },
+            enums: await loadEnums(`${dir}/${pattern}`)
+          })
+        ]
+      });
+      return schema;
+    };
+    try {
+      const schema = await build("role.ts");
+      expect((await graphql({ schema, source: "{ role }" })).data).toEqual({
+        role: "GUEST"
+      });
+      await expect(build("*.ts")).rejects.toThrow(
+        /^Module "users": enums: unknown enum "Rol"\. Did you mean "Role"\? \(exported by .*bad\.ts\)$/
       );
     } finally {
       await clean();

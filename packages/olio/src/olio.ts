@@ -483,29 +483,35 @@ function applyEnum(
 // Setting `value` after the schema is built is safe: graphql builds its
 // internal-value lookup lazily. Defaults are another matter (`coerceDefaults`).
 function applyEnums(attach: Attach): void {
-  const { schema, owner } = attach;
-  for (const [name, values] of Object.entries(owner.enums)) {
-    const type = schema.getType(name);
-    if (!isEnumType(type)) {
-      const enums = Object.values(schema.getTypeMap()).filter(
-        (t) => isEnumType(t) && !t.name.startsWith("__")
-      );
-      throw new Error(
-        type
-          ? `${owner.label}: enums: "${name}" is not an enum`
-          : `${owner.label}: enums: unknown enum "${name}"${suggest(
-              name,
-              enums.map((t) => t.name)
-            )}`
-      );
-    }
-    if (typeof values !== "object" || values === null) {
-      throw new TypeError(
-        `${owner.label}: enums: "${name}" must map each value to its internal value`
-      );
-    }
-    applyEnum(attach, type, values);
+  for (const [name, values] of Object.entries(attach.owner.enums)) {
+    blameFile(attach.owner.enums, name, () =>
+      applyEnumEntry(attach, name, values)
+    );
   }
+}
+
+function applyEnumEntry(attach: Attach, name: string, values: unknown): void {
+  const { schema, owner } = attach;
+  const type = schema.getType(name);
+  if (!isEnumType(type)) {
+    const enums = Object.values(schema.getTypeMap()).filter(
+      (t) => isEnumType(t) && !t.name.startsWith("__")
+    );
+    throw new Error(
+      type
+        ? `${owner.label}: enums: "${name}" is not an enum`
+        : `${owner.label}: enums: unknown enum "${name}"${suggest(
+            name,
+            enums.map((t) => t.name)
+          )}`
+    );
+  }
+  if (typeof values !== "object" || values === null) {
+    throw new TypeError(
+      `${owner.label}: enums: "${name}" must map each value to its internal value`
+    );
+  }
+  applyEnum(attach, type, values);
 }
 
 // An enum nobody gave internal values serializes by name, so a resolver that
@@ -596,26 +602,36 @@ function unknownType({ schema, owner }: Attach, name: string): string {
   return `${owner.label}: unknown type "${name}"${hint}`;
 }
 
-// Set by @nxlab/tools' loadResolvers: "Type" / "Type.field" -> the file that
-// exported it, so errors about loaded resolvers can name the file.
+// Set by @nxlab/tools' loadResolvers / loadEnums: "Type" / "Type.field" -> the
+// file that exported it, so errors about loaded maps can name the file.
 const ORIGIN = Symbol.for("nxlab.origin");
+
+// A loaded map (loadResolvers / loadEnums) knows each key's file; errors
+// about a key name it. `at` narrows the key to a field as the run goes.
+function blameFile(
+  map: object,
+  type: string,
+  run: (at: (field: string) => void) => void
+): void {
+  const origin = (map as { [ORIGIN]?: ReadonlyMap<string, string> })[ORIGIN];
+  let key = type;
+  try {
+    run((field) => {
+      key = `${type}.${field}`;
+    });
+  } catch (error) {
+    const file = origin?.get(key) ?? origin?.get(type);
+    if (file && error instanceof Error) {
+      error.message += ` (exported by ${file})`;
+    }
+    throw error;
+  }
+}
 
 function applyResolvers(attach: Attach): void {
   for (const map of attach.owner.resolvers) {
-    const origin = (map as { [ORIGIN]?: ReadonlyMap<string, string> })[ORIGIN];
     for (const [typeName, value] of Object.entries(map)) {
-      let at = typeName;
-      try {
-        applyType(attach, typeName, value, (field) => {
-          at = `${typeName}.${field}`;
-        });
-      } catch (error) {
-        const file = origin?.get(at) ?? origin?.get(typeName);
-        if (file && error instanceof Error) {
-          error.message += ` (exported by ${file})`;
-        }
-        throw error;
-      }
+      blameFile(map, typeName, (at) => applyType(attach, typeName, value, at));
     }
   }
 }

@@ -10,6 +10,7 @@ import {
   olio,
   query,
   resolvers,
+  type LoadedEnums,
   type LoadedResolvers,
   type TypeResolvers,
   type MiddlewareFn
@@ -117,6 +118,11 @@ module.content({ resolvers: fromFiles });
 module.content({ enums, resolvers: { Role: { ADMIN: 1, GUEST: 2 } } });
 // @ts-expect-error GUEST needs an internal value too
 module.content({ enums: { Role: { ADMIN: 1 } } });
+// What loadEnums returns passes as the enums, like a loaded resolver map.
+declare const fromEnumFiles: LoadedEnums;
+module.content({ enums: fromEnumFiles });
+// @ts-expect-error a loaded resolver map isn't enums
+module.content({ enums: fromFiles });
 // The blog feature declares no enum, so it takes none.
 // @ts-expect-error no enums to give
 feature.content.blog({ enums });

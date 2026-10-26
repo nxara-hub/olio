@@ -1,4 +1,5 @@
 export {
+  loadEnums,
   loadFeatures,
   loadModules,
   loadResolvers,

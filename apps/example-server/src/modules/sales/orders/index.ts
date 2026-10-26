@@ -1,7 +1,6 @@
 import { feature } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { loadEnums, loadResolvers, loadTypeDefs } from "@nxlab/tools";
 
-import { OrderStatus } from "./enums.js";
 import { middleware } from "./middleware.js";
 
 export const orders = feature.sales.orders({
@@ -10,6 +9,6 @@ export const orders = feature.sales.orders({
     new URL("{query,mutation,subscription}.{js,ts}", import.meta.url),
     new URL("resolvers/*.{js,ts}", import.meta.url)
   ),
-  enums: { OrderStatus },
+  enums: await loadEnums(new URL("enums.{js,ts}", import.meta.url)),
   middleware
 });
