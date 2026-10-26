@@ -539,6 +539,14 @@ describe("olio", () => {
     );
   });
 
+  test("an SDL syntax error has its location in the message", () => {
+    expect(() =>
+      createModule("users", { typeDefs: "type User { name String }" })
+    ).toThrow(
+      'module "users":1:18: Syntax Error: Expected ":", found Name "String".'
+    );
+  });
+
   test("a subscription must return an AsyncIterable", async () => {
     const live = createModule("live", {
       typeDefs: "type Query { ok: Int } type Subscription { tick: Int }",

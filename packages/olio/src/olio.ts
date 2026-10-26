@@ -17,6 +17,7 @@ import {
   parse,
   Source,
   valueFromAST,
+  GraphQLError,
   type GraphQLArgument,
   type GraphQLEnumType,
   type GraphQLInputField,
@@ -63,12 +64,24 @@ const toList = <T>(value: T | readonly T[] | undefined): readonly T[] => {
   return Array.isArray(value) ? value : [value as T];
 };
 
+// graphql keeps a syntax error's location out of its message, unlike every
+// other SDL error, so a logged `message` wouldn't say where the typo is.
+function parseSDL(source: string, name: string): DocumentNode {
+  try {
+    return parse(new Source(source, name));
+  } catch (error) {
+    const loc = error instanceof GraphQLError && error.locations?.[0];
+    if (!loc) throw error;
+    throw new Error(`${name}:${loc.line}:${loc.column}: ${error.message}`);
+  }
+}
+
 const parseAll = (
   typeDefs: TypeSource | readonly TypeSource[] | undefined,
   name: string
 ): DocumentNode[] =>
   toList(typeDefs).map((typeDef) =>
-    typeof typeDef === "string" ? parse(new Source(typeDef, name)) : typeDef
+    typeof typeDef === "string" ? parseSDL(typeDef, name) : typeDef
   );
 
 // Plain JavaScript can still pass a list, whose keys would read as types.
