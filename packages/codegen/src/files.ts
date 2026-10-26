@@ -14,7 +14,7 @@ import {
   buildClientSchema,
   getIntrospectionQuery,
   parse,
-  print,
+  printSchema,
   Source,
   type DocumentNode,
   type GraphQLSchema,
@@ -254,7 +254,9 @@ export async function codegen(options: CodegenOptions): Promise<void> {
     if (schema) {
       written(
         schema,
-        await writeOutput(schema, print(compiled.document), clear)
+        // Printed from the built schema: each type once, its extensions
+        // merged in, so registries, linters and diff tools read it as is.
+        await writeOutput(schema, `${printSchema(compiled.schema)}\n`, clear)
       );
     }
     log(dim(`  done in ${Math.round(performance.now() - started)}ms`));

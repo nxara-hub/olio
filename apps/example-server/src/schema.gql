@@ -1,8 +1,30 @@
-type Query
+type Query {
+  """The signed-in employee, or null."""
+  me: Employee
+  product(sku: String!): Product
+  products(filter: ProductFilter): ProductPage!
+  customer(id: ID!): Customer
+  customers: [Customer!]!
+  orders(status: OrderStatus): [SalesOrder!]!
+}
 
-type Mutation
+type Mutation {
+  login(email: String!, password: String!): LoginResult!
+  logout: Boolean!
 
-type Subscription
+  """Book stock in (positive delta) or out (negative). Managers only."""
+  adjustStock(sku: String!, warehouse: String!, delta: Int!): Product!
+  createCustomer(input: NewCustomer!): Customer!
+  placeOrder(customerId: ID!, lines: [OrderLineInput!]!): PlaceOrderResult!
+
+  """Managers only."""
+  cancelOrder(id: ID!): SalesOrder
+}
+
+type Subscription {
+  """Fires whenever stock moves, for one SKU or all of them."""
+  stockChanged(sku: String): Product!
+}
 
 enum Role {
   ADMIN
@@ -22,35 +44,27 @@ type Session {
   employee: Employee!
 }
 
-"Takes its message field from UserError."
+"""Takes its message field from UserError."""
 type InvalidCredentials implements UserError {
   message: String!
 }
 
 union LoginResult = Session | InvalidCredentials
 
-extend type Query {
-  "The signed-in employee, or null."
-  me: Employee
-}
-
-extend type Mutation {
-  login(email: String!, password: String!): LoginResult!
-  logout: Boolean!
-}
-
-"Anything with a stable id."
+"""Anything with a stable id."""
 interface Node {
   id: ID!
 }
 
-"Audit timestamps."
+"""Audit timestamps."""
 interface Timestamped {
   createdAt: DateTime!
   updatedAt: DateTime!
 }
 
-"A problem the caller can fix, returned in a result union instead of thrown."
+"""
+A problem the caller can fix, returned in a result union instead of thrown.
+"""
 interface UserError {
   message: String!
 }
@@ -61,7 +75,7 @@ enum Currency {
   GBP
 }
 
-"An amount in minor units (cents), so totals never round."
+"""An amount in minor units (cents), so totals never round."""
 type Money {
   amount: Int!
   currency: Currency!
@@ -74,7 +88,7 @@ type PageInfo {
   hasNextPage: Boolean!
 }
 
-"Paging arguments, copied into every list filter with @copy."
+"""Paging arguments, copied into every list filter with @copy."""
 input PageArgs {
   page: Int = 1
   pageSize: Int = 20
@@ -100,10 +114,15 @@ type Product implements Node & Timestamped {
   sku: String!
   name: String!
   price: Money!
-  "Units on hand, per warehouse."
+
+  """Units on hand, per warehouse."""
   stock: [StockLevel!]!
-  "Units on hand across every warehouse."
+
+  """Units on hand across every warehouse."""
   onHand: Int!
+
+  """Units on confirmed orders."""
+  unitsSold: Int!
 }
 
 type ProductPage {
@@ -114,23 +133,9 @@ type ProductPage {
 input ProductFilter {
   page: Int = 1
   pageSize: Int = 20
-  "Matches SKU or name, case-insensitively."
+
+  """Matches SKU or name, case-insensitively."""
   search: String
-}
-
-extend type Query {
-  product(sku: String!): Product
-  products(filter: ProductFilter): ProductPage!
-}
-
-extend type Mutation {
-  "Book stock in (positive delta) or out (negative). Managers only."
-  adjustStock(sku: String!, warehouse: String!, delta: Int!): Product!
-}
-
-extend type Subscription {
-  "Fires whenever stock moves, for one SKU or all of them."
-  stockChanged(sku: String): Product!
 }
 
 type Customer implements Node & Timestamped {
@@ -138,24 +143,17 @@ type Customer implements Node & Timestamped {
   createdAt: DateTime!
   updatedAt: DateTime!
   name: String!
-  "Personal data: managers and admins only."
+
+  """Personal data: managers and admins only."""
   email: String
   creditLimit: Money!
+  orders: [SalesOrder!]!
 }
 
 input NewCustomer {
   name: String!
   email: String!
   creditLimit: Int!
-}
-
-extend type Query {
-  customer(id: ID!): Customer
-  customers: [Customer!]!
-}
-
-extend type Mutation {
-  createCustomer(input: NewCustomer!): Customer!
 }
 
 enum OrderStatus {
@@ -193,23 +191,4 @@ union PlaceOrderResult = SalesOrder | InsufficientStock
 input OrderLineInput {
   sku: String!
   quantity: Int!
-}
-
-extend type Product {
-  "Units on confirmed orders."
-  unitsSold: Int!
-}
-
-extend type Customer {
-  orders: [SalesOrder!]!
-}
-
-extend type Query {
-  orders(status: OrderStatus): [SalesOrder!]!
-}
-
-extend type Mutation {
-  placeOrder(customerId: ID!, lines: [OrderLineInput!]!): PlaceOrderResult!
-  "Managers only."
-  cancelOrder(id: ID!): SalesOrder
 }

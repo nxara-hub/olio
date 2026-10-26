@@ -202,9 +202,10 @@ describe("codegen", () => {
 
       await codegen({ modules, typeDefs: "**/*.gql", output, schema });
 
-      const sdl = await readFile(schema, "utf8");
-      expect(sdl).toContain("viewer: User");
-      expect(sdl).toContain("email: String!");
+      // Printed, not concatenated: the extension merged into its type.
+      expect(await readFile(schema, "utf8")).toBe(
+        "type Query {\n  viewer: User\n}\n\ntype User {\n  id: ID!\n  email: String!\n}\n"
+      );
     });
   });
 

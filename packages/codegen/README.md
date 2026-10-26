@@ -49,7 +49,7 @@ await codegen({
 
 Their names land in `Application` as `"~directives"`, and olio's types then require the same `directives` in `olio()`.
 
-Set `schema` to write the final (transformed) GraphQL SDL to a file. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
+Set `schema` to write the final schema to a file, printed from the built schema: each type once with its extensions merged in, the directives applied, ready for schema registries, linters and diff tools. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
 
 ## Client types
 
