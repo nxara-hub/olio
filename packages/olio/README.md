@@ -190,7 +190,7 @@ export const Subscription = subscription.users({
 
 ## Field extensions
 
-A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`.
+A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`. Read back there, registered keys keep their types (`complexity` is `number | ((args) => number)`); graphql's index signature still lets any other key through as `unknown`.
 
 ```ts
 export const Query = query.inventory({

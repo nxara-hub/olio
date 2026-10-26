@@ -271,3 +271,23 @@ query.content({
     }
   }
 });
+
+// Read back through graphql, registered keys keep their types.
+mw({
+  "*": {
+    "*": [
+      ({ info, args }, next) => {
+        const extensions =
+          info.parentType.getFields()[info.fieldName]?.extensions;
+        const complexity = extensions?.complexity;
+        const cost: number =
+          typeof complexity === "function"
+            ? complexity(args)
+            : (complexity ?? 1);
+        // @ts-expect-error complexity is a number or a function, not a string
+        const label: string | undefined = extensions?.complexity;
+        return cost && label && next();
+      }
+    ]
+  }
+});

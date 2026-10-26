@@ -315,6 +315,17 @@ export type CheckedMiddleware<T, Shape> = {
 // oxlint-disable-next-line typescript/no-empty-interface -- augmented by apps
 export interface FieldExtensions<Source, Args> {}
 
+// Read back through graphql (`info.parentType.getFields()[name].extensions`,
+// `schema.getQueryType().getFields()`), the registered keys keep their types.
+declare module "graphql" {
+  // oxlint-disable-next-line typescript/no-empty-interface -- merges into graphql's own
+  interface GraphQLFieldExtensions<
+    _TSource,
+    _TContext,
+    _TArgs
+  > extends FieldExtensions<_TSource, _TArgs> {}
+}
+
 // Keys libraries add to graphql's own interface count too; its index
 // signature (any key) doesn't, so typos stay errors.
 type KnownKeys<T> = {
