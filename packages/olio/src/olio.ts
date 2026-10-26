@@ -148,12 +148,29 @@ interface Owner {
   canTarget: (owner: string) => boolean;
 }
 
+// Listing one module twice and two modules sharing an id are different
+// mistakes, so they get different messages.
+function register(
+  seen: Map<string, object>,
+  kind: "Module" | "Feature",
+  id: string,
+  value: object
+): void {
+  const first = seen.get(id);
+  if (first === value) throw new Error(`${kind} "${id}" is listed twice`);
+  if (first) {
+    throw new Error(
+      `Two different ${kind.toLowerCase()}s use the id "${id}"; ids must be unique`
+    );
+  }
+  seen.set(id, value);
+}
+
 function owners(modules: readonly OlioModule[]): Owner[] {
   const result: Owner[] = [];
-  const ids = new Set<string>();
+  const seen = new Map<string, object>();
   for (const m of modules) {
-    if (ids.has(m.id)) throw new Error(`Module "${m.id}" is registered twice`);
-    ids.add(m.id);
+    register(seen, "Module", m.id, m);
     result.push({
       ...m,
       kind: "module",
@@ -168,8 +185,7 @@ function owners(modules: readonly OlioModule[]): Owner[] {
           `Feature "${f.module}/${f.id}" is listed in module "${m.id}"`
         );
       }
-      if (ids.has(id)) throw new Error(`Feature "${id}" is registered twice`);
-      ids.add(id);
+      register(seen, "Feature", id, f);
       result.push({
         id,
         kind: "feature",

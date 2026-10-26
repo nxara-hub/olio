@@ -307,7 +307,9 @@ describe("olio", () => {
       olio({
         modules: [sales([createFeature("sales", "customers", {})])]
       })
-    ).toThrow('Feature "sales/customers" is registered twice');
+    ).toThrow(
+      'Two different features use the id "sales/customers"; ids must be unique'
+    );
   });
 
   test("middleware can short-circuit and replace args", async () => {
@@ -892,7 +894,10 @@ describe("olio", () => {
 
   test("rejects invalid configuration", () => {
     expect(() => olio({ modules: [root, root] })).toThrow(
-      'Module "root" is registered twice'
+      'Module "root" is listed twice'
+    );
+    expect(() => olio({ modules: [root, createModule("root", {})] })).toThrow(
+      'Two different modules use the id "root"; ids must be unique'
     );
     expect(() =>
       olio({
