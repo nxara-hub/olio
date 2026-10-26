@@ -161,6 +161,50 @@ function mergeFields(merge: Merge): Field[] {
   return [...merged.values()].map(([, field]) => field);
 }
 
+type Edges = Map<
+  string,
+  { directive: DirectiveNode; sources: readonly string[] }[]
+>;
+
+interface Cycle {
+  directive: DirectiveNode | undefined;
+  path: string[];
+}
+
+// Interfaces can't carry these directives, so an @implements edge ends at an
+// interface: only @copy can close a cycle, and only through its own usages.
+function findCycle(edges: Edges): Cycle | undefined {
+  const done = new Set<string>();
+  const path: { type: string; via?: DirectiveNode }[] = [];
+  const visit = (type: string): Cycle | undefined => {
+    const at = path.findIndex((step) => step.type === type);
+    if (at !== -1) {
+      return {
+        directive: path[at]?.via,
+        path: [...path.slice(at).map((step) => step.type), type]
+      };
+    }
+    if (done.has(type)) return undefined;
+    const step: { type: string; via?: DirectiveNode } = { type };
+    path.push(step);
+    for (const { directive, sources } of edges.get(type) ?? []) {
+      step.via = directive;
+      for (const source of sources) {
+        const cycle = visit(source);
+        if (cycle) return cycle;
+      }
+    }
+    path.pop();
+    done.add(type);
+    return undefined;
+  };
+  for (const type of edges.keys()) {
+    const cycle = visit(type);
+    if (cycle) return cycle;
+  }
+  return undefined;
+}
+
 export interface FieldCopySpec {
   name: string;
   definition: string;
@@ -214,10 +258,22 @@ export function fieldCopyDirective(spec: FieldCopySpec): SchemaDirective {
 
     validate(document) {
       const analysis = analyze(document);
+      const edges: Edges = new Map();
       for (const def of document.definitions) {
         const type = asType(def);
         const directive = type && usage(type);
-        if (type && directive) resolve(type, directive, analysis);
+        if (!type || !directive) continue;
+        const sources = resolve(type, directive, analysis);
+        const target = type.name.value;
+        edges.set(target, [
+          ...(edges.get(target) ?? []),
+          { directive, sources }
+        ]);
+      }
+      const cycle = findCycle(edges);
+      if (cycle) {
+        const chain = cycle.path.map((t) => `"${t}"`).join(" -> ");
+        throw new Error(located(cycle.directive, `@${name} cycle: ${chain}`));
       }
     },
 

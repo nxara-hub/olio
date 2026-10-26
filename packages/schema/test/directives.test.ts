@@ -214,7 +214,15 @@ describe("applyDirectives", () => {
       run(
         `type A @copy(from: ["B"]) { a: Int } type B @copy(from: ["A"]) { b: Int }`
       )
-    ).toThrow('Schema directives reference each other in a cycle: "A", "B"');
+    ).toThrow(/^(.+:)?1:8: @copy cycle: "A" -> "B" -> "A"$/);
+    expect(() =>
+      run(
+        `type A @copy(from: ["B"]) { a: Int } type B @copy(from: ["C"]) { b: Int } type C @copy(from: ["B"]) { c: Int }`
+      )
+    ).toThrow(/@copy cycle: "B" -> "C" -> "B"$/);
+    expect(() => run(`type A @copy(from: ["A"]) { a: Int }`)).toThrow(
+      /@copy cycle: "A" -> "A"$/
+    );
   });
 
   test("enables only the directives passed", () => {
