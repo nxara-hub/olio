@@ -98,6 +98,8 @@ declare module "@nxlab/client" {
 }
 ```
 
+Put it in a `.ts` file, or a `.d.ts` with an `import` or `export {}`.
+
 Enums arrive by name (`"CONFIRMED"`), not as the server's internal values.
 
 ## Subscriptions

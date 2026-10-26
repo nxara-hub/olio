@@ -5,7 +5,8 @@ import type { Scalar, TypedDocument } from "@nxlab/client";
 
 type Maybe<T> = T | null;
 
-// Custom scalars (DateTime) are `unknown` until registered:
+// Custom scalars (DateTime) are `unknown` unless registered in ClientScalars
+// (in a .ts file, or a .d.ts with an import or `export {}`):
 // declare module "@nxlab/client" { interface ClientScalars { DateTime: string } }
 
 export type Currency = "EUR" | "USD" | "GBP";

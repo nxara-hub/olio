@@ -436,7 +436,11 @@ export function emitClient(
     ].join("\n"),
     "type Maybe<T> = T | null;",
     custom.length
-      ? `// Custom scalars (${custom.join(", ")}) are \`unknown\` until registered:\n// declare module "@nxlab/client" { interface ClientScalars { ${custom[0]}: string } }`
+      ? [
+          `// Custom scalars (${custom.join(", ")}) are \`unknown\` unless registered in ClientScalars`,
+          "// (in a .ts file, or a .d.ts with an import or `export {}`):",
+          `// declare module "@nxlab/client" { interface ClientScalars { ${custom[0]}: string } }`
+        ].join("\n")
       : "",
     ...enums,
     ...inputs,

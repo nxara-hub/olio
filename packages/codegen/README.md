@@ -156,6 +156,8 @@ declare module "@nxlab/codegen" {
 
 Use the table directly when you need a scalar's type: `Scalars["DateTime"]["input"]`.
 
+Like every registration, it goes in a `.ts` file, or a `.d.ts` with an `import` or `export {}`.
+
 ## Enums with internal values
 
 Enums are their GraphQL names by default (`"ADMIN" | "GUEST"`). To store something else, such as a number or a lowercase string, register the internal type by augmenting `CustomEnums`:

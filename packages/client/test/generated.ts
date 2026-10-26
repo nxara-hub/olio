@@ -7,7 +7,8 @@ import { ws } from "@nxlab/client/ws";
 
 type Maybe<T> = T | null;
 
-// Custom scalars (DateTime) are `unknown` until registered:
+// Custom scalars (DateTime) are `unknown` unless registered in ClientScalars
+// (in a .ts file, or a .d.ts with an import or `export {}`):
 // declare module "@nxlab/client" { interface ClientScalars { DateTime: string } }
 
 export type Status = "OPEN" | "CLOSED";
