@@ -133,7 +133,9 @@ describe("loadResolvers", () => {
         "class Scalar { name = 'Upper'; }\nexport const Upper = new Scalar();"
     });
     try {
-      const resolvers = await loadResolvers(`${dir}/*.ts`);
+      const resolvers: Record<string, unknown> = await loadResolvers(
+        `${dir}/*.ts`
+      );
       expect(resolvers.Upper?.constructor.name).toBe("Scalar");
     } finally {
       await clean();

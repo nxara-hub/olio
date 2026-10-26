@@ -430,7 +430,11 @@ declare const loaded: unique symbol;
  * the builders), so a loaded map isn't checked again; the brand keeps inline
  * maps from slipping through as one.
  */
-export type LoadedResolvers = ResolverMap & { readonly [loaded]: true };
+// `never` values fit every typed entry, so a loaded map passes the same type
+// as an inline one: a union of the two would hide which inline field is wrong.
+export type LoadedResolvers = { readonly [type: string]: never } & {
+  readonly [loaded]: true;
+};
 
 export type OwnerResolvers<O extends string> = Untyped extends true
   ? ResolverMap | UntypedInlineResolvers
@@ -443,14 +447,16 @@ export type OwnerResolvers<O extends string> = Untyped extends true
             : T extends RootName<"subscription">
               ? SubscriptionResolvers<O>
               : TypeResolvers<O, T & ModuleTypeName<O>>;
-      }
+      } & { readonly [loaded]?: true }
     : never;
-
-type ResolversInput<O extends string> = OwnerResolvers<O> | LoadedResolvers;
 
 export interface ModuleConfig<M extends ModuleId, MW = ModuleMiddleware<M>> {
   typeDefs?: TypeSource | readonly TypeSource[];
-  resolvers?: ResolversInput<M> | readonly ResolversInput<M>[];
+  /**
+   * One map: inline, or what `loadResolvers` returns. Not a list: a union
+   * with one would stop errors from pointing at the field.
+   */
+  resolvers?: OwnerResolvers<M>;
   /** May target the features' fields too. */
   middleware?: MW & CheckedMiddleware<MW, ModuleMiddleware<M>>;
   /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
@@ -463,9 +469,8 @@ export interface FeatureConfig<
   MW = FeatureMiddleware<M, F>
 > {
   typeDefs?: TypeSource | readonly TypeSource[];
-  resolvers?:
-    | ResolversInput<`${M}/${F}`>
-    | readonly ResolversInput<`${M}/${F}`>[];
+  /** One map, as for a module. */
+  resolvers?: OwnerResolvers<`${M}/${F}`>;
   middleware?: MW & CheckedMiddleware<MW, FeatureMiddleware<M, F>>;
 }
 

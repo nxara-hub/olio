@@ -70,6 +70,20 @@ const parseAll = (
     typeof typeDef === "string" ? parse(new Source(typeDef, name)) : typeDef
   );
 
+// Plain JavaScript can still pass a list, whose keys would read as types.
+function resolverMap(
+  owner: string,
+  resolvers: object | undefined
+): readonly ResolverMap[] {
+  if (resolvers === undefined) return [];
+  if (Array.isArray(resolvers)) {
+    throw new TypeError(
+      `${owner}: resolvers must be one map keyed by type, not a list`
+    );
+  }
+  return [resolvers as ResolverMap];
+}
+
 export function createModule<
   M extends ModuleId,
   const MW extends ModuleMiddleware<M> = ModuleMiddleware<M>
@@ -77,7 +91,7 @@ export function createModule<
   return {
     id,
     typeDefs: parseAll(config.typeDefs, `module "${id}"`),
-    resolvers: toList(config.resolvers) as readonly ResolverMap[],
+    resolvers: resolverMap(`Module "${id}"`, config.resolvers),
     middleware: (config.middleware ?? {}) as MiddlewareMap,
     features: config.features ?? []
   };
@@ -92,7 +106,7 @@ export function createFeature<
     module,
     id,
     typeDefs: parseAll(config.typeDefs, `feature "${module}/${id}"`),
-    resolvers: toList(config.resolvers) as readonly ResolverMap[],
+    resolvers: resolverMap(`Feature "${module}/${id}"`, config.resolvers),
     middleware: (config.middleware ?? {}) as MiddlewareMap
   };
 }

@@ -136,11 +136,28 @@ feature.content.blog({
 // @ts-expect-error node belongs to the module, not the feature
 feature.content.blog({ resolvers: { Query: { node: () => null } } });
 
-// What loadResolvers returns passes through, alone or next to inline maps.
+// A mistake is reported at the field, not on the whole map.
+module.content({
+  resolvers: {
+    Query: {
+      usersByRole: (_root, { role }) => [{ ...user, roleId: role }],
+      // @ts-expect-error node returns a Node or null, not a number
+      node: () => 42
+    },
+    User: {
+      name: (row) => row.name,
+      // @ts-expect-error nme is a typo for name
+      nme: (row: UserRow) => row.name
+    }
+  }
+});
+
+// What loadResolvers returns passes through as the map.
 declare const fromFiles: LoadedResolvers;
-module.content({ resolvers: [fromFiles, { Query: { node: () => null } }] });
-// @ts-expect-error inline maps in a list are still checked
-module.content({ resolvers: [fromFiles, { Query: { nope: () => null } }] });
+module.content({ resolvers: fromFiles });
+feature.content.blog({ resolvers: fromFiles });
+// @ts-expect-error one map, not a list
+module.content({ resolvers: [fromFiles] });
 
 // ---- Middleware maps --------------------------------------------------------
 

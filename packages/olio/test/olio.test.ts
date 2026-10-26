@@ -228,9 +228,7 @@ describe("olio", () => {
     );
     expect(() =>
       olio({
-        modules: [
-          sales([], { resolvers: [{ Query: { customer: () => null } }] })
-        ]
+        modules: [sales([], { resolvers: { Query: { customer: () => null } } })]
       })
     ).toThrow(
       'Module "sales": "Query.customer" is declared by feature "sales/customers"'
@@ -818,13 +816,21 @@ describe("olio", () => {
     expect(() =>
       olio({ modules: [root, createModule("x", { resolvers: { Nope: {} } })] })
     ).toThrow('Module "x": unknown type "Nope"');
+    expect(() =>
+      createModule("x", {
+        // @ts-expect-error a list of maps isn't accepted, typed or not
+        resolvers: [{ Query: {} }]
+      })
+    ).toThrow(
+      'Module "x": resolvers must be one map keyed by type, not a list'
+    );
     // A root field map passed without its type key gets a hint.
     expect(() =>
       olio({
         modules: [
           root,
           users(),
-          createModule("x", { resolvers: [{ user: () => null }] })
+          createModule("x", { resolvers: { user: () => null } })
         ]
       })
     ).toThrow(

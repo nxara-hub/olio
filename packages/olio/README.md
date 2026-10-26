@@ -64,7 +64,7 @@ export const usersModule = module.users({
 });
 ```
 
-Unknown types and fields, other modules' fields and wrong return types are compile errors. Maps from `loadResolvers` pass through unchecked, since each file was typed where it was written. A scalar's implementation comes from the module whose SDL defines it, and only from that module.
+Unknown types and fields, other modules' fields and wrong return types are compile errors, reported at the field. `resolvers` is one map: inline like this, or what `loadResolvers` returns, which passes through unchecked since each file was typed where it was written. A scalar's implementation comes from the module whose SDL defines it, and only from that module.
 
 ## Features: splitting a large module
 
