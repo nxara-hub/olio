@@ -3,6 +3,7 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { createModule, olio } from "@nxlab/olio";
 import { print } from "graphql";
 
 import {
@@ -121,6 +122,29 @@ describe("loadResolvers", () => {
     try {
       await expect(loadResolvers(`${dir}/*.ts`)).rejects.toThrow(
         /Resolver "Query\.a" is defined in .*a\.ts and .*b\.ts/
+      );
+    } finally {
+      await clean();
+    }
+  });
+
+  test("olio's errors name the file a resolver came from", async () => {
+    const { dir, clean } = await withDir({
+      "query.ts":
+        "export const Query = { a: () => 1 };\nexport const helpers = { max: 10 };"
+    });
+    const build = async () =>
+      olio({
+        modules: [
+          createModule("users", {
+            typeDefs: "type Query { a: Int }",
+            resolvers: await loadResolvers(`${dir}/*.ts`)
+          })
+        ]
+      });
+    try {
+      await expect(build()).rejects.toThrow(
+        /^Module "users": unknown type "helpers" \(exported by .*query\.ts\)$/
       );
     } finally {
       await clean();

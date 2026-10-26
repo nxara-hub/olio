@@ -119,6 +119,7 @@ export async function loadResolvers(
       }
       const target = (merged[type] ?? {}) as Record<string, unknown>;
       if (!isPlainObject(target)) claim(type, file);
+      if (!origin.has(type)) origin.set(type, file);
       for (const [field, resolver] of Object.entries(value)) {
         claim(`${type}.${field}`, file);
         target[field] = resolver;
@@ -126,6 +127,9 @@ export async function loadResolvers(
       merged[type] = target;
     }
   }
+  // olio reads it to name the file in its errors; Symbol.for, so it matches
+  // across copies of the packages.
+  Object.defineProperty(merged, Symbol.for("nxlab.origin"), { value: origin });
   // Each file is typed where it's written, with olio's builders.
   return merged as LoadedResolvers;
 }

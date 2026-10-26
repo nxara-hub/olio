@@ -473,36 +473,62 @@ function unknownType({ schema, owner }: Attach, name: string): string {
   return `${owner.label}: unknown type "${name}"${hint}`;
 }
 
+// Set by @nxlab/tools' loadResolvers: "Type" / "Type.field" -> the file that
+// exported it, so errors about loaded resolvers can name the file.
+const ORIGIN = Symbol.for("nxlab.origin");
+
 function applyResolvers(attach: Attach): void {
   for (const map of attach.owner.resolvers) {
+    const origin = (map as { [ORIGIN]?: ReadonlyMap<string, string> })[ORIGIN];
     for (const [typeName, value] of Object.entries(map)) {
-      const type = attach.schema.getType(typeName);
-      if (!type) throw new Error(unknownType(attach, typeName));
-      if (isScalarType(type)) {
-        const definer = attach.declared.get(`${typeName}.${SCALAR}`);
-        if (definer !== attach.owner.id) {
-          throw new Error(
-            definer
-              ? `${attach.owner.label}: scalar "${typeName}" is defined by "${definer}"; only it can implement the scalar`
-              : `${attach.owner.label}: scalar "${typeName}" isn't defined in any module's SDL`
-          );
+      let at = typeName;
+      try {
+        applyType(attach, typeName, value, (field) => {
+          at = `${typeName}.${field}`;
+        });
+      } catch (error) {
+        const file = origin?.get(at) ?? origin?.get(typeName);
+        if (file && error instanceof Error) {
+          error.message += ` (exported by ${file})`;
         }
-        applyScalar(type, value);
-        continue;
-      }
-      if (isEnumType(type)) {
-        applyEnum(attach, type, value);
-        continue;
-      }
-      if (!isObjectType(type) && !isInterfaceType(type) && !isUnionType(type)) {
-        throw new Error(
-          `${attach.owner.label}: cannot attach resolvers to ${typeName}`
-        );
-      }
-      for (const [fieldName, resolver] of Object.entries(value)) {
-        applyField(attach, type, fieldName, resolver);
+        throw error;
       }
     }
+  }
+}
+
+function applyType(
+  attach: Attach,
+  typeName: string,
+  value: object,
+  onField: (field: string) => void
+): void {
+  const type = attach.schema.getType(typeName);
+  if (!type) throw new Error(unknownType(attach, typeName));
+  if (isScalarType(type)) {
+    const definer = attach.declared.get(`${typeName}.${SCALAR}`);
+    if (definer !== attach.owner.id) {
+      throw new Error(
+        definer
+          ? `${attach.owner.label}: scalar "${typeName}" is defined by "${definer}"; only it can implement the scalar`
+          : `${attach.owner.label}: scalar "${typeName}" isn't defined in any module's SDL`
+      );
+    }
+    applyScalar(type, value);
+    return;
+  }
+  if (isEnumType(type)) {
+    applyEnum(attach, type, value);
+    return;
+  }
+  if (!isObjectType(type) && !isInterfaceType(type) && !isUnionType(type)) {
+    throw new Error(
+      `${attach.owner.label}: cannot attach resolvers to ${typeName}`
+    );
+  }
+  for (const [fieldName, resolver] of Object.entries(value)) {
+    onField(fieldName);
+    applyField(attach, type, fieldName, resolver);
   }
 }
 

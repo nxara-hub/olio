@@ -41,6 +41,6 @@ export const app = olio({
 
 **`loadTypeDefs(...patterns)`** returns parsed documents from `.graphql`/`.gql` files and from `.ts`/`.js` modules (their default export: SDL or a `DocumentNode`). Each file is parsed with its path, so syntax, directive and schema errors point at `file:line:column`. Files that hold only comments are skipped.
 
-**`loadResolvers(...patterns)`** imports `.ts`/`.js` modules and treats every named object export as a type: `export const Query = …`, `export const User = …`. Exports for the same type from different files are merged, and a field defined twice throws, naming both files. A non-plain export, such as a `GraphQLScalarType`, is used as it is.
+**`loadResolvers(...patterns)`** imports `.ts`/`.js` modules and treats every named object export as a type: `export const Query = …`, `export const User = …`. Exports for the same type from different files are merged, and a field defined twice throws, naming both files. A non-plain export, such as a `GraphQLScalarType`, is used as it is. When `olio()` rejects a loaded resolver (an unknown type, another module's field), its error ends with `(exported by <file>)`.
 
 Every pattern must match at least one file; a pattern that matches nothing throws, so a typo can't quietly load an empty module. String globs resolve from the working directory, so prefer `new URL(..., import.meta.url)` inside modules.
