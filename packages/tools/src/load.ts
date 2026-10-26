@@ -1,82 +1,25 @@
-import { glob, readFile } from "node:fs/promises";
-import { extname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import type {
   LoadedEnums,
   LoadedResolvers,
   OlioFeature,
-  OlioModule
-} from "@nxlab/olio";
-import { parse, Source, type DocumentNode } from "graphql";
+  OlioModule,
+  Pattern,
+  ResolverMap
+} from "@nxlab/core";
+import { loadSDLFile, matchFiles } from "@nxlab/core/files";
+import type { DocumentNode } from "graphql";
 
-export type TypeSource = string | DocumentNode;
-
-/** A glob string, or a `file:` URL such as `new URL("*.gql", import.meta.url)`. */
-export type Pattern = string | URL;
-
-export type ResolverMap = Record<string, object>;
-
-const COMMENT = /#[^\n]*/g;
-
-// Sorted for stable output. A pattern matching nothing throws, so a typo
-// can't load an empty module.
-async function matchFiles(patterns: readonly Pattern[]): Promise<string[]> {
-  const paths = patterns.map((p) =>
-    typeof p === "string" ? p : fileURLToPath(p)
-  );
-  const matches = await Promise.all(
-    paths.map((path) => Array.fromAsync(glob(path)))
-  );
-  for (const [i, found] of matches.entries()) {
-    if (found.length === 0) throw new Error(`No files match "${paths[i]}"`);
-  }
-  return [...new Set(matches.flat())].sort();
-}
-
-// With its file name, so errors point at `file:line:column`.
-function parseFile(source: string, file: string): DocumentNode {
-  try {
-    return parse(new Source(source, file));
-  } catch (error) {
-    const { message, locations } = error as {
-      message: string;
-      locations?: readonly { line: number; column: number }[];
-    };
-    const loc = locations?.[0];
-    throw new Error(
-      `${loc ? `${file}:${loc.line}:${loc.column}` : file}: ${message}`
-    );
-  }
-}
-
-async function loadFile(file: string): Promise<DocumentNode | undefined> {
-  const ext = extname(file);
-  if (ext === ".graphql" || ext === ".gql") {
-    const source = await readFile(file, "utf8");
-    return source.replace(COMMENT, "").trim() === ""
-      ? undefined
-      : parseFile(source, file);
-  }
-  if (ext === ".ts" || ext === ".js") {
-    const mod = (await import(pathToFileURL(file).href)) as {
-      default?: TypeSource;
-    };
-    if (!mod.default) return undefined;
-    return typeof mod.default === "string"
-      ? parseFile(mod.default, file)
-      : mod.default;
-  }
-  throw new Error(
-    `Cannot load type definitions from "${file}" (unknown extension)`
-  );
-}
+export type { Pattern, ResolverMap, TypeSource } from "@nxlab/core";
 
 /** `.ts`/`.js` files default-export SDL or a DocumentNode. Files holding only comments are skipped. */
 export async function loadTypeDefs(
   ...patterns: Pattern[]
 ): Promise<DocumentNode[]> {
-  const loaded = await Promise.all((await matchFiles(patterns)).map(loadFile));
+  const loaded = await Promise.all(
+    (await matchFiles(patterns)).map(loadSDLFile)
+  );
   return loaded.filter((doc): doc is DocumentNode => doc !== undefined);
 }
 

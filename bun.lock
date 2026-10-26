@@ -81,6 +81,16 @@
         "graphql": "^16.13.0",
       },
     },
+    "packages/core": {
+      "name": "@nxlab/core",
+      "version": "0.0.0",
+      "devDependencies": {
+        "graphql": "^16.14.2",
+      },
+      "peerDependencies": {
+        "graphql": "^16.13.0",
+      },
+    },
     "packages/di": {
       "name": "@nxlab/di",
       "version": "0.0.0",
@@ -92,6 +102,7 @@
       "name": "@nxlab/http",
       "version": "0.0.0",
       "dependencies": {
+        "@nxlab/core": "workspace:*",
         "graphql-http": "^1.23.1",
       },
       "devDependencies": {
@@ -99,7 +110,6 @@
         "graphql": "^16.14.2",
       },
       "peerDependencies": {
-        "@nxlab/olio": "workspace:*",
         "graphql": "^16.13.0",
       },
     },
@@ -107,6 +117,7 @@
       "name": "@nxlab/olio",
       "version": "0.0.0",
       "dependencies": {
+        "@nxlab/core": "workspace:*",
         "@nxlab/schema": "workspace:*",
       },
       "devDependencies": {
@@ -130,12 +141,14 @@
     "packages/tools": {
       "name": "@nxlab/tools",
       "version": "0.0.0",
+      "dependencies": {
+        "@nxlab/core": "workspace:*",
+      },
       "devDependencies": {
         "@nxlab/olio": "workspace:*",
         "graphql": "^16.14.2",
       },
       "peerDependencies": {
-        "@nxlab/olio": "workspace:*",
         "graphql": "^16.13.0",
       },
     },
@@ -216,6 +229,8 @@
     "@nxlab/client": ["@nxlab/client@workspace:packages/client"],
 
     "@nxlab/codegen": ["@nxlab/codegen@workspace:packages/codegen"],
+
+    "@nxlab/core": ["@nxlab/core@workspace:packages/core"],
 
     "@nxlab/di": ["@nxlab/di@workspace:packages/di"],
 

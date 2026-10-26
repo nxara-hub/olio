@@ -28,6 +28,7 @@
     "check-types": "bun test/typed/generate.ts && tsc -p tsconfig.test.json && tsc -p tsconfig.typed.json"
   },
   "dependencies": {
+    "@nxlab/core": "workspace:*",
     "@nxlab/schema": "workspace:*"
   },
   "devDependencies": {

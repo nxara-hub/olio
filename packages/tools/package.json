@@ -26,12 +26,14 @@
     "test": "bun test",
     "check-types": "tsc -p tsconfig.test.json"
   },
+  "dependencies": {
+    "@nxlab/core": "workspace:*"
+  },
   "devDependencies": {
     "@nxlab/olio": "workspace:*",
     "graphql": "^16.14.2"
   },
   "peerDependencies": {
-    "@nxlab/olio": "workspace:*",
     "graphql": "^16.13.0"
   },
   "engines": {

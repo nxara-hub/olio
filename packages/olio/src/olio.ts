@@ -1,3 +1,4 @@
+import type { StoredMiddleware } from "@nxlab/core";
 import {
   compose,
   SCALAR,
@@ -201,6 +202,11 @@ function register(
   seen.set(id, value);
 }
 
+// Modules carry middleware untyped (@nxlab/core can't know olio's types);
+// checkOwnerMiddleware checks every value before anything runs.
+const asMiddleware = (map: StoredMiddleware): MiddlewareMap =>
+  map as MiddlewareMap;
+
 function owners(modules: readonly OlioModule[]): Owner[] {
   const result: Owner[] = [];
   const seen = new Map<string, object>();
@@ -208,6 +214,7 @@ function owners(modules: readonly OlioModule[]): Owner[] {
     register(seen, "Module", m.id, m);
     result.push({
       ...m,
+      middleware: asMiddleware(m.middleware),
       kind: "module",
       label: `Module "${m.id}"`,
       upperMiddleware: [],
@@ -228,8 +235,8 @@ function owners(modules: readonly OlioModule[]): Owner[] {
         typeDefs: f.typeDefs,
         resolvers: f.resolvers,
         enums: f.enums,
-        middleware: f.middleware,
-        upperMiddleware: [m.middleware],
+        middleware: asMiddleware(f.middleware),
+        upperMiddleware: [asMiddleware(m.middleware)],
         canTarget: (owner) => owner === id
       });
     }

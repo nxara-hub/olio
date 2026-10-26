@@ -1,0 +1,42 @@
+{
+  "name": "@nxlab/core",
+  "version": "0.0.0",
+  "description": "Contracts shared by the Nxara packages. Apps import from @nxlab/olio and @nxlab/tools instead.",
+  "keywords": [
+    "graphql",
+    "nxara"
+  ],
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./files": {
+      "types": "./dist/files.d.ts",
+      "default": "./dist/files.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "bun test",
+    "check-types": "tsc -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "graphql": "^16.14.2"
+  },
+  "peerDependencies": {
+    "graphql": "^16.13.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

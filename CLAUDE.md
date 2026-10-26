@@ -4,6 +4,7 @@ Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-mod
 
 ## Layout
 
+- `packages/core`: the contracts the packages share, so no package depends on olio: the `Olio` registration interface and `Context`, `OlioModule` / `OlioFeature` / `ResolverMap` / `StoredMiddleware`, the `LoadedResolvers` / `LoadedEnums` brands, `TypeSource`, `Pattern`. olio re-exports them (apps still augment `"@nxlab/olio"`; it merges into core's interface). `@nxlab/core/files` (Node only) holds `matchFiles` and `loadSDLFile`, the one SDL file loader. Apps never import core.
 - `packages/olio`: runtime. `olio({ modules, middleware, directives })` builds a `GraphQLSchema`. Builders: `module.<id>`, `feature.<id>.<name>`, `mw()` / `mw.<id>` / `mw.<id>.<name>`, `query.<id>[.<name>]`, `mutation…`, `subscription…`, `resolvers.<id>[.<name>].<Type>`.
 - `packages/codegen`: SDL → one `generated.ts` (schema types plus `Application`).
 - `packages/schema`: `compose()` (module SDL → validated schema + field ownership; adds root types that are only extended) and the `@implements` / `@copy` directives via `applyDirectives`. Codegen and olio both compose through it, so they can't disagree on ownership. Both use one field-copy engine (`src/directives/shared.ts`) that runs in passes, so chains work in any order. `@copy` overrides (later source, then local, wins); `@implements` throws on any redeclaration that changes a field.

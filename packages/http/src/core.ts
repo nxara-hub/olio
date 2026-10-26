@@ -1,4 +1,4 @@
-import type { Context } from "@nxlab/olio";
+import type { Context } from "@nxlab/core";
 import { GraphQLError, type GraphQLSchema } from "graphql";
 import type { Response as HttpResponse } from "graphql-http";
 

@@ -37,6 +37,7 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
+    "@nxlab/core": "workspace:*",
     "graphql-http": "^1.23.1"
   },
   "devDependencies": {
@@ -44,7 +45,6 @@
     "graphql": "^16.14.2"
   },
   "peerDependencies": {
-    "@nxlab/olio": "workspace:*",
     "graphql": "^16.13.0"
   }
 }
