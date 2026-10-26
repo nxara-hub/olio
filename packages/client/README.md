@@ -55,7 +55,8 @@ import { operations } from "./generated.js";
 
 const client = createClient(operations, {
   url: "https://erp.example/graphql",
-  headers: () => ({ authorization: `Bearer ${getToken()}` })
+  // Nothing before sign-in: an `undefined` value is left out, not sent as text.
+  headers: () => ({ authorization: token && `Bearer ${token}` })
 });
 
 const { data, errors } = await client.mutation.login({ email, password });
@@ -66,6 +67,7 @@ if (data?.login.__typename === "Session") data.login.token;
 - Variables are typed from the operation; they may be left out when none are required.
 - `data` is the operation's result, typed from its selection: fragments narrow on `__typename`, fields under `@include` / `@skip` are optional. `errors` are the GraphQL errors as the server sent them. A response that isn't GraphQL at all (a proxy's 502 page) rejects.
 - `options` takes per-call `headers` and a `signal`.
+- Headers, shared, per section or per call, are an object, a `Headers`, or entries; in an object, `undefined` values are left out (`token ? { authorization } : {}` works too). Later sources win: shared, then the section, then the call.
 
 ## Custom fetch
 
@@ -138,7 +140,7 @@ Shared settings first, then a section per transport, each overriding them:
 ```ts
 createClient(operations, {
   url: "https://erp.example/graphql",
-  headers: () => ({ authorization: `Bearer ${getToken()}` }),
+  headers: () => ({ authorization: token && `Bearer ${token}` }),
   http: { fetch: fromAxios(axios) }, // queries and mutations
   ws: {
     url: "wss://ws.erp.example/graphql",

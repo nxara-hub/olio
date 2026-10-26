@@ -73,9 +73,18 @@ export interface Result<T> {
 // Spelled out, so the package needs neither the DOM lib nor @types/node.
 export type HeadersInit = ConstructorParameters<typeof Headers>[0];
 
+/**
+ * `undefined` values are left out, so `token ? { authorization } : {}` and
+ * `{ authorization: token && \`Bearer ${token}\` }` both send nothing before
+ * sign-in.
+ */
+export type HeadersValue =
+  | HeadersInit
+  | Readonly<Record<string, string | undefined>>;
+
 export interface CallOptions {
   signal?: AbortSignal;
-  headers?: HeadersInit;
+  headers?: HeadersValue;
 }
 
 type RequiredKeys<T> = {

@@ -219,6 +219,27 @@ describe("queries and mutations", () => {
     expect((await rotating.query.whoami()).data?.whoami).toBe("t2");
   });
 
+  test("header values may be undefined; they're left out, not sent as text", async () => {
+    const session: { user?: string } = {};
+    const signedOut = testClient(operations, handlers, {
+      headers: () => (session.user ? { "x-user": session.user } : {})
+    });
+    expect((await signedOut.query.whoami()).data?.whoami).toBeNull();
+    session.user = "ada";
+    expect((await signedOut.query.whoami()).data?.whoami).toBe("ada");
+
+    const optional = testClient(operations, handlers, {
+      headers: { "x-user": undefined }
+    });
+    // new Headers() would have sent the string "undefined".
+    expect((await optional.query.whoami()).data?.whoami).toBeNull();
+    const perCall = await optional.query.whoami(
+      {},
+      { headers: { "x-user": session.user && "alan" } }
+    );
+    expect(perCall.data?.whoami).toBe("alan");
+  });
+
   test("a response that isn't GraphQL is an error, not a result", async () => {
     const broken = createClient(operations, {
       url: "http://localhost/graphql",
