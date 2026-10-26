@@ -355,11 +355,28 @@ function applyField(
   const bypass = attach.bypass.get(key) ?? NO_BYPASS;
   if (subscription) {
     // Each event is the field's value; middleware runs once, on subscribe.
-    field.subscribe = wrap(resolve, chain, bypass);
+    field.subscribe = wrap(iterable(where, key, resolve), chain, bypass);
     field.resolve = (event) => event;
     return;
   }
   field.resolve = wrap(resolve, chain, bypass);
+}
+
+// A plain function returning 1 looks like a generator until it runs.
+function iterable(where: string, key: string, resolve: Resolve): Resolve {
+  return async (...args) => {
+    const source: unknown = await resolve(...args);
+    if (typeof source === "object" && source && Symbol.asyncIterator in source)
+      return source;
+    const got = Array.isArray(source)
+      ? "an array"
+      : source === null
+        ? "null"
+        : typeof source;
+    throw new TypeError(
+      `${where}: "${key}" must return an AsyncIterable (e.g. an async generator), got ${got}`
+    );
+  };
 }
 
 function applyEnum(

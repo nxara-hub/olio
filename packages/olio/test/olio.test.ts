@@ -539,6 +539,25 @@ describe("olio", () => {
     );
   });
 
+  test("a subscription must return an AsyncIterable", async () => {
+    const live = createModule("live", {
+      typeDefs: "type Query { ok: Int } type Subscription { tick: Int }",
+      resolvers: { Query: { ok: () => 1 }, Subscription: { tick: () => 1 } }
+    });
+    const result = await subscribe({
+      schema: olio({ modules: [live] }).schema,
+      document: parse("subscription { tick }")
+    });
+    expect(result).toMatchObject({
+      errors: [
+        {
+          message:
+            'Module "live": "Subscription.tick" must return an AsyncIterable (e.g. an async generator), got number'
+        }
+      ]
+    });
+  });
+
   test("a field takes { resolve, extensions }: extensions land on the schema field", async () => {
     const log: string[] = [];
     const shop = createModule("shop", {
