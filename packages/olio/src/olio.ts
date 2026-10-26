@@ -85,10 +85,21 @@ function resolverMap(
   return [resolvers as ResolverMap];
 }
 
+// "/" separates a module from its features in owner ids ("sales/orders"), so
+// an id containing one would pass for a feature of another module.
+function checkId(kind: "Module" | "Feature", id: string): void {
+  if (id === "" || id.includes("/")) {
+    throw new Error(
+      `${kind} id ${JSON.stringify(id)} must be non-empty and can't contain "/"`
+    );
+  }
+}
+
 export function createModule<M extends ModuleId>(
   id: M,
   config: ModuleConfig<M>
 ): OlioModule {
+  checkId("Module", id);
   return {
     id,
     typeDefs: parseAll(config.typeDefs, `module "${id}"`),
@@ -103,6 +114,7 @@ export function createFeature<M extends ModuleId, F extends string>(
   id: F,
   config: FeatureConfig<M, F>
 ): OlioFeature {
+  checkId("Feature", id);
   return {
     module,
     id,

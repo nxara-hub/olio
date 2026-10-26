@@ -815,6 +815,19 @@ describe("olio", () => {
     expect(mw.users?.(map)).toBe(map);
   });
 
+  test('ids are non-empty and have no "/", so none passes for a feature', () => {
+    expect(() => createModule("", {})).toThrow(
+      'Module id "" must be non-empty and can\'t contain "/"'
+    );
+    expect(() => createModule("x/y", {})).toThrow(
+      'Module id "x/y" must be non-empty and can\'t contain "/"'
+    );
+    expect(() => createFeature("m", "f/g", {})).toThrow(
+      'Feature id "f/g" must be non-empty and can\'t contain "/"'
+    );
+    expect(() => createFeature("m", "", {})).toThrow('Feature id ""');
+  });
+
   test("rejects invalid configuration", () => {
     expect(() => olio({ modules: [root, root] })).toThrow(
       'Module "root" is registered twice'
