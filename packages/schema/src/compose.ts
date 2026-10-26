@@ -16,7 +16,7 @@ import { validateSDL } from "graphql/validation/validate.js";
 
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";
 import { extractBypass, type Bypass } from "./bypass.js";
-import { located } from "./directives/shared.js";
+import { located, position } from "./directives/shared.js";
 
 /** Modules sharing an id are merged. */
 export interface ModuleSDL {
@@ -173,7 +173,14 @@ function collectOwnership(
 
 function assertNoErrors(errors: readonly GraphQLError[], title: string): void {
   if (errors.length === 0) return;
-  const lines = errors.map((e) => `  ${located(e.nodes?.[0], e.message)}`);
+  // A duplicate's error holds every place it's declared; the first alone
+  // would point away from the module that added it.
+  const lines = errors.map(({ nodes = [], message }) =>
+    [
+      `  ${located(nodes[0], message)}`,
+      ...nodes.slice(1).map((node) => `    also at ${position(node)}`)
+    ].join("\n")
+  );
   throw new Error(`${title}:\n${lines.join("\n")}`);
 }
 

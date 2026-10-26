@@ -111,6 +111,17 @@ describe("compose", () => {
     expect(plain(ownership).a?.Query).toEqual(["x", "y"]);
   });
 
+  test("a duplicate names every module that declares it", () => {
+    expect(() =>
+      compose([
+        mod("users", "extend type Query { user: Int }"),
+        mod("posts", "extend type Query { user: Int }")
+      ])
+    ).toThrow(
+      'Invalid SDL:\n  users.gql:1:21: Field "Query.user" can only be defined once.\n    also at posts.gql:1:21'
+    );
+  });
+
   test("reports SDL and schema errors with file locations", () => {
     expect(() => compose([mod("bad", "type Query { a: Nope }")])).toThrow(
       'Invalid SDL:\n  bad.gql:1:17: Unknown type "Nope".'

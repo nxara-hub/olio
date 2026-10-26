@@ -34,11 +34,17 @@ const KINDS: Partial<Record<Kind, string>> = {
 const article = (kind: string): string =>
   /^[aeiou]/.test(kind) ? `an ${kind}` : `a ${kind}`;
 
-export function located(node: ASTNode | undefined, message: string): string {
-  if (!node?.loc) return message;
+/** `file:line:column`, or "" for a node without a location. */
+export function position(node: ASTNode | undefined): string {
+  if (!node?.loc) return "";
   const { line, column } = getLocation(node.loc.source, node.loc.start);
   const file = node.loc.source.name;
-  return `${file === "GraphQL request" ? "" : `${file}:`}${line}:${column}: ${message}`;
+  return `${file === "GraphQL request" ? "" : `${file}:`}${line}:${column}`;
+}
+
+export function located(node: ASTNode | undefined, message: string): string {
+  const at = position(node);
+  return at ? `${at}: ${message}` : message;
 }
 
 export function fail(node: ASTNode, message: string): never {
