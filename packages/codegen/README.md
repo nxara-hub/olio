@@ -31,6 +31,15 @@ await codegen({
 
 Relative paths (`modules`, `output`, `schemaOutput`) resolve against `root`, which defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `typeDefs` is the exception: it resolves inside each module. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
 
+Both reject with a message that names the file and position. Uncaught, the runtime prints it with a stack; to print just the message:
+
+```ts
+await codegen({ ... }).catch((error: Error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
+```
+
 `modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
 
 SDL files are read exactly as `loadTypeDefs` in `@nxlab/tools` reads them (both go through `@nxlab/core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
