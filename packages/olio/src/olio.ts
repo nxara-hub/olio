@@ -376,6 +376,20 @@ function applyEnum(
     claim(attach, key);
     (value as { value: unknown }).value = internal;
   }
+  // The values left out would keep their names as internal values, mixed in
+  // with the internal values given.
+  const missing = type
+    .getValues()
+    .filter(
+      (v) =>
+        attach.declared.get(`${type.name}.${v.name}`) === attach.owner.id &&
+        !(v.name in values)
+    );
+  if (missing.length > 0) {
+    throw new Error(
+      `${attach.owner.label}: enum "${type.name}" needs an internal value for ${missing.map((v) => v.name).join(", ")} too`
+    );
+  }
   attach.enums.add(type);
 }
 

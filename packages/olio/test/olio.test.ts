@@ -734,6 +734,21 @@ describe("olio", () => {
         ]
       })
     ).toThrow('Enum "Role": ADMIN and GUEST have the same internal value 1');
+    // A partial map would leave GUEST on its name, next to internal values.
+    expect(() =>
+      olio({
+        modules: [
+          createModule("roles", {
+            typeDefs: sdl,
+            resolvers: { Role: { ADMIN: 1 } }
+          })
+        ]
+      })
+    ).toThrow(
+      'Module "roles": enum "Role" needs an internal value for GUEST too'
+    );
+    // Each module maps the values it declares: BOT is other's.
+    expect(build({ Role: { BOT: 3 } })).not.toThrow();
     expect(() =>
       olio({
         modules: [
