@@ -272,7 +272,7 @@ type MiddlewareFor<Os extends Owner> = {
       MiddlewareRoot<Os, T>,
       MiddlewareArgs<Os, T, K>
     >;
-  };
+  } & DeclaredElsewhere<Os, T>;
 };
 
 /** Reaches the module's features too. */
@@ -329,7 +329,27 @@ export type FieldResolver<Fn, Source, Args> =
   | Fn
   | { resolve?: Fn; extensions?: Extensions<Source, Args> };
 
-type RootResolvers<M extends string, R extends RootType> = {
+type OwnerOf<T, F> = {
+  [O in Owner]: F extends Owned<Entry<O, T>> ? O : never;
+}[Owner];
+
+type OwnerKind<O> = O extends `${string}/${string}` ? "feature" : "module";
+
+// Another owner's field reads as olio's runtime error, so the compile error
+// names the owner instead of saying the field doesn't exist.
+type DeclaredElsewhere<Os extends string, T> = {
+  [
+    F in Exclude<
+      { [O in Owner]: Owned<Entry<O, T>> }[Owner],
+      { [O in Os & Owner]: Owned<Entry<O, T>> }[Os & Owner]
+    >
+  ]?: `${T & string}.${F} is declared by ${OwnerKind<OwnerOf<T, F>>} ${OwnerOf<T, F>}; only that ${OwnerKind<OwnerOf<T, F>>} can resolve it`;
+};
+
+type RootResolvers<M extends string, R extends RootType> = DeclaredElsewhere<
+  M,
+  R
+> & {
   [F in Owned<Entry<M, R>>]?: FieldResolver<
     (
       root: undefined,
@@ -352,7 +372,10 @@ export type MutationResolvers<M extends string> = RootResolvers<
 >;
 
 /** Middleware runs once, when a client subscribes, not per event. */
-export type SubscriptionResolvers<M extends string> = {
+export type SubscriptionResolvers<M extends string> = DeclaredElsewhere<
+  M,
+  RootName<"subscription">
+> & {
   [F in Owned<Entry<M, RootName<"subscription">>>]?: FieldResolver<
     (
       root: undefined,
@@ -387,7 +410,7 @@ export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
     ? GraphQLScalarType
     : Entry<M, T> extends { enum: infer V extends string }
       ? { [K in V]: Parent<Entry<M, T>> }
-      : {
+      : DeclaredElsewhere<M, T> & {
           [F in Owned<Entry<M, T>>]?: F extends TypeHook
             ? TypeHookResolver<Entry<M, T>, F>
             : FieldResolver<

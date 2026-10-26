@@ -9,6 +9,7 @@ import {
   query,
   resolvers,
   type LoadedResolvers,
+  type TypeResolvers,
   type MiddlewareFn
 } from "../../src/index.js";
 import type { Application } from "./generated.js";
@@ -134,6 +135,15 @@ feature.content.blog({
     User: { articleCount: (row) => row.name.length }
   }
 });
+// Another owner's field carries olio's runtime message as its type, so the
+// compile error names the owner.
+const message: NonNullable<TypeResolvers<"content/blog", "User">["role"]> =
+  "User.role is declared by module content; only that module can resolve it";
+const fromFeature: NonNullable<
+  TypeResolvers<"content", "User">["articleCount"]
+> =
+  "User.articleCount is declared by feature content/blog; only that feature can resolve it";
+void [message, fromFeature];
 // @ts-expect-error node belongs to the module, not the feature
 feature.content.blog({ resolvers: { Query: { node: () => null } } });
 
