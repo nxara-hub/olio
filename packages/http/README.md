@@ -106,6 +106,8 @@ useServer(
 
 When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
 
+To refuse a bad token, don't throw in `context`: build a context without a user, and refuse in middleware with a `GraphQLError` (`UNAUTHENTICATED`). Then the client gets the same error result on every transport, at once. A `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in `onConnect` closes it with 4403, which the client retries by default ([@nxlab/client](../client/README.md#transport-settings)).
+
 With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
 
 ## Validation rules

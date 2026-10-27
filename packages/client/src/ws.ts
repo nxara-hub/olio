@@ -1,4 +1,4 @@
-import { createClient } from "graphql-ws/client";
+import { createClient, type ClientOptions } from "graphql-ws/client";
 
 import {
   asResult,
@@ -8,7 +8,11 @@ import {
 } from "./transport.js";
 import type { Result } from "./types.js";
 
-export interface WsOptions {
+/** graphql-ws's client options (`retryAttempts`, `shouldRetry`, `keepAlive`...), plus: */
+export interface WsOptions extends Omit<
+  ClientOptions,
+  "url" | "connectionParams" | "webSocketImpl"
+> {
   /** Default: the client's `url`, with `http(s)` read as `ws(s)`. */
   url?: string | URL;
   /**
@@ -50,9 +54,10 @@ export const ws: Transport<WsOptions> = {
   kind: "ws",
   connect(endpoint, options = {}) {
     const client = createClient({
+      lazy: true,
+      ...options,
       url: endpoint.url,
       webSocketImpl: options.webSocket,
-      lazy: true,
       connectionParams: async () => {
         const params = options.connectionParams;
         if (params) return typeof params === "function" ? params() : params;
