@@ -1,4 +1,4 @@
-import type { Bypass, Ownership, RootTypes } from "@nxlab/schema";
+import type { Bypass, Ownership, RootTypes } from "@nxara/olio-schema";
 import {
   isAbstractType,
   isEnumType,

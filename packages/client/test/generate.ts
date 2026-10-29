@@ -1,4 +1,4 @@
-import { codegenClient } from "@nxlab/codegen";
+import { codegenClient } from "@nxara/olio-codegen";
 
 // Regenerated on every check-types, so the tests always run against what
 // codegen emits today.

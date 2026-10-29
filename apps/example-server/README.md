@@ -10,7 +10,7 @@ bun run --cwd apps/example-server check-types  # includes test/type-checks.ts
 bun run --cwd apps/example-server serve     # the same app over HTTP, SSE and WebSocket: Hono on Node
 ```
 
-`serve` starts the ERP on `http://localhost:4000/graphql`, with subscriptions on the same URL as server-sent events (`Accept: text/event-stream`) or over WebSocket. Sign in with `mutation { login(email: "mia@erp.test", password: "demo") { ... on Session { token } } }`, then send `authorization: Bearer <token>`; on a WebSocket, as `connectionParams: { headers: { authorization } }` (what `@nxlab/client` sends).
+`serve` starts the ERP on `http://localhost:4000/graphql`, with subscriptions on the same URL as server-sent events (`Accept: text/event-stream`) or over WebSocket. Sign in with `mutation { login(email: "mia@erp.test", password: "demo") { ... on Session { token } } }`, then send `authorization: Bearer <token>`; on a WebSocket, as `connectionParams: { headers: { authorization } }` (what `@nxara/olio-client` sends).
 
 `src/main.ts` walks through a day: sign in, search products, book stock, place orders (one too big), watch stock move, cancel an order and sign out. It prints each result and the middleware logs.
 
@@ -47,7 +47,7 @@ Each module is a folder under `src/modules`. Codegen and `loadModules` both find
 | `Fields[...]` types outside resolvers | [`inventory/service.ts`](src/modules/inventory/service.ts) |
 | A custom scalar from graphql-scalars | [`core/resolvers/scalars.ts`](src/modules/core/resolvers/scalars.ts) |
 | Compile-time contract checks | [`test/type-checks.ts`](test/type-checks.ts) |
-| Serving it: Hono on Node, GraphQL over HTTP through `@nxlab/http` | [`src/server.ts`](src/server.ts), [`src/http.ts`](src/http.ts) |
+| Serving it: Hono on Node, GraphQL over HTTP through `@nxara/olio-http` | [`src/server.ts`](src/server.ts), [`src/http.ts`](src/http.ts) |
 | Subscriptions, the app's own: graphql-sse on the same URL and graphql-ws, with `errorMasker` and DI disposal | [`src/subscriptions.ts`](src/subscriptions.ts) |
 | A typed client test: `testClient` through the same handler | [`test/api.test.ts`](test/api.test.ts) |
 | Errors clients may see (`GraphQLError` with a code) vs. hidden ones | [`src/errors.ts`](src/errors.ts) |

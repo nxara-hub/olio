@@ -1,4 +1,4 @@
-import { codegen, codegenClient } from "@nxlab/codegen";
+import { codegen, codegenClient } from "@nxara/olio-codegen";
 
 import { directives } from "./src/directives.js";
 
@@ -12,7 +12,7 @@ await codegen({
   clear: true
 });
 
-// test/api.test.ts calls the server through @nxlab/client, like a client app.
+// test/api.test.ts calls the server through @nxara/olio-client, like a client app.
 await codegenClient({
   root: import.meta.dirname,
   schema: "src/schema.gql",

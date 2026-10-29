@@ -10,7 +10,7 @@ import {
  * Register your context type, so `operation` providers see it:
  *
  * ```ts
- * declare module "@nxlab/di" {
+ * declare module "@nxara/olio-di" {
  *   interface Register {
  *     ctx: RequestInfo;
  *   }

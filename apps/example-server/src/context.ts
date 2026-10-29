@@ -1,4 +1,4 @@
-import type { Context, SubscriptionContext } from "@nxlab/olio";
+import type { Context, SubscriptionContext } from "@nxara/olio";
 
 import { container } from "./di.js";
 import { viewerFor } from "./modules/auth/store.js";

@@ -6,7 +6,7 @@ import type { Fetch, HeadersSource } from "./transport.js";
  * scalars are `unknown`.
  *
  * ```ts
- * declare module "@nxlab/client" {
+ * declare module "@nxara/olio-client" {
  *   interface ClientScalars {
  *     DateTime: { input: Date | string; output: string };
  *     JSON: unknown;

@@ -1,4 +1,4 @@
-import { subscription } from "@nxlab/olio";
+import { subscription } from "@nxara/olio";
 
 export const Subscription = subscription.inventory({
   // The pubsub's own iterator, not an `async *` around it: one waiting for an

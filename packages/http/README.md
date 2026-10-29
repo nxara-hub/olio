@@ -1,24 +1,24 @@
-# @nxlab/http
+# @nxara/olio-http
 
 Serve an olio app over HTTP, on any framework: GraphQL over HTTP ([graphql-http](https://github.com/graphql/graphql-http), the reference implementation), with `context`, error masking and per-operation cleanup. Nothing more: subscriptions are yours to serve, with the libraries you choose (below).
 
 ```sh
-bun add @nxlab/http
+bun add @nxara/olio-http
 ```
 
-`graphql` 16 and `@nxlab/olio` are peer dependencies; graphql-http is the only dependency.
+`graphql` 16 and `@nxara/olio` are peer dependencies; graphql-http is the only dependency.
 
 ## Adapters
 
 | Import | For |
 | --- | --- |
-| `@nxlab/http/fetch` | Anything that speaks the Fetch API: Hono, Elysia, Bun.serve, Deno, Cloudflare Workers, Next.js route handlers, SvelteKit, Remix |
-| `@nxlab/http/node` | Node's `IncomingMessage` / `ServerResponse`: `node:http`, Express, Connect, Koa (`ctx.req`, `ctx.res`), Fastify (`request.raw`, `reply.raw`) |
+| `@nxara/olio-http/fetch` | Anything that speaks the Fetch API: Hono, Elysia, Bun.serve, Deno, Cloudflare Workers, Next.js route handlers, SvelteKit, Remix |
+| `@nxara/olio-http/node` | Node's `IncomingMessage` / `ServerResponse`: `node:http`, Express, Connect, Koa (`ctx.req`, `ctx.res`), Fastify (`request.raw`, `reply.raw`) |
 
 Your `context` hook receives the framework's request: a Fetch `Request`, or a Node `IncomingMessage`. Once your app registers a `ctx` type (`interface Olio { ctx: … }`), the hook is required: without it graphql-http passes no context, and every resolver reading `ctx` would fail at runtime. So `fetchHandler(app)` is then a compile error (`Expected 2 arguments`), as is an options object without `context`.
 
 ```ts
-import { fetchHandler } from "@nxlab/http/fetch";
+import { fetchHandler } from "@nxara/olio-http/fetch";
 
 const graphql = fetchHandler(app, {
   context: (request) => createContext(request.headers.get("authorization")),
@@ -30,7 +30,7 @@ Bun.serve({ fetch: graphql }); // Bun
 ```
 
 ```ts
-import { nodeHandler } from "@nxlab/http/node";
+import { nodeHandler } from "@nxara/olio-http/node";
 
 const graphql = nodeHandler(app, {
   context: (req) => createContext(req.headers.authorization)
@@ -48,15 +48,15 @@ Not included, the way Apollo Server leaves them out: install and run the referen
 Pass them `app.schema`; `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies its rules. Both, with a context (and DI scope) per subscription, disposed when it ends:
 
 ```ts
-import { errorMasker, validateOperation } from "@nxlab/http";
-import type { SubscriptionContext } from "@nxlab/olio";
+import type { SubscriptionContext } from "@nxara/olio";
+import { errorMasker, validateOperation } from "@nxara/olio-http";
 import { createHandler } from "graphql-sse/lib/use/fetch";
 import { useServer } from "graphql-ws/use/ws";
 
 const mask = errorMasker<SubscriptionContext>();
 
 // graphql-sse: route requests with `Accept: text/event-stream` here, GET and
-// POST (what @nxlab/client sends; single-connection mode also needs PUT and DELETE).
+// POST (what @nxara/olio-client sends; single-connection mode also needs PUT and DELETE).
 export const sseHandler = createHandler({
   schema: app.schema,
   context: (req) =>
@@ -77,7 +77,7 @@ useServer(
   {
     schema: app.schema,
     context: (ctx, id) => {
-      // A browser can't set WebSocket headers: @nxlab/client sends them here.
+      // A browser can't set WebSocket headers: @nxara/olio-client sends them here.
       const headers = ctx.connectionParams?.headers as
         | Record<string, string>
         | undefined;
@@ -106,7 +106,7 @@ useServer(
 
 When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
 
-With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs these same options and handler in memory, so export them (the example exports `wsOptions` and `sseHandler`).
+With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxara/olio-client/test` runs these same options and handler in memory, so export them (the example exports `wsOptions` and `sseHandler`).
 
 ## Refusing a bad token
 
@@ -128,7 +128,7 @@ const requireAuth =
   };
 ```
 
-It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which graphql-ws's client retries by default ([@nxlab/client](../client/README.md#subscriptions)).
+It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which graphql-ws's client retries by default ([@nxara/olio-client](../client/README.md#subscriptions)).
 
 ## Validation rules
 
@@ -161,7 +161,7 @@ fetchHandler(app, {
 Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`; it returns the errors (none when the operation is valid):
 
 ```ts
-import { validateOperation } from "@nxlab/http";
+import { validateOperation } from "@nxara/olio-http";
 
 // graphql-ws
 onSubscribe: (_ctx, _id, payload) => {
@@ -194,7 +194,7 @@ fetchHandler(app, {
 });
 ```
 
-`errorMasker(options?)`, from `@nxlab/http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives the functions below. Each takes the operation's context as a last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there); type it with `errorMasker<SubscriptionContext>()`:
+`errorMasker(options?)`, from `@nxara/olio-http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives the functions below. Each takes the operation's context as a last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there); type it with `errorMasker<SubscriptionContext>()`:
 
 |  |  |
 | --- | --- |
@@ -203,7 +203,7 @@ fetchHandler(app, {
 | `mask.report(error, ctx?)` | Sends an error to `onUnexpectedError` |
 
 ```ts
-import { errorMasker } from "@nxlab/http";
+import { errorMasker } from "@nxara/olio-http";
 
 const mask = errorMasker<SubscriptionContext>();
 createHandler({

@@ -1,4 +1,4 @@
-import type { ValidationRules } from "@nxlab/http";
+import type { ValidationRules } from "@nxara/olio-http";
 import {
   createComplexityRule,
   fieldExtensionsEstimator,

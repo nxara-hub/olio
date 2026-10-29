@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/codegen",
+  "name": "@nxara/olio-codegen",
   "version": "0.0.0",
   "description": "Generate TypeScript types from GraphQL SDL.",
   "keywords": [
@@ -29,8 +29,8 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "@nxlab/core": "workspace:*",
-    "@nxlab/schema": "workspace:*"
+    "@nxara/olio-core": "workspace:*",
+    "@nxara/olio-schema": "workspace:*"
   },
   "devDependencies": {
     "graphql": "^16.14.2"

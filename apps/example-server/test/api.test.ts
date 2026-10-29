@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { testClient } from "@nxlab/client/test";
+import { testClient } from "@nxara/olio-client/test";
 
 import { graphqlHandler } from "../src/http.js";
 import { sseHandler, wsOptions } from "../src/subscriptions.js";
 import { operations } from "./generated.js";
 
-declare module "@nxlab/client" {
+declare module "@nxara/olio-client" {
   interface ClientScalars {
     DateTime: string;
   }

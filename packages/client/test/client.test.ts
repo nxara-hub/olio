@@ -3,10 +3,10 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { codegenClient } from "@nxlab/codegen";
-import { errorMasker } from "@nxlab/http";
-import { fetchHandler } from "@nxlab/http/fetch";
-import { createModule, olio } from "@nxlab/olio";
+import { createModule, olio } from "@nxara/olio";
+import { codegenClient } from "@nxara/olio-codegen";
+import { errorMasker } from "@nxara/olio-http";
+import { fetchHandler } from "@nxara/olio-http/fetch";
 import { GraphQLError, GraphQLScalarType } from "graphql";
 import { createClient as createSseClient } from "graphql-sse";
 import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
@@ -18,7 +18,7 @@ import { createClient } from "../src/index.js";
 import { testClient } from "../src/test.js";
 import { operations } from "./generated.js";
 
-declare module "@nxlab/client" {
+declare module "@nxara/olio-client" {
   interface ClientScalars {
     // Like the server's CustomScalars: variables may be Dates, results are strings.
     DateTime: { input: Date | string; output: string };
@@ -489,7 +489,7 @@ describe("codegen", () => {
     const server = Bun.serve({ port: 0, fetch: handler });
     try {
       const output = join(
-        mkdtempSync(join(tmpdir(), "nxlab-client-")),
+        mkdtempSync(join(tmpdir(), "nxara-client-")),
         "generated.ts"
       );
       await codegenClient({

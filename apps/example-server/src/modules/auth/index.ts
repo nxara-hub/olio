@@ -1,5 +1,5 @@
-import { module, mw, type MiddlewareFn } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { module, mw, type MiddlewareFn } from "@nxara/olio";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
 
 import { clientError } from "../../errors.js";
 

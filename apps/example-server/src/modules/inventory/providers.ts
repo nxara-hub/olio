@@ -1,4 +1,4 @@
-import { operation, singleton } from "@nxlab/di";
+import { operation, singleton } from "@nxara/olio-di";
 import DataLoader from "dataloader";
 
 import { clientError } from "../../errors.js";

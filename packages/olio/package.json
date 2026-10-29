@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/olio",
+  "name": "@nxara/olio",
   "version": "0.0.0",
   "description": "Modular, type-safe GraphQL applications.",
   "keywords": [
@@ -28,11 +28,11 @@
     "check-types": "bun test/typed/generate.ts && tsc -p tsconfig.test.json && tsc -p tsconfig.typed.json"
   },
   "dependencies": {
-    "@nxlab/core": "workspace:*",
-    "@nxlab/schema": "workspace:*"
+    "@nxara/olio-core": "workspace:*",
+    "@nxara/olio-schema": "workspace:*"
   },
   "devDependencies": {
-    "@nxlab/codegen": "workspace:*",
+    "@nxara/olio-codegen": "workspace:*",
     "graphql": "^16.14.2"
   },
   "peerDependencies": {

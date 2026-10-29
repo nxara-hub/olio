@@ -1,4 +1,4 @@
-import { query } from "@nxlab/olio";
+import { query } from "@nxara/olio";
 
 import { employee } from "./store.js";
 

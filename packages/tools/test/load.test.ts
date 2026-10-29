@@ -3,7 +3,7 @@ import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createModule, olio } from "@nxlab/olio";
+import { createModule, olio } from "@nxara/olio";
 import { graphql, print } from "graphql";
 
 import {
@@ -18,7 +18,7 @@ const sdl = (defs: readonly unknown[]): string[] =>
   defs.map((d) => print(d as Parameters<typeof print>[0]).trim());
 
 async function withDir(files: Record<string, string>) {
-  const dir = await mkdtemp(join(tmpdir(), "nxlab-tools-"));
+  const dir = await mkdtemp(join(tmpdir(), "nxara-tools-"));
   await Promise.all(
     Object.entries(files).map(([name, content]) =>
       writeFile(join(dir, name), content)

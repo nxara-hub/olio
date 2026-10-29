@@ -1,4 +1,4 @@
-import type { Context } from "@nxlab/core";
+import type { Context } from "@nxara/olio-core";
 import {
   GraphQLError,
   parse,

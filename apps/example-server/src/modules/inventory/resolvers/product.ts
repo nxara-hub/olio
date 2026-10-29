@@ -1,4 +1,4 @@
-import { resolvers } from "@nxlab/olio";
+import { resolvers } from "@nxara/olio";
 
 import { money } from "../../core/money.js";
 import { onHand } from "../service.js";

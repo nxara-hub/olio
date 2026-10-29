@@ -1,4 +1,4 @@
-import { resolvers } from "@nxlab/olio";
+import { resolvers } from "@nxara/olio";
 
 import { orders } from "../../store.js";
 

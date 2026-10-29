@@ -343,7 +343,7 @@ function emitInputs(ctx: Context): string[] {
 
 /**
  * Per operation in `documents`, validated against `schema`: a result type, a
- * variables type and a typed document for `@nxlab/client`. Types are what a
+ * variables type and a typed document for `@nxara/olio-client`. Types are what a
  * client sees on the wire: enums by name, scalars through `ClientScalars`.
  */
 export function emitClient(
@@ -432,13 +432,13 @@ export function emitClient(
     .filter((name) => !BUILTIN_SCALARS.has(name));
   return `${[
     HEADER,
-    'import type { Scalar, TypedDocument } from "@nxlab/client";',
+    'import type { Scalar, TypedDocument } from "@nxara/olio-client";',
     "type Maybe<T> = T | null;",
     custom.length
       ? [
           `// Custom scalars (${custom.join(", ")}) are \`unknown\` unless registered in ClientScalars`,
           "// (in a .ts file, or a .d.ts with an import or `export {}`):",
-          `// declare module "@nxlab/client" { interface ClientScalars { ${custom[0]}: string } }`
+          `// declare module "@nxara/olio-client" { interface ClientScalars { ${custom[0]}: string } }`
         ].join("\n")
       : "",
     ...enums,

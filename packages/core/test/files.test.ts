@@ -11,7 +11,7 @@ async function withDir(
   files: Record<string, string>,
   run: (dir: string) => Promise<void>
 ): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "nxlab-core-"));
+  const dir = await mkdtemp(join(tmpdir(), "nxara-core-"));
   try {
     await Promise.all(
       Object.entries(files).map(([name, content]) =>

@@ -1,6 +1,6 @@
-import type { Scalar } from "@nxlab/client";
+import type { Scalar } from "@nxara/olio-client";
 
-declare module "@nxlab/client" {
+declare module "@nxara/olio-client" {
   interface ClientScalars {
     DateTime: string;
   }

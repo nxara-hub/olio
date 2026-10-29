@@ -7,11 +7,11 @@ import type {
   OlioModule,
   Pattern,
   ResolverMap
-} from "@nxlab/core";
-import { loadGraphQLFile, matchFiles } from "@nxlab/core/files";
+} from "@nxara/olio-core";
+import { loadGraphQLFile, matchFiles } from "@nxara/olio-core/files";
 import type { DocumentNode } from "graphql";
 
-export type { Pattern, ResolverMap, TypeSource } from "@nxlab/core";
+export type { Pattern, ResolverMap, TypeSource } from "@nxara/olio-core";
 
 /** `.ts`/`.js` files default-export SDL or a DocumentNode. Files holding only comments are skipped. */
 export async function loadTypeDefs(
@@ -92,7 +92,7 @@ async function loadMaps(patterns: readonly Pattern[]): Promise<ResolverMap> {
   }
   // olio reads it to name the file in its errors; Symbol.for, so it matches
   // across copies of the packages.
-  Object.defineProperty(merged, Symbol.for("nxlab.origin"), { value: origin });
+  Object.defineProperty(merged, Symbol.for("nxara.origin"), { value: origin });
   return merged;
 }
 

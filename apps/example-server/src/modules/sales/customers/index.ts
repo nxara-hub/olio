@@ -1,5 +1,5 @@
-import { feature } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { feature } from "@nxara/olio";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
 
 import { middleware } from "./middleware.js";
 

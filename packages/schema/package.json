@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/schema",
+  "name": "@nxara/olio-schema",
   "version": "0.0.0",
   "description": "Compose module SDL into one validated GraphQL schema, with schema-design directives.",
   "keywords": [

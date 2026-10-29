@@ -6,18 +6,18 @@ Modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. E
 
 | Package | Description |
 | --- | --- |
-| [`@nxlab/olio`](./packages/olio) | Runtime: modules, typed resolvers, layered middleware → schema |
-| [`@nxlab/codegen`](./packages/codegen) | SDL → TypeScript: schema types, per-module contracts, `Application` |
-| [`@nxlab/schema`](./packages/schema) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
-| [`@nxlab/di`](./packages/di) | Typed dependency injection on Awilix: singletons and per-operation instances |
-| [`@nxlab/http`](./packages/http) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
-| [`@nxlab/client`](./packages/client) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
-| [`@nxlab/tools`](./packages/tools) | Load SDL and resolver files for a module |
+| [`@nxara/olio`](./packages/olio) | Runtime: modules, typed resolvers, layered middleware → schema |
+| [`@nxara/olio-codegen`](./packages/codegen) | SDL → TypeScript: schema types, per-module contracts, `Application` |
+| [`@nxara/olio-schema`](./packages/schema) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
+| [`@nxara/olio-di`](./packages/di) | Typed dependency injection on Awilix: singletons and per-operation instances |
+| [`@nxara/olio-http`](./packages/http) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
+| [`@nxara/olio-client`](./packages/client) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
+| [`@nxara/olio-tools`](./packages/tools) | Load SDL and resolver files for a module |
 
 ```
-modules/*/typedefs/*.gql ─→ @nxlab/schema ─→ @nxlab/codegen ─→ generated.ts (Application)
-                                    │                                      │ declare module "@nxlab/olio"
-                                    └──────────→ @nxlab/olio ←─────────────┘
+modules/*/typedefs/*.gql ─→ @nxara/olio-schema ─→ @nxara/olio-codegen ─→ generated.ts (Application)
+                                    │                                      │ declare module "@nxara/olio"
+                                    └──────────→ @nxara/olio ←─────────────┘
                                                      │
                                                GraphQLSchema
 ```
@@ -53,7 +53,7 @@ export const app = olio({
 // app.schema → any GraphQL server
 ```
 
-[`apps/example-server`](./apps/example-server) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows every feature, with a map of where each one lives. [`apps/example-client`](./apps/example-client) is a separate app that uses it over HTTP with `@nxlab/client`.
+[`apps/example-server`](./apps/example-server) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows every feature, with a map of where each one lives. [`apps/example-client`](./apps/example-client) is a separate app that uses it over HTTP with `@nxara/olio-client`.
 
 ## Development
 

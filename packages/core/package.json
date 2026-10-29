@@ -1,7 +1,7 @@
 {
-  "name": "@nxlab/core",
+  "name": "@nxara/olio-core",
   "version": "0.0.0",
-  "description": "Contracts shared by the Nxara packages. Apps import from @nxlab/olio and @nxlab/tools instead.",
+  "description": "Contracts shared by the Nxara packages. Apps import from @nxara/olio and @nxara/olio-tools instead.",
   "keywords": [
     "graphql",
     "nxara"

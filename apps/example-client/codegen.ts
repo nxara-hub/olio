@@ -1,4 +1,4 @@
-import { codegenClient } from "@nxlab/codegen";
+import { codegenClient } from "@nxara/olio-codegen";
 
 // A client app knows the server by the schema it publishes: the SDL file, or
 // the running server itself (SCHEMA_URL=http://localhost:4000/graphql).

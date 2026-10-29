@@ -1,4 +1,4 @@
-import type { ScopeOf } from "@nxlab/di";
+import type { ScopeOf } from "@nxara/olio-di";
 
 import type { container } from "./di.js";
 import type { Application, Role } from "./generated.js";
@@ -32,7 +32,7 @@ interface GQLCtx extends RequestInfo {
 /** Subscriptions live on a connection, so they also know which one. */
 type SubGQLCtx = GQLCtx & { connectionId: string };
 
-declare module "@nxlab/olio" {
+declare module "@nxara/olio" {
   /** What fields' `extensions` may hold (FieldResolver's object form). */
   interface FieldExtensions<Source, Args> {
     /** graphql-query-complexity's: a cost, or a function of the args and the selection's cost. */
@@ -55,7 +55,7 @@ declare module "@nxlab/olio" {
   }
 }
 
-declare module "@nxlab/codegen" {
+declare module "@nxara/olio-codegen" {
   interface CustomScalars {
     DateTime: Date;
   }
@@ -65,7 +65,7 @@ declare module "@nxlab/codegen" {
   }
 }
 
-declare module "@nxlab/di" {
+declare module "@nxara/olio-di" {
   interface Register {
     ctx: RequestInfo;
   }

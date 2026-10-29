@@ -1,4 +1,4 @@
-# @nxlab/client
+# @nxara/olio-client
 
 A typed GraphQL client for Nxara apps. You write operations in `.graphql` files; codegen turns them into typed documents, the way graphql-codegen does; the client gives you one call per operation:
 
@@ -7,7 +7,7 @@ const { data } = await client.mutation.login({ email, password }, { headers });
 ```
 
 ```sh
-bun add @nxlab/client
+bun add @nxara/olio-client
 ```
 
 `graphql` 16 is a peer dependency. For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws) and/or [graphql-sse](https://github.com/enisdenjo/graphql-sse): the client takes your own clients of them.
@@ -34,7 +34,7 @@ mutation Login($email: String!, $password: String!) {
 `codegenClient` reads the schema (a file, or the running server's URL by introspection) and the operations, checks the operations against the schema (errors point at `file:line:column`), and writes the types:
 
 ```ts
-import { codegenClient } from "@nxlab/codegen";
+import { codegenClient } from "@nxara/olio-codegen";
 
 await codegenClient({
   schema: "../server/src/schema.gql", // or "http://localhost:4000/graphql"
@@ -49,7 +49,7 @@ Per operation, named the way graphql-codegen names them: `LoginMutation` (the re
 ## Calls
 
 ```ts
-import { createClient } from "@nxlab/client";
+import { createClient } from "@nxara/olio-client";
 
 import { operations } from "./generated.js";
 
@@ -82,7 +82,7 @@ createClient(operations, { url, fetch: ky.create({ throwHttpErrors: false }) });
 GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: false`. A library that isn't fetch-shaped, such as axios, needs a few lines that return a `Response`:
 
 ```ts
-import type { Fetch } from "@nxlab/client";
+import type { Fetch } from "@nxara/olio-client";
 
 const axiosFetch: Fetch = async (url, init) => {
   const res = await axios.request({
@@ -108,7 +108,7 @@ const axiosFetch: Fetch = async (url, init) => {
 The way the server's `CustomScalars` works: one type, or `{ input; output }` when variables and results differ. Custom scalars are `unknown` until registered:
 
 ```ts
-declare module "@nxlab/client" {
+declare module "@nxara/olio-client" {
   interface ClientScalars {
     DateTime: { input: Date | string; output: string };
   }
@@ -178,10 +178,10 @@ The client imports neither library: an app bundles only the ones it creates clie
 
 ## Tests
 
-`testClient` from `@nxlab/client/test` is the same client, answered in-process like Hono's `testClient`, through the app's own servers: its fetch handler for queries and mutations, and for subscriptions the graphql-ws options it passes to `useServer` (run over an in-memory socket) and its graphql-sse handler. So tests run production's context, `onConnect`, `onSubscribe`, error masking and cleanup. No server is started:
+`testClient` from `@nxara/olio-client/test` is the same client, answered in-process like Hono's `testClient`, through the app's own servers: its fetch handler for queries and mutations, and for subscriptions the graphql-ws options it passes to `useServer` (run over an in-memory socket) and its graphql-sse handler. So tests run production's context, `onConnect`, `onSubscribe`, error masking and cleanup. No server is started:
 
 ```ts
-import { testClient } from "@nxlab/client/test";
+import { testClient } from "@nxara/olio-client/test";
 
 // The same objects the server uses.
 import { graphqlHandler } from "../src/http.js";
@@ -202,6 +202,6 @@ expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 |  |  |
 | --- | --- |
 | `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
-| `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxlab/client/test`: the same client, answered in-process |
+| `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxara/olio-client/test`: the same client, answered in-process |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
 | `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |

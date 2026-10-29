@@ -1,4 +1,4 @@
-import { fetchHandler } from "@nxlab/http/fetch";
+import { fetchHandler } from "@nxara/olio-http/fetch";
 
 import { createContext } from "./context.js";
 import { app } from "./index.js";

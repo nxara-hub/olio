@@ -68,7 +68,7 @@ describe("generate: schema types", () => {
     );
     expect(out).toContain('  DateTime: ResolveScalar<"DateTime">;');
     expect(out).toContain(
-      'import type { ResolveEnum, ResolveScalar } from "@nxlab/codegen";'
+      'import type { ResolveEnum, ResolveScalar } from "@nxara/olio-codegen";'
     );
   });
 

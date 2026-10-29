@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { createModule, olio } from "@nxlab/olio";
+import { createModule, olio } from "@nxara/olio";
 import { GraphQLError, type ValidationRule } from "graphql";
 
 import { fetchHandler } from "../src/fetch.js";

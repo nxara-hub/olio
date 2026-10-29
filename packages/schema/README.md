@@ -1,8 +1,8 @@
-# @nxlab/schema
+# @nxara/olio-schema
 
 Compose module SDL into one validated GraphQL schema.
 
-`@nxlab/schema` is the step between your `.gql` files and a schema. Codegen and olio both go through it, so they always agree on the schema and on which module owns which field. It provides:
+`@nxara/olio-schema` is the step between your `.gql` files and a schema. Codegen and olio both go through it, so they always agree on the schema and on which module owns which field. It provides:
 
 - **`compose(modules, directives)`**: merges every module's SDL, adds root types that modules only extend, applies directives, validates, and reports which module declares each field.
 - **`@implements` and `@copy`**: schema-design directives that save repeating fields across types. The output is ordinary GraphQL: the directives, and their definitions if you declared them, are removed.
@@ -10,7 +10,7 @@ Compose module SDL into one validated GraphQL schema.
 ## Install
 
 ```sh
-bun add @nxlab/schema
+bun add @nxara/olio-schema
 ```
 
 `graphql` 16 is a peer dependency.
@@ -18,7 +18,7 @@ bun add @nxlab/schema
 ## compose
 
 ```ts
-import { compose } from "@nxlab/schema";
+import { compose } from "@nxara/olio-schema";
 
 const { document, schema, ownership } = compose(
   [
@@ -43,7 +43,7 @@ Pass the same list to codegen and to olio, so both see the same schema:
 
 ```ts
 // directives.ts
-import { copyDirective, implementsDirective } from "@nxlab/schema";
+import { copyDirective, implementsDirective } from "@nxara/olio-schema";
 
 export const directives = [implementsDirective(), copyDirective()];
 
@@ -64,7 +64,7 @@ Codegen records the directives' names in `Application` (`"~directives": "impleme
 Or apply them yourself:
 
 ```ts
-import { applyDirectives } from "@nxlab/schema";
+import { applyDirectives } from "@nxara/olio-schema";
 
 const document = applyDirectives(parse(sdl), directives);
 ```

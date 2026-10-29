@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { codegen } from "../src/index.js";
 
 async function makeDir(): Promise<string> {
-  return mkdtemp(join(tmpdir(), "nxlab-codegen-"));
+  return mkdtemp(join(tmpdir(), "nxara-codegen-"));
 }
 
 async function writeModule(

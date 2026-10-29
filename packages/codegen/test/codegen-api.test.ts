@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { copyDirective, implementsDirective } from "@nxlab/schema";
+import { copyDirective, implementsDirective } from "@nxara/olio-schema";
 
 import { codegen, codegenClient } from "../src/index.js";
 
@@ -22,7 +22,7 @@ const AUTH_SDL = `
 `;
 
 async function withTempDir<T>(body: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await mkdtemp(join(tmpdir(), "nxlab-codegen-"));
+  const dir = await mkdtemp(join(tmpdir(), "nxara-codegen-"));
   try {
     return await body(dir);
   } finally {
@@ -409,7 +409,7 @@ describe("codegen", () => {
           output,
           schemaOutput: schema
         });
-        expect(lines[0]).toMatch(/@nxlab\/codegen.*generate/);
+        expect(lines[0]).toMatch(/@nxara\/olio-codegen.*generate/);
         expect(lines).toContainEqual(
           expect.stringMatching(/modules.*auth.*1 file/)
         );
@@ -468,7 +468,7 @@ describe("generated Application", () => {
 };`
       );
       expect(out).not.toContain("Middleware");
-      expect(out).not.toContain("@nxlab/olio");
+      expect(out).not.toContain('from "@nxara/olio"');
     });
   });
 });

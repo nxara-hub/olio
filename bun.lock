@@ -14,30 +14,30 @@
       },
     },
     "apps/example-client": {
-      "name": "@nxlab/example-client",
+      "name": "@nxara/example-client",
       "version": "0.0.0",
       "dependencies": {
-        "@nxlab/client": "workspace:*",
+        "@nxara/olio-client": "workspace:*",
         "graphql": "^16.14.2",
         "graphql-sse": "2.6.3",
         "graphql-ws": "^6.4.1",
       },
       "devDependencies": {
-        "@nxlab/codegen": "workspace:*",
+        "@nxara/olio-codegen": "workspace:*",
       },
     },
     "apps/example-server": {
-      "name": "@nxlab/example-server",
+      "name": "@nxara/example-server",
       "version": "0.0.0",
       "dependencies": {
         "@hono/node-server": "^2.1.5",
-        "@nxlab/client": "workspace:*",
-        "@nxlab/codegen": "workspace:*",
-        "@nxlab/di": "workspace:*",
-        "@nxlab/http": "workspace:*",
-        "@nxlab/olio": "workspace:*",
-        "@nxlab/schema": "workspace:*",
-        "@nxlab/tools": "workspace:*",
+        "@nxara/olio": "workspace:*",
+        "@nxara/olio-client": "workspace:*",
+        "@nxara/olio-codegen": "workspace:*",
+        "@nxara/olio-di": "workspace:*",
+        "@nxara/olio-http": "workspace:*",
+        "@nxara/olio-schema": "workspace:*",
+        "@nxara/olio-tools": "workspace:*",
         "dataloader": "^2.2.3",
         "graphql": "^16.14.2",
         "graphql-query-complexity": "^2.0.0",
@@ -53,16 +53,16 @@
       },
     },
     "packages/client": {
-      "name": "@nxlab/client",
+      "name": "@nxara/olio-client",
       "version": "0.0.0",
       "dependencies": {
         "graphql-sse": "2.6.3",
         "graphql-ws": "^6.4.1",
       },
       "devDependencies": {
-        "@nxlab/codegen": "workspace:*",
-        "@nxlab/http": "workspace:*",
-        "@nxlab/olio": "workspace:*",
+        "@nxara/olio": "workspace:*",
+        "@nxara/olio-codegen": "workspace:*",
+        "@nxara/olio-http": "workspace:*",
         "graphql": "^16.14.2",
         "ky": "^2.2.0",
       },
@@ -71,11 +71,11 @@
       },
     },
     "packages/codegen": {
-      "name": "@nxlab/codegen",
+      "name": "@nxara/olio-codegen",
       "version": "0.0.0",
       "dependencies": {
-        "@nxlab/core": "workspace:*",
-        "@nxlab/schema": "workspace:*",
+        "@nxara/olio-core": "workspace:*",
+        "@nxara/olio-schema": "workspace:*",
       },
       "devDependencies": {
         "graphql": "^16.14.2",
@@ -85,7 +85,7 @@
       },
     },
     "packages/core": {
-      "name": "@nxlab/core",
+      "name": "@nxara/olio-core",
       "version": "0.0.0",
       "devDependencies": {
         "graphql": "^16.14.2",
@@ -95,21 +95,21 @@
       },
     },
     "packages/di": {
-      "name": "@nxlab/di",
+      "name": "@nxara/olio-di",
       "version": "0.0.0",
       "dependencies": {
         "awilix": "^13.0.5",
       },
     },
     "packages/http": {
-      "name": "@nxlab/http",
+      "name": "@nxara/olio-http",
       "version": "0.0.0",
       "dependencies": {
-        "@nxlab/core": "workspace:*",
+        "@nxara/olio-core": "workspace:*",
         "graphql-http": "^1.23.1",
       },
       "devDependencies": {
-        "@nxlab/olio": "workspace:*",
+        "@nxara/olio": "workspace:*",
         "graphql": "^16.14.2",
       },
       "peerDependencies": {
@@ -117,14 +117,14 @@
       },
     },
     "packages/olio": {
-      "name": "@nxlab/olio",
+      "name": "@nxara/olio",
       "version": "0.0.0",
       "dependencies": {
-        "@nxlab/core": "workspace:*",
-        "@nxlab/schema": "workspace:*",
+        "@nxara/olio-core": "workspace:*",
+        "@nxara/olio-schema": "workspace:*",
       },
       "devDependencies": {
-        "@nxlab/codegen": "workspace:*",
+        "@nxara/olio-codegen": "workspace:*",
         "graphql": "^16.14.2",
       },
       "peerDependencies": {
@@ -132,7 +132,7 @@
       },
     },
     "packages/schema": {
-      "name": "@nxlab/schema",
+      "name": "@nxara/olio-schema",
       "version": "0.0.0",
       "devDependencies": {
         "graphql": "^16.14.2",
@@ -142,13 +142,13 @@
       },
     },
     "packages/tools": {
-      "name": "@nxlab/tools",
+      "name": "@nxara/olio-tools",
       "version": "0.0.0",
       "dependencies": {
-        "@nxlab/core": "workspace:*",
+        "@nxara/olio-core": "workspace:*",
       },
       "devDependencies": {
-        "@nxlab/olio": "workspace:*",
+        "@nxara/olio": "workspace:*",
         "graphql": "^16.14.2",
       },
       "peerDependencies": {
@@ -229,25 +229,25 @@
 
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
-    "@nxlab/client": ["@nxlab/client@workspace:packages/client"],
+    "@nxara/example-client": ["@nxara/example-client@workspace:apps/example-client"],
 
-    "@nxlab/codegen": ["@nxlab/codegen@workspace:packages/codegen"],
+    "@nxara/example-server": ["@nxara/example-server@workspace:apps/example-server"],
 
-    "@nxlab/core": ["@nxlab/core@workspace:packages/core"],
+    "@nxara/olio": ["@nxara/olio@workspace:packages/olio"],
 
-    "@nxlab/di": ["@nxlab/di@workspace:packages/di"],
+    "@nxara/olio-client": ["@nxara/olio-client@workspace:packages/client"],
 
-    "@nxlab/example-client": ["@nxlab/example-client@workspace:apps/example-client"],
+    "@nxara/olio-codegen": ["@nxara/olio-codegen@workspace:packages/codegen"],
 
-    "@nxlab/example-server": ["@nxlab/example-server@workspace:apps/example-server"],
+    "@nxara/olio-core": ["@nxara/olio-core@workspace:packages/core"],
 
-    "@nxlab/http": ["@nxlab/http@workspace:packages/http"],
+    "@nxara/olio-di": ["@nxara/olio-di@workspace:packages/di"],
 
-    "@nxlab/olio": ["@nxlab/olio@workspace:packages/olio"],
+    "@nxara/olio-http": ["@nxara/olio-http@workspace:packages/http"],
 
-    "@nxlab/schema": ["@nxlab/schema@workspace:packages/schema"],
+    "@nxara/olio-schema": ["@nxara/olio-schema@workspace:packages/schema"],
 
-    "@nxlab/tools": ["@nxlab/tools@workspace:packages/tools"],
+    "@nxara/olio-tools": ["@nxara/olio-tools@workspace:packages/tools"],
 
     "@oxfmt/binding-android-arm-eabi": ["@oxfmt/binding-android-arm-eabi@0.75.0", "", { "os": "android", "cpu": "arm" }, "sha512-zHJ7LcTN46/5mtoLxsUu14pdF9ixFwDURtmxZ0CeNwqom5qB5NRVqU6o2GRZ7QPdNBW8G6j9UTJzQ+EDevMH0w=="],
 

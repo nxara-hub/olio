@@ -1,11 +1,11 @@
-import type { StoredMiddleware } from "@nxlab/core";
+import type { StoredMiddleware } from "@nxara/olio-core";
 import {
   compose,
   SCALAR,
   type Bypass,
   type Ownership,
   type SchemaDirective
-} from "@nxlab/schema";
+} from "@nxara/olio-schema";
 import {
   defaultFieldResolver,
   getNamedType,
@@ -202,7 +202,7 @@ function register(
   seen.set(id, value);
 }
 
-// Modules carry middleware untyped (@nxlab/core can't know olio's types);
+// Modules carry middleware untyped (@nxara/olio-core can't know olio's types);
 // checkOwnerMiddleware checks every value before anything runs.
 const asMiddleware = (map: StoredMiddleware): MiddlewareMap =>
   map as MiddlewareMap;
@@ -609,9 +609,9 @@ function unknownType({ schema, owner }: Attach, name: string): string {
   return `${owner.label}: unknown type "${name}"${hint}`;
 }
 
-// Set by @nxlab/tools' loadResolvers / loadEnums: "Type" / "Type.field" -> the
+// Set by @nxara/olio-tools' loadResolvers / loadEnums: "Type" / "Type.field" -> the
 // file that exported it, so errors about loaded maps can name the file.
-const ORIGIN = Symbol.for("nxlab.origin");
+const ORIGIN = Symbol.for("nxara.origin");
 
 // A loaded map (loadResolvers / loadEnums) knows each key's file; errors
 // about a key name it. `at` narrows the key to a field as the run goes.

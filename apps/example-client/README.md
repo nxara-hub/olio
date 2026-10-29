@@ -1,6 +1,6 @@
 # Example client
 
-A separate app that uses [the example server](../example-server) over HTTP with [`@nxlab/client`](../../packages/client), the way a frontend or another service would. It knows the server only by its URL and by the schema it publishes.
+A separate app that uses [the example server](../example-server) over HTTP with [`@nxara/olio-client`](../../packages/client), the way a frontend or another service would. It knows the server only by its URL and by the schema it publishes.
 
 ```sh
 bun run --cwd apps/example-server serve    # in one terminal

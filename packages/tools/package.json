@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/tools",
+  "name": "@nxara/olio-tools",
   "version": "0.0.0",
   "description": "Load olio modules, type definitions and resolvers from files.",
   "keywords": [
@@ -27,10 +27,10 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "@nxlab/core": "workspace:*"
+    "@nxara/olio-core": "workspace:*"
   },
   "devDependencies": {
-    "@nxlab/olio": "workspace:*",
+    "@nxara/olio": "workspace:*",
     "graphql": "^16.14.2"
   },
   "peerDependencies": {

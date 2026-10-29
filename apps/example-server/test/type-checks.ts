@@ -1,7 +1,3 @@
-// Compile-time only: each @ts-expect-error proves the generated types close
-// that door. Checked by `bun run check-types`.
-import { fetchHandler } from "@nxlab/http/fetch";
-import { nodeHandler } from "@nxlab/http/node";
 import {
   feature,
   mw,
@@ -9,7 +5,11 @@ import {
   resolvers,
   subscription,
   type Fields
-} from "@nxlab/olio";
+} from "@nxara/olio";
+// Compile-time only: each @ts-expect-error proves the generated types close
+// that door. Checked by `bun run check-types`.
+import { fetchHandler } from "@nxara/olio-http/fetch";
+import { nodeHandler } from "@nxara/olio-http/node";
 
 import { createContext } from "../src/context.js";
 import { app } from "../src/index.js";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { copyDirective } from "@nxlab/schema";
+import { copyDirective } from "@nxara/olio-schema";
 import {
   graphql,
   GraphQLScalarType,

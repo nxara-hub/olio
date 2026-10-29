@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
-import { loadGraphQLFile, matchFiles } from "@nxlab/core/files";
+import { loadGraphQLFile, matchFiles } from "@nxara/olio-core/files";
 import {
   buildASTSchema,
   buildClientSchema,
@@ -277,7 +277,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
     log(dim(`  done in ${Math.round(performance.now() - started)}ms`));
   };
 
-  log(`${bold("@nxlab/codegen")} ${dim(watch ? "watch" : "generate")}`);
+  log(`${bold("@nxara/olio-codegen")} ${dim(watch ? "watch" : "generate")}`);
   await run();
   if (!watch) return;
   await rerunOnChange(
@@ -327,7 +327,7 @@ async function loadDocuments(
 }
 
 /**
- * Typed operations for `@nxlab/client`, from `.graphql` files and the
+ * Typed operations for `@nxara/olio-client`, from `.graphql` files and the
  * schema: a schema file, or the running server's URL.
  */
 export async function codegenClient(
@@ -353,7 +353,9 @@ export async function codegenClient(
       `  ${changed ? green("✓") : dim("·")} ${shortPath(output)}${changed ? "" : `  ${dim("unchanged")}`}`
     );
   };
-  log(`${bold("@nxlab/codegen")} ${dim(watch ? "client watch" : "client")}`);
+  log(
+    `${bold("@nxara/olio-codegen")} ${dim(watch ? "client watch" : "client")}`
+  );
   await run();
   if (!watch) return;
   // A server URL isn't watched: rerun, or save an operation, after it changes.

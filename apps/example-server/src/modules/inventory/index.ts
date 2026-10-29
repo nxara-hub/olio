@@ -1,5 +1,5 @@
-import { module, mw } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { module, mw } from "@nxara/olio";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
 
 import { requireRole } from "../../middleware.js";
 

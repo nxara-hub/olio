@@ -1,4 +1,4 @@
-import type { Context, MiddlewareFn, SubscriptionContext } from "@nxlab/olio";
+import type { Context, MiddlewareFn, SubscriptionContext } from "@nxara/olio";
 
 import { clientError } from "./errors.js";
 import type { Role } from "./generated.js";

@@ -1,4 +1,4 @@
-import type { Fields } from "@nxlab/olio";
+import type { Fields } from "@nxara/olio";
 
 import { clientError } from "../../errors.js";
 import type { PubSub } from "../../pubsub.js";

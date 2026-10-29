@@ -1,15 +1,15 @@
-# @nxlab/codegen
+# @nxara/olio-codegen
 
 Generate TypeScript types from GraphQL SDL.
 
-`@nxlab/codegen` discovers modules from a directory layout, reads each module's GraphQL SDL, and emits a single strongly typed TypeScript file: schema types, per-module operation contracts, and the application type.
+`@nxara/olio-codegen` discovers modules from a directory layout, reads each module's GraphQL SDL, and emits a single strongly typed TypeScript file: schema types, per-module operation contracts, and the application type.
 
-It is deliberately small - SDL in, types out. Schema composition belongs to `@nxlab/schema`, the runtime to `@nxlab/olio`.
+It is deliberately small - SDL in, types out. Schema composition belongs to `@nxara/olio-schema`, the runtime to `@nxara/olio`.
 
 ## Install
 
 ```sh
-bun add @nxlab/codegen
+bun add @nxara/olio-codegen
 ```
 
 `graphql` 16 is a peer dependency.
@@ -19,7 +19,7 @@ bun add @nxlab/codegen
 There is no bundled CLI; drive codegen from a short script:
 
 ```ts
-import { codegen } from "@nxlab/codegen";
+import { codegen } from "@nxara/olio-codegen";
 
 await codegen({
   root: import.meta.dirname,
@@ -42,15 +42,15 @@ await codegen({ ... }).catch((error: Error) => {
 
 `modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
 
-SDL files are read exactly as `loadTypeDefs` in `@nxlab/tools` reads them (both go through `@nxlab/core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
+SDL files are read exactly as `loadTypeDefs` in `@nxara/olio-tools` reads them (both go through `@nxara/olio-core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
 
 ### Directives
 
-Pass `directives` to apply `@nxlab/schema` transformations before generation:
+Pass `directives` to apply `@nxara/olio-schema` transformations before generation:
 
 ```ts
-import { codegen } from "@nxlab/codegen";
-import { copyDirective, implementsDirective } from "@nxlab/schema";
+import { codegen } from "@nxara/olio-codegen";
+import { copyDirective, implementsDirective } from "@nxara/olio-schema";
 
 await codegen({
   modules: "src/modules",
@@ -67,14 +67,14 @@ Set `schemaOutput` to write the final schema to a file, printed from the built s
 
 ## Client types
 
-`codegenClient({ schema, documents, output })` generates the types for [`@nxlab/client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schemaOutput` file above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors. `watch: true` reruns when an operation (including a new file) or the schema file changes; a server URL isn't watched.
+`codegenClient({ schema, documents, output })` generates the types for [`@nxara/olio-client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schemaOutput` file above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors. `watch: true` reruns when an operation (including a new file) or the schema file changes; a server URL isn't watched.
 
 Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` says the default explicitly. The directive is the client's: codegen records it in the document and removes it from the query the server receives, and imports only the transports the operations use. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
 
 Per operation it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Types are what a client sees on the wire: enums by name, scalars through `ClientScalars`.
 
 ```ts
-import { codegenClient } from "@nxlab/codegen";
+import { codegenClient } from "@nxara/olio-codegen";
 
 await codegenClient({
   root: import.meta.dirname,
@@ -109,7 +109,7 @@ So the glob decides what is a feature, because codegen runs it inside each subfo
 
 ## Application
 
-`Application` lists, per module, the types it declares fields on. Register it with `@nxlab/olio`, which derives resolver signatures and middleware targets from it:
+`Application` lists, per module, the types it declares fields on. Register it with `@nxara/olio`, which derives resolver signatures and middleware targets from it:
 
 ```ts
 export type Application = {
@@ -154,7 +154,7 @@ A schema type can't be named `Application`, `Maybe`, `ResolveEnum`, `ResolveScal
 Every scalar goes through one exported table, `Scalars`, so fields read `Scalars["DateTime"]["output"]`. Built-in scalars default to their usual TypeScript types (`ID`/`String` → `string`, `Int`/`Float` → `number`, `Boolean` → `boolean`), and custom scalars default to `unknown`. Register or remap any of them by augmenting `CustomScalars`:
 
 ```ts
-declare module "@nxlab/codegen" {
+declare module "@nxara/olio-codegen" {
   interface CustomScalars {
     DateTime: Date;
     JSON: { input: string; output: unknown };
@@ -172,7 +172,7 @@ Like every registration, it goes in a `.ts` file, or a `.d.ts` with an `import` 
 Enums are their GraphQL names by default (`"ADMIN" | "GUEST"`). To store something else, such as a number or a lowercase string, register the internal type by augmenting `CustomEnums`:
 
 ```ts
-declare module "@nxlab/codegen" {
+declare module "@nxara/olio-codegen" {
   interface CustomEnums {
     OrderStatus: "confirmed" | "cancelled";
   }
@@ -189,7 +189,7 @@ export const sales = module.sales({
 });
 ```
 
-To keep a map in its own file, write it with the typed builder: `export const OrderStatus = resolvers.sales.OrderStatus({ ... })`, then `enums: { OrderStatus }`, or load such files with `enums: await loadEnums(...)` from `@nxlab/tools` (unchecked, like `loadResolvers`).
+To keep a map in its own file, write it with the typed builder: `export const OrderStatus = resolvers.sales.OrderStatus({ ... })`, then `enums: { OrderStatus }`, or load such files with `enums: await loadEnums(...)` from `@nxara/olio-tools` (unchecked, like `loadResolvers`).
 
 ## Output
 
@@ -225,15 +225,15 @@ The full output contains:
 The header marks the file as generated:
 
 ```ts
-// Generated by @nxlab/codegen - do not edit.
+// Generated by @nxara/olio-codegen - do not edit.
 ```
 
-## Relationship to @nxlab/schema
+## Relationship to @nxara/olio-schema
 
-`@nxlab/schema` composes a schema into ordinary GraphQL; `@nxlab/codegen` then turns that GraphQL into TypeScript:
+`@nxara/olio-schema` composes a schema into ordinary GraphQL; `@nxara/olio-codegen` then turns that GraphQL into TypeScript:
 
 ```
-SDL → @nxlab/schema → DocumentNode → @nxlab/codegen → TypeScript
+SDL → @nxara/olio-schema → DocumentNode → @nxara/olio-codegen → TypeScript
 ```
 
 Codegen has no knowledge of `@implements` or `@copy` - it accepts `SchemaDirective[]` and passes the parsed document through the transformation pipeline.

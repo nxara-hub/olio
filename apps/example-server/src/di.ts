@@ -1,4 +1,4 @@
-import { createContainer } from "@nxlab/di";
+import { createContainer } from "@nxara/olio-di";
 
 import { ProductLoader } from "./modules/inventory/providers.js";
 

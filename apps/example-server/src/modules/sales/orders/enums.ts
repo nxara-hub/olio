@@ -1,4 +1,4 @@
-import { resolvers } from "@nxlab/olio";
+import { resolvers } from "@nxara/olio";
 
 // Internal values for OrderStatus (see CustomEnums in types.d.ts): resolvers
 // read and write "confirmed", clients see CONFIRMED, and status arguments

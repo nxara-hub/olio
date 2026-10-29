@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import type { Context } from "@nxlab/core";
+import type { Context } from "@nxara/olio-core";
 import type { OperationContext } from "graphql-http";
 import { createHandler, type HandlerOptions } from "graphql-http/lib/use/http";
 

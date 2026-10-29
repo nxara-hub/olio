@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/client",
+  "name": "@nxara/olio-client",
   "version": "0.0.0",
   "description": "A typed GraphQL client for Nxara apps: select fields, get typed results.",
   "keywords": [
@@ -37,9 +37,9 @@
     "graphql-ws": "^6.4.1"
   },
   "devDependencies": {
-    "@nxlab/codegen": "workspace:*",
-    "@nxlab/http": "workspace:*",
-    "@nxlab/olio": "workspace:*",
+    "@nxara/olio": "workspace:*",
+    "@nxara/olio-codegen": "workspace:*",
+    "@nxara/olio-http": "workspace:*",
     "graphql": "^16.14.2",
     "ky": "^2.2.0"
   },

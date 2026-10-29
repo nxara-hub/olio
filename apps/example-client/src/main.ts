@@ -1,4 +1,4 @@
-import { createClient, type Result } from "@nxlab/client";
+import { createClient, type Result } from "@nxara/olio-client";
 import { createClient as createSseClient } from "graphql-sse";
 import { createClient as createWsClient } from "graphql-ws";
 

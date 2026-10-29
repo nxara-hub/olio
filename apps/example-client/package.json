@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/example-client",
+  "name": "@nxara/example-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,12 +9,12 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@nxlab/client": "workspace:*",
+    "@nxara/olio-client": "workspace:*",
     "graphql": "^16.14.2",
     "graphql-sse": "2.6.3",
     "graphql-ws": "^6.4.1"
   },
   "devDependencies": {
-    "@nxlab/codegen": "workspace:*"
+    "@nxara/olio-codegen": "workspace:*"
   }
 }

@@ -8,7 +8,7 @@ type Code =
 
 /**
  * An error the client should see. Anything else that's thrown is a bug and
- * reaches clients as "Unexpected error." (see `maskErrors` in @nxlab/http).
+ * reaches clients as "Unexpected error." (see `maskErrors` in @nxara/olio-http).
  */
 export const clientError = (code: Code, message: string): GraphQLError =>
   new GraphQLError(message, { extensions: { code } });

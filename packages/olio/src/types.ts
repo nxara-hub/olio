@@ -7,7 +7,7 @@ import type {
   OlioModule,
   ResolverMap,
   TypeSource
-} from "@nxlab/core";
+} from "@nxara/olio-core";
 import type {
   GraphQLFieldExtensions,
   GraphQLResolveInfo,
@@ -291,7 +291,7 @@ export type FeatureMiddleware<
  * functions). Strict: an unregistered key is a compile error.
  *
  * ```ts
- * declare module "@nxlab/olio" {
+ * declare module "@nxara/olio" {
  *   interface FieldExtensions<Source, Args> {
  *     complexity?: number | ((args: Args, childComplexity: number) => number);
  *   }
@@ -403,7 +403,7 @@ type TypeHookResolver<E, F> = (
     : (E extends { resolveType: infer R } ? R : never) | null
 >;
 
-/** An enum takes its internal values (`CustomEnums` in @nxlab/codegen): `{ ADMIN: 1 }`. */
+/** An enum takes its internal values (`CustomEnums` in @nxara/olio-codegen): `{ ADMIN: 1 }`. */
 export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
   Entry<M, T> extends { scalar: true }
     ? GraphQLScalarType
@@ -454,7 +454,7 @@ export type Fields = {
   };
 };
 
-// Shared with @nxlab/tools and @nxlab/http, which mustn't depend on olio.
+// Shared with @nxara/olio-tools and @nxara/olio-http, which mustn't depend on olio.
 export type {
   Context,
   LoadedEnums,
@@ -503,7 +503,7 @@ type CustomEnum<O extends string> = {
     : never;
 }[OwnEnum<O>];
 
-/** Internal values per enum, `{ Role: { ADMIN: 1, USER: 2 } }`; see `CustomEnums` in @nxlab/codegen. */
+/** Internal values per enum, `{ Role: { ADMIN: 1, USER: 2 } }`; see `CustomEnums` in @nxara/olio-codegen. */
 export type EnumValues<O extends string> = Untyped extends true
   ? Record<string, Record<string, unknown>>
   : { [T in CustomEnum<O>]: TypeResolvers<O, T & ModuleTypeName<O>> };
@@ -541,7 +541,7 @@ export type ModuleConfig<M extends ModuleId> = {
   resolvers?: OwnerResolvers<M>;
   /** May target the features' fields too. */
   middleware?: ModuleMiddleware<M>;
-  /** One per feature folder, usually from `loadFeatures` in @nxlab/tools. */
+  /** One per feature folder, usually from `loadFeatures` in @nxara/olio-tools. */
   features?: readonly OlioFeature[];
 } & EnumsOption<M>;
 

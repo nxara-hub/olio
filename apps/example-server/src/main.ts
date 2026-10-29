@@ -1,4 +1,4 @@
-import type { Context } from "@nxlab/olio";
+import type { Context } from "@nxara/olio";
 import { graphql, parse, subscribe, type ExecutionResult } from "graphql";
 
 import { createContext, createSubscriptionContext } from "./context.js";

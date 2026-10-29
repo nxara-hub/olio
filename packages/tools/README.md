@@ -1,21 +1,21 @@
-# @nxlab/tools
+# @nxara/olio-tools
 
 Load modules, and a module's type definitions and resolvers, from files.
 
 ## Install
 
 ```sh
-bun add @nxlab/tools
+bun add @nxara/olio-tools
 ```
 
-`graphql` 16 and `@nxlab/olio` are peer dependencies.
+`graphql` 16 and `@nxara/olio` are peer dependencies.
 
 ## Usage
 
 Patterns are globs, or `file:` URLs, so paths can be relative to the calling module:
 
 ```ts
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
 
 const typeDefs = await loadTypeDefs(
   new URL("**/typedefs/*.{gql,ts,js}", import.meta.url)

@@ -1,5 +1,5 @@
-import { errorMasker, validateOperation } from "@nxlab/http";
-import type { SubscriptionContext } from "@nxlab/olio";
+import type { SubscriptionContext } from "@nxara/olio";
+import { errorMasker, validateOperation } from "@nxara/olio-http";
 import { createHandler } from "graphql-sse/lib/use/fetch";
 import type { ServerOptions } from "graphql-ws";
 import { useServer } from "graphql-ws/use/ws";
@@ -10,7 +10,7 @@ import { bearer } from "./http.js";
 import { app } from "./index.js";
 import { validationRules } from "./limits.js";
 
-// @nxlab/http serves GraphQL over HTTP only; subscriptions are the app's own,
+// @nxara/olio-http serves GraphQL over HTTP only; subscriptions are the app's own,
 // on the reference libraries. Both transports hide unexpected errors the way
 // the HTTP handler does, and dispose each operation's DI scope once it ends.
 const mask = errorMasker<SubscriptionContext>();
@@ -47,7 +47,7 @@ const end = async (connection: object, id: string): Promise<void> => {
 /** Subscriptions over WebSocket (graphql-ws); tests run the same through `testClient`. */
 export const wsOptions: ServerOptions<Record<string, unknown> | undefined> = {
   schema: app.schema,
-  // Browsers can't set headers on a WebSocket, so @nxlab/client sends its
+  // Browsers can't set headers on a WebSocket, so @nxara/olio-client sends its
   // headers as connectionParams: { headers: { authorization } }.
   context: (ctx, id) => {
     const headers = ctx.connectionParams?.headers as

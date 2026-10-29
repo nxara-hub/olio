@@ -1,6 +1,6 @@
 // Compile-time only: olio's types against real codegen output (see
 // generate.ts). Each @ts-expect-error must keep failing.
-import { copyDirective, implementsDirective } from "@nxlab/schema";
+import { copyDirective, implementsDirective } from "@nxara/olio-schema";
 import { GraphQLScalarType } from "graphql";
 
 import {
@@ -45,7 +45,7 @@ declare module "graphql" {
     cacheControl?: { maxAge: number };
   }
 }
-declare module "@nxlab/codegen" {
+declare module "@nxara/olio-codegen" {
   interface CustomEnums {
     Role: 1 | 2;
   }

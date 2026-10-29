@@ -1,4 +1,4 @@
-import { compose, type Ownership } from "@nxlab/schema";
+import { compose, type Ownership } from "@nxara/olio-schema";
 import {
   isEnumType,
   isInputObjectType,
@@ -31,7 +31,7 @@ import {
 } from "./types.js";
 
 const IMPORTS =
-  'import type { ResolveEnum, ResolveScalar } from "@nxlab/codegen";';
+  'import type { ResolveEnum, ResolveScalar } from "@nxara/olio-codegen";';
 const UTILS = "type Maybe<T> = T | null;";
 
 function toDocument(typeDef: TypeSource, name: string): DocumentNode {

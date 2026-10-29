@@ -1,5 +1,5 @@
-import { module } from "@nxlab/olio";
-import { loadResolvers, loadTypeDefs } from "@nxlab/tools";
+import { module } from "@nxara/olio";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
 
 export const coreModule = module.core({
   typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),

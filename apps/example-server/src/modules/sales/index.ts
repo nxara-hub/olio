@@ -1,5 +1,5 @@
-import { module, mw, type MiddlewareFn } from "@nxlab/olio";
-import { loadFeatures } from "@nxlab/tools";
+import { module, mw, type MiddlewareFn } from "@nxara/olio";
+import { loadFeatures } from "@nxara/olio-tools";
 
 const journal =
   (): MiddlewareFn =>

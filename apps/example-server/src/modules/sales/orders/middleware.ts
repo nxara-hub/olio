@@ -1,4 +1,4 @@
-import { mw } from "@nxlab/olio";
+import { mw } from "@nxara/olio";
 
 import { requireRole } from "../../../middleware.js";
 

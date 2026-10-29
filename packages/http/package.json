@@ -1,5 +1,5 @@
 {
-  "name": "@nxlab/http",
+  "name": "@nxara/olio-http",
   "version": "0.0.0",
   "description": "Serve an olio app over HTTP, on any framework: GraphQL over HTTP with context, error masking and per-operation cleanup.",
   "keywords": [
@@ -37,11 +37,11 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "@nxlab/core": "workspace:*",
+    "@nxara/olio-core": "workspace:*",
     "graphql-http": "^1.23.1"
   },
   "devDependencies": {
-    "@nxlab/olio": "workspace:*",
+    "@nxara/olio": "workspace:*",
     "graphql": "^16.14.2"
   },
   "peerDependencies": {

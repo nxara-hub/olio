@@ -1,4 +1,4 @@
-import { mutation } from "@nxlab/olio";
+import { mutation } from "@nxara/olio";
 
 import { clientError } from "../../../errors.js";
 import { onHand, productBySku, takeStock } from "../../inventory/service.js";

@@ -1,4 +1,4 @@
-import { resolvers } from "@nxlab/olio";
+import { resolvers } from "@nxara/olio";
 
 export const LoginResult = resolvers.auth.LoginResult({
   __resolveType: (result) =>

@@ -1,4 +1,4 @@
-import type { Context } from "@nxlab/olio";
+import type { Context } from "@nxara/olio";
 
 import type { Role } from "../../generated.js";
 

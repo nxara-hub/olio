@@ -1,5 +1,5 @@
-import { mw, olio } from "@nxlab/olio";
-import { loadModules } from "@nxlab/tools";
+import { mw, olio } from "@nxara/olio";
+import { loadModules } from "@nxara/olio-tools";
 
 import { directives } from "./directives.js";
 import { auditLog, requestLogger, requireAuth } from "./middleware.js";

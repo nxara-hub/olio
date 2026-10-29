@@ -1,4 +1,4 @@
-import { mutation } from "@nxlab/olio";
+import { mutation } from "@nxara/olio";
 
 import { signIn, signOut } from "./store.js";
 
