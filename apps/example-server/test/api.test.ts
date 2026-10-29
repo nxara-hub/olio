@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { testClient } from "@nxlab/client/test";
 
 import { graphqlHandler } from "../src/http.js";
+import { sseHandler, wsOptions } from "../src/subscriptions.js";
 import { operations } from "./generated.js";
 
 declare module "@nxlab/client" {
@@ -11,14 +12,15 @@ declare module "@nxlab/client" {
   }
 }
 
-// The same handler server.ts serves, called in-process.
-const anonymous = testClient(operations, graphqlHandler);
+// The same handlers server.ts serves, called in-process.
+const servers = { http: graphqlHandler, ws: wsOptions, sse: sseHandler };
+const anonymous = testClient(operations, servers);
 
 const signIn = async (email: string) => {
   const { data } = await anonymous.mutation.login({ email, password: "demo" });
   if (data?.login.__typename !== "Session")
     throw new Error(`login failed: ${email}`);
-  return testClient(operations, graphqlHandler, {
+  return testClient(operations, servers, {
     headers: { authorization: `Bearer ${data.login.token}` }
   });
 };
@@ -56,5 +58,17 @@ describe("the ERP over HTTP", () => {
     const carl = await signIn("carl@erp.test");
     const { data } = await carl.query.productPage({ pageSize: 2 });
     expect(data?.products.items).toHaveLength(2);
+  });
+});
+
+describe("subscriptions, through the app's own servers", () => {
+  test("need a signed-in user, over WebSocket and server-sent events", async () => {
+    const results = await Promise.all([
+      anonymous.subscription.stockChanged({ sku: "CHAIR-01" }).next(),
+      anonymous.subscription.stockChangedOverSse({ sku: "CHAIR-01" }).next()
+    ]);
+    for (const { value } of results) {
+      expect(value?.errors?.[0]?.extensions?.code).toBe("UNAUTHENTICATED");
+    }
   });
 });

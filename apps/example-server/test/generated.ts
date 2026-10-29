@@ -72,6 +72,42 @@ export const ProductPageDocument: TypedDocument<ProductPageQuery, ProductPageQue
   query: "query ProductPage($pageSize: Int) {\n  products(filter: {pageSize: $pageSize}) {\n    items {\n      sku\n    }\n  }\n}"
 };
 
+export type StockChangedSubscription = {
+  stockChanged: {
+    sku: Scalar<"String">;
+    onHand: Scalar<"Int">;
+  };
+};
+
+export type StockChangedSubscriptionVariables = {
+  sku?: Maybe<Scalar<"String", "input">>;
+};
+
+export const StockChangedDocument: TypedDocument<StockChangedSubscription, StockChangedSubscriptionVariables, "subscription"> = {
+  operation: "subscription",
+  name: "StockChanged",
+  query: "subscription StockChanged($sku: String) {\n  stockChanged(sku: $sku) {\n    sku\n    onHand\n  }\n}",
+  transport: "ws"
+};
+
+export type StockChangedOverSseSubscription = {
+  stockChanged: {
+    sku: Scalar<"String">;
+    onHand: Scalar<"Int">;
+  };
+};
+
+export type StockChangedOverSseSubscriptionVariables = {
+  sku?: Maybe<Scalar<"String", "input">>;
+};
+
+export const StockChangedOverSseDocument: TypedDocument<StockChangedOverSseSubscription, StockChangedOverSseSubscriptionVariables, "subscription"> = {
+  operation: "subscription",
+  name: "StockChangedOverSse",
+  query: "subscription StockChangedOverSse($sku: String) {\n  stockChanged(sku: $sku) {\n    sku\n    onHand\n  }\n}",
+  transport: "sse"
+};
+
 /** For createClient(operations, { url }): `client.mutation.login(variables)`. */
 export const operations = {
   mutation: {
@@ -80,5 +116,10 @@ export const operations = {
   query: {
     products: ProductsDocument,
     productPage: ProductPageDocument
-  }
+  },
+  subscription: {
+    stockChanged: StockChangedDocument,
+    stockChangedOverSse: StockChangedOverSseDocument
+  },
+  transports: ["sse", "ws"]
 } as const;

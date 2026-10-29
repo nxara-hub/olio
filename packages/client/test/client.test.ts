@@ -4,11 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { codegenClient } from "@nxlab/codegen";
+import { errorMasker } from "@nxlab/http";
 import { fetchHandler } from "@nxlab/http/fetch";
 import { createModule, olio } from "@nxlab/olio";
 import axios from "axios";
 import { GraphQLError, GraphQLScalarType } from "graphql";
 import { createClient as createSseClient } from "graphql-sse";
+import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
 import { createClient as createWsClient, type ServerOptions } from "graphql-ws";
 import { makeHandler } from "graphql-ws/use/bun";
 import ky from "ky";
@@ -103,8 +105,12 @@ const app = olio({
           })
         },
         Subscription: {
-          async *ticks(_root, args) {
-            for (let n = 1; n <= Number(args.upTo); n++) yield n;
+          ticks(_root, args) {
+            // A bug the app's masking must hide.
+            if (Number(args.upTo) < 0) throw new Error("database is down");
+            return (async function* () {
+              for (let n = 1; n <= Number(args.upTo); n++) yield n;
+            })();
           },
           // Yields who's asking, then stays open until the client leaves.
           async *viewer(_root, _args, ctx) {
@@ -122,18 +128,31 @@ const handler = fetchHandler(app, {
   context: (request) => ({ user: request.headers.get("x-user") ?? undefined }),
   onOperationEnd: (ctx) => void ended.push(ctx)
 });
-// Subscriptions run in memory (WebSocket and SSE) against the schema; their
-// context comes from the client's headers.
+// The app's own subscription servers, as in production: context from the
+// client's headers, errors masked, each finished subscription recorded.
 const subscriptionContext = (headers: Headers) => {
   const user = headers.get("x-user") ?? undefined;
   if (user === "banned") throw new GraphQLError("Banned");
   return { user };
 };
-const handlers = {
-  http: handler,
+const mask = errorMasker({ onUnexpectedError: () => {} });
+const subscriptionsEnded: string[] = [];
+const wsOptions: ServerOptions<Record<string, unknown> | undefined> = {
   schema: app.schema,
-  context: subscriptionContext
+  context: ({ connectionParams }) =>
+    subscriptionContext(
+      new Headers(connectionParams?.headers as Record<string, string>)
+    ),
+  onNext: (_ctx, _id, _payload, _args, result) => mask.result(result),
+  onComplete: () => void subscriptionsEnded.push("ws")
 };
+const sseHandler = createSseHandler({
+  schema: app.schema,
+  context: (req) => subscriptionContext(req.raw.headers) as never,
+  onNext: (_ctx, _req, result) => mask.result(result),
+  onComplete: () => void subscriptionsEnded.push("sse")
+});
+const handlers = { http: handler, ws: wsOptions, sse: sseHandler };
 // Queries only, so no subscription clients are needed.
 const queries = { query: operations.query };
 const client = testClient(operations, handlers, {
@@ -298,7 +317,7 @@ describe("subscriptions", () => {
     expect(event?.data).toEqual({ viewer: "ada" });
   });
 
-  test("a refused connection is an error result", async () => {
+  test("a context that throws: an error result over WebSocket, a NetworkError at once over SSE", async () => {
     const banned = testClient(operations, handlers, {
       headers: { "x-user": "banned" }
     });
@@ -312,33 +331,42 @@ describe("subscriptions", () => {
         }
       ]
     });
+    await expect(
+      take(banned.subscription.ticksOverSse({ upTo: 1 }), 1)
+    ).rejects.toThrow("Banned");
   });
 
-  test("onOperationEnd takes what the subscription context returns", async () => {
-    const ended: string[] = [];
-    const typed = testClient(
-      operations,
-      {
-        ...handlers,
-        // ctx is { user: string | undefined }, from subscriptionContext
-        onOperationEnd: (ctx) => void ended.push(ctx.user ?? "anonymous")
-      },
-      { headers: { "x-user": "ada" } }
+  test("the app's own servers run: its masking, and its cleanup when a subscription ends", async () => {
+    const [overWs] = await take(client.subscription.ticks({ upTo: -1 }), 1);
+    expect(overWs?.errors?.map((e) => e.message)).toEqual([
+      "Unexpected error."
+    ]);
+    const [overSse] = await take(
+      client.subscription.ticksOverSse({ upTo: -1 }),
+      1
     );
-    await take(typed.subscription.ticks({ upTo: 1 }), 1);
-    // The server hears the subscription end on a later tick.
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    expect(ended).toEqual(["ada"]);
+    expect(overSse?.errors?.map((e) => e.message)).toEqual([
+      "Unexpected error."
+    ]);
 
-    testClient(operations, {
-      ...handlers,
-      // @ts-expect-error the hook must take what context returns
-      onOperationEnd: (ctx: { id: number }) => void ctx.id
-    });
+    subscriptionsEnded.length = 0;
+    await take(client.subscription.ticks({ upTo: 1 }), 1);
+    await take(client.subscription.ticksOverSse({ upTo: 1 }), 1);
+    // The servers hear the subscriptions end on a later tick.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(subscriptionsEnded.sort()).toEqual(["sse", "ws"]);
   });
 
-  test("subscriptions need the schema, and testClient says so", () => {
-    expect(() => testClient(operations, handler)).toThrow("schema: app.schema");
+  test("testClient needs the app's server for each transport the operations use", () => {
+    // @ts-expect-error these operations subscribe over ws and sse
+    expect(() => testClient(operations, handler)).toThrow(
+      "pass testClient(operations, { http, sse })"
+    );
+    const sseOnly = { http: handler, sse: sseHandler };
+    // @ts-expect-error the graphql-ws server is missing
+    expect(() => testClient(operations, sseOnly)).toThrow(
+      "graphql-ws server options"
+    );
   });
 
   // The app's own graphql-ws server and clients, as in production.

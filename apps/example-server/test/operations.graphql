@@ -29,3 +29,17 @@ query ProductPage($pageSize: Int) {
     }
   }
 }
+
+subscription StockChanged($sku: String) {
+  stockChanged(sku: $sku) {
+    sku
+    onHand
+  }
+}
+
+subscription StockChangedOverSse($sku: String) @sse {
+  stockChanged(sku: $sku) {
+    sku
+    onHand
+  }
+}

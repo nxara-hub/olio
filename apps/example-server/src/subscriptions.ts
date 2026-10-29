@@ -1,6 +1,7 @@
 import { errorMasker, validateOperation } from "@nxlab/http";
 import type { SubscriptionContext } from "@nxlab/olio";
 import { createHandler } from "graphql-sse/lib/use/fetch";
+import type { ServerOptions } from "graphql-ws";
 import { useServer } from "graphql-ws/use/ws";
 import type { WebSocketServer } from "ws";
 
@@ -35,47 +36,47 @@ export const sseHandler = createHandler({
   onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
 });
 
-/** Subscriptions over WebSocket (graphql-ws), on a `ws` server. */
+const live = new WeakMap<object, Map<string, SubscriptionContext>>();
+const end = async (connection: object, id: string): Promise<void> => {
+  const contexts = live.get(connection);
+  const ctx = contexts?.get(id);
+  contexts?.delete(id);
+  await ctx?.di.dispose();
+};
+
+/** Subscriptions over WebSocket (graphql-ws); tests run the same through `testClient`. */
+export const wsOptions: ServerOptions<Record<string, unknown> | undefined> = {
+  schema: app.schema,
+  // Browsers can't set headers on a WebSocket, so @nxlab/client sends its
+  // headers as connectionParams: { headers: { authorization } }.
+  context: (ctx, id) => {
+    const headers = ctx.connectionParams?.headers as
+      | Record<string, string>
+      | undefined;
+    const value = createSubscriptionContext(
+      connectionId("ws"),
+      bearer(headers?.authorization)
+    );
+    const contexts = live.get(ctx) ?? new Map<string, SubscriptionContext>();
+    contexts.set(id, value);
+    live.set(ctx, contexts);
+    return value as never;
+  },
+  onSubscribe: (_ctx, _id, payload) => {
+    const errors = validateOperation(app.schema, payload, validationRules);
+    return errors.length ? errors : undefined;
+  },
+  onNext: (ctx, id, _payload, _args, result) =>
+    mask.result(result, live.get(ctx)?.get(id)),
+  // A subscription that fails while starting is reported here instead.
+  onError: (ctx, id, _payload, errors) =>
+    errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
+  // Also when the socket closes mid-subscription: graphql-ws ends each one
+  // first (as long as its source can end right away, see src/pubsub.ts).
+  onComplete: (ctx, id) => end(ctx, id)
+};
+
+/** `wsOptions` on a `ws` server. */
 export function serveWebSockets(server: WebSocketServer): void {
-  const live = new WeakMap<object, Map<string, SubscriptionContext>>();
-  const end = async (connection: object, id: string): Promise<void> => {
-    const contexts = live.get(connection);
-    const ctx = contexts?.get(id);
-    contexts?.delete(id);
-    await ctx?.di.dispose();
-  };
-  useServer(
-    {
-      schema: app.schema,
-      // Browsers can't set headers on a WebSocket, so @nxlab/client sends its
-      // headers as connectionParams: { headers: { authorization } }.
-      context: (ctx, id) => {
-        const headers = ctx.connectionParams?.headers as
-          | Record<string, string>
-          | undefined;
-        const value = createSubscriptionContext(
-          connectionId("ws"),
-          bearer(headers?.authorization)
-        );
-        const contexts =
-          live.get(ctx) ?? new Map<string, SubscriptionContext>();
-        contexts.set(id, value);
-        live.set(ctx, contexts);
-        return value as never;
-      },
-      onSubscribe: (_ctx, _id, payload) => {
-        const errors = validateOperation(app.schema, payload, validationRules);
-        return errors.length ? errors : undefined;
-      },
-      onNext: (ctx, id, _payload, _args, result) =>
-        mask.result(result, live.get(ctx)?.get(id)),
-      // A subscription that fails while starting is reported here instead.
-      onError: (ctx, id, _payload, errors) =>
-        errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
-      // Also when the socket closes mid-subscription: graphql-ws ends each one
-      // first (as long as its source can end right away, see src/pubsub.ts).
-      onComplete: (ctx, id) => end(ctx, id)
-    },
-    server
-  );
+  useServer(wsOptions, server);
 }

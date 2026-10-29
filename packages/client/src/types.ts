@@ -146,7 +146,8 @@ export type Client<O extends Operations> = {
   };
 };
 
-type Transports<O extends Operations> = O extends {
+/** The subscription transports the operations use. */
+export type Transports<O extends Operations> = O extends {
   transports: readonly (infer K)[];
 }
   ? K & ("ws" | "sse")

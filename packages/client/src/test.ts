@@ -1,11 +1,10 @@
-import type { GraphQLSchema } from "graphql";
 import { createClient as createSseClient } from "graphql-sse";
-import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
 import {
   CloseCode,
   createClient as createWsClient,
   GRAPHQL_TRANSPORT_WS_PROTOCOL,
-  makeServer
+  makeServer,
+  type ServerOptions
 } from "graphql-ws";
 
 import { createClient } from "./index.js";
@@ -14,75 +13,36 @@ import {
   type HeadersSource,
   type MaybePromise
 } from "./transport.js";
-import type { Client, ClientOptions, Operations } from "./types.js";
+import type { Client, ClientOptions, Operations, Transports } from "./types.js";
 
-/** `Ctx` is what `context` returns, and so what `onOperationEnd` receives. */
-export interface TestServer<Ctx = unknown> {
+type Handler = (request: Request) => MaybePromise<Response>;
+
+/**
+ * The app's own servers, so tests run its production wiring: context,
+ * `onConnect`, `onSubscribe`, error masking, cleanup.
+ */
+export type TestServer<O extends Operations = Operations> = {
   /** Queries and mutations: the app's fetch handler, e.g. `fetchHandler(app, { context })`. */
-  http: (request: Request) => MaybePromise<Response>;
-  /** For subscriptions, which run in memory over both transports: `app.schema`. */
-  schema?: GraphQLSchema;
-  /**
-   * Context for subscriptions, from the test client's headers (over
-   * WebSocket, sent as `connectionParams: { headers }`).
-   */
-  context?: (headers: Headers) => MaybePromise<Ctx>;
-  /** Called once a subscription ends, as on the server: `(ctx) => ctx.di.dispose()`. */
-  // NoInfer: `context` decides Ctx, so a mismatched hook is the error.
-  onOperationEnd?: (ctx: NoInfer<Ctx>) => MaybePromise<void>;
-}
+  http: Handler;
+} & {
+  readonly [K in Transports<O>]: K extends "ws"
+    ? /**
+       * The graphql-ws options the app passes to `useServer` / `makeHandler`,
+       * run in memory (`ctx.extra` is empty there).
+       */
+      ServerOptions<never, never>
+    : /** The app's graphql-sse handler for the Fetch API (`graphql-sse/lib/use/fetch`). */
+      Handler;
+};
 
 type Listener = ((event: never) => void) | null;
 
-// Ends each subscription's context once: when it completes, or when its
-// socket closes first.
-function tracker<Ctx>(onOperationEnd: TestServer<Ctx>["onOperationEnd"]) {
-  const live = new WeakMap<object, Map<string, Ctx>>();
-  const end = async (connection: object, id: string): Promise<void> => {
-    const contexts = live.get(connection);
-    const ctx = contexts?.get(id);
-    if (!contexts?.delete(id)) return;
-    await onOperationEnd?.(ctx as Ctx);
-  };
-  return {
-    start(connection: object, id: string, ctx: Ctx): void {
-      const contexts = live.get(connection) ?? new Map<string, Ctx>();
-      contexts.set(id, ctx);
-      live.set(connection, contexts);
-    },
-    end,
-    endAll: async (connection: object): Promise<void> => {
-      const ids = [...(live.get(connection)?.keys() ?? [])];
-      await Promise.all(ids.map((id) => end(connection, id)));
-    }
-  };
-}
-
-const paramsHeaders = (params: Readonly<Record<string, unknown>> | undefined) =>
-  new Headers((params?.headers ?? {}) as Record<string, string>);
-
 /**
- * A WebSocket connected straight to a graphql-ws server for `schema`, with
+ * A WebSocket connected straight to a graphql-ws server for `options`, with
  * no network: what `testClient`'s graphql-ws client connects through.
  */
-function memoryWebSocket<Ctx>(
-  server: TestServer<Ctx> & { schema: GraphQLSchema }
-) {
-  const operations = tracker<Ctx>(server.onOperationEnd);
-  const graphqlWs = makeServer<Record<string, unknown> | undefined, unknown>({
-    schema: server.schema,
-    context: server.context
-      ? async (ctx, id) => {
-          const value = await server.context?.(
-            paramsHeaders(ctx.connectionParams)
-          );
-          operations.start(ctx, id, value as Ctx);
-          return value as never;
-        }
-      : undefined,
-    onComplete: (ctx, id) => operations.end(ctx, id),
-    onClose: (ctx) => operations.endAll(ctx)
-  });
+function memoryWebSocket(options: ServerOptions<never, never>) {
+  const graphqlWs = makeServer(options);
 
   // Messages are delivered on a later microtask, as a network would, so
   // neither side runs inside the other's call.
@@ -115,7 +75,8 @@ function memoryWebSocket<Ctx>(
               this.#receive = receive;
             }
           },
-          {}
+          // No socket or request in memory: `ctx.extra` is empty.
+          {} as never
         );
         this.readyState = Socket.OPEN;
         this.onopen?.({} as never);
@@ -151,39 +112,29 @@ function memoryWebSocket<Ctx>(
 
 /**
  * The client, answered in-process, like Hono's `testClient`: queries and
- * mutations through the app's fetch handler (its context, error masking and
- * `onOperationEnd` run), subscriptions through graphql-ws and graphql-sse
- * clients of its own, against in-memory servers for `schema`. No server is
- * started. In production, you run your own subscription server.
+ * mutations through the app's fetch handler, subscriptions through the app's
+ * own graphql-ws options (run over an in-memory socket) and graphql-sse
+ * handler. No server is started. Its clients never retry: in memory, a
+ * failure is final.
  */
-export function testClient<O extends Operations, Ctx = unknown>(
+export function testClient<O extends Operations>(
   operations: O,
-  server: TestServer<Ctx> | TestServer["http"],
+  server: TestServer<O> | ([Transports<O>] extends [never] ? Handler : never),
   options: { url?: string | URL; headers?: HeadersSource } = {}
 ): Client<O> {
-  const handlers: TestServer<Ctx> =
-    typeof server === "function" ? { http: server } : server;
-  const { schema } = handlers;
-  if (operations.transports && !schema) {
-    throw new Error(
-      "These operations have subscriptions: pass testClient(operations, { http, schema: app.schema, context })"
-    );
+  const handlers = (
+    typeof server === "function" ? { http: server } : server
+  ) as { http: Handler; ws?: ServerOptions<never, never>; sse?: Handler };
+  for (const kind of operations.transports ?? []) {
+    if (!handlers[kind]) {
+      throw new Error(
+        `These operations subscribe over ${kind}: pass testClient(operations, { http, ${kind} }) the app's own ${kind === "ws" ? "graphql-ws server options" : "graphql-sse handler"}`
+      );
+    }
   }
   const url = String(options.url ?? "http://localhost/graphql");
   const headers = async (): Promise<Record<string, string>> =>
     Object.fromEntries(await resolveHeaders(options.headers));
-  const subscriptions = schema ? { ...handlers, schema } : undefined;
-  const sse = subscriptions
-    ? createSseHandler({
-        schema: subscriptions.schema,
-        context: subscriptions.context
-          ? async (req) =>
-              (await subscriptions.context?.(req.raw.headers)) as never
-          : undefined,
-        // graphql-sse hands back what `context` returned.
-        onComplete: (ctx) => subscriptions.onOperationEnd?.(ctx as Ctx)
-      })
-    : undefined;
   const fetch = async (
     target: string,
     init: RequestInit
@@ -192,22 +143,24 @@ export function testClient<O extends Operations, Ctx = unknown>(
     const streams = request.headers
       .get("accept")
       ?.includes("text/event-stream");
-    return sse && streams ? sse(request) : handlers.http(request);
+    return handlers.sse && streams
+      ? handlers.sse(request)
+      : handlers.http(request);
   };
   return createClient(operations, {
     url,
     headers: options.headers,
     fetch,
-    ...(subscriptions
-      ? {
-          ws: createWsClient({
-            url: url.replace(/^http/, "ws"),
-            webSocketImpl: memoryWebSocket(subscriptions),
-            lazy: true,
-            connectionParams: async () => ({ headers: await headers() })
-          }),
-          sse: createSseClient({ url, fetchFn: fetch, headers })
-        }
-      : {})
+    ws:
+      handlers.ws &&
+      createWsClient({
+        url: url.replace(/^http/, "ws"),
+        webSocketImpl: memoryWebSocket(handlers.ws),
+        retryAttempts: 0,
+        connectionParams: async () => ({ headers: await headers() })
+      }),
+    sse:
+      handlers.sse &&
+      createSseClient({ url, fetchFn: fetch, headers, retryAttempts: 0 })
   } as unknown as ClientOptions<O>);
 }

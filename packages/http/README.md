@@ -106,7 +106,7 @@ useServer(
 
 When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
 
-With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
+With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs these same options and handler in memory, so export them (the example exports `wsOptions` and `sseHandler`).
 
 ## Refusing a bad token
 

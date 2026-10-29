@@ -161,33 +161,31 @@ The client imports neither library: an app bundles only the ones it creates clie
 
 ## Tests
 
-`testClient` from `@nxlab/client/test` is the same client, answered in-process like Hono's `testClient`. Queries and mutations go through the app's fetch handler, so its context, error masking and `onOperationEnd` run. Subscriptions go through graphql-ws and graphql-sse clients of its own, against in-memory servers for the schema. No server is started:
+`testClient` from `@nxlab/client/test` is the same client, answered in-process like Hono's `testClient`, through the app's own servers: its fetch handler for queries and mutations, and for subscriptions the graphql-ws options it passes to `useServer` (run over an in-memory socket) and its graphql-sse handler. So tests run production's context, `onConnect`, `onSubscribe`, error masking and cleanup. No server is started:
 
 ```ts
 import { testClient } from "@nxlab/client/test";
-import { fetchHandler } from "@nxlab/http/fetch";
+
+// The same objects the server uses.
+import { graphqlHandler } from "../src/http.js";
+import { sseHandler, wsOptions } from "../src/subscriptions.js";
 
 const client = testClient(
   operations,
-  {
-    http: fetchHandler(app, { context }),
-    schema: app.schema, // for subscriptions
-    context: (headers) =>
-      createSubscriptionContext(headers.get("authorization"))
-  },
+  { http: graphqlHandler, ws: wsOptions, sse: sseHandler },
   { headers: { authorization: `Bearer ${token}` } }
 );
 expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 ```
 
-The subscription `context` gets the test client's headers (over WebSocket, sent as `connectionParams: { headers }`); `onOperationEnd` runs when a subscription ends. Without subscriptions, the fetch handler alone is enough: `testClient(operations, fetchHandler(app))`. It's a separate import, so it never ends up in an app's bundle.
+`ws` and `sse` are required exactly when an operation uses that transport; without subscriptions, the fetch handler alone is enough: `testClient(operations, graphqlHandler)`. Over WebSocket, the headers arrive as `connectionParams: { headers }`, and `ctx.extra` is empty (no socket or request in memory). Its clients never retry, since a failure in memory is final: a refusal over SSE throws at once. It's a separate import, so it never ends up in an app's bundle.
 
 ## API
 
 |  |  |
 | --- | --- |
 | `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
-| `testClient(operations, handler \| { http, schema?, context?, onOperationEnd? }, { headers?, url? })` | From `@nxlab/client/test`: the same client, answered in-process |
+| `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxlab/client/test`: the same client, answered in-process |
 | `fromAxios(axios)` | An axios instance as `fetch` |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
 | `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |
