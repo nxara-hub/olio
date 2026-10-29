@@ -1,4 +1,4 @@
-import { createClient } from "graphql-ws/client";
+import { createClient, type ClientOptions } from "graphql-ws/client";
 
 import {
   asResult,
@@ -6,9 +6,13 @@ import {
   type MaybePromise,
   type Transport
 } from "./transport.js";
-import type { Result } from "./types.js";
+import type { GraphQLErrorJSON, Result } from "./types.js";
 
-export interface WsOptions {
+/** graphql-ws's client options (`retryAttempts`, `shouldRetry`, `keepAlive`...), plus: */
+export interface WsOptions extends Omit<
+  ClientOptions,
+  "url" | "connectionParams" | "webSocketImpl"
+> {
   /** Default: the client's `url`, with `http(s)` read as `ws(s)`. */
   url?: string | URL;
   /**
@@ -50,9 +54,10 @@ export const ws: Transport<WsOptions> = {
   kind: "ws",
   connect(endpoint, options = {}) {
     const client = createClient({
+      lazy: true,
+      ...options,
       url: endpoint.url,
       webSocketImpl: options.webSocket,
-      lazy: true,
       connectionParams: async () => {
         const params = options.connectionParams;
         if (params) return typeof params === "function" ? params() : params;
@@ -70,6 +75,12 @@ export const ws: Transport<WsOptions> = {
           for await (const event of stream(events, signal))
             yield asResult(event);
         } catch (error) {
+          // graphql-ws throws an operation's errors (e.g. from the server's
+          // `onSubscribe`) as a bare array; over HTTP and SSE they're a result.
+          if (Array.isArray(error)) {
+            yield asResult({ errors: error as GraphQLErrorJSON[] });
+            return;
+          }
           if (!isClose(error) || error.code < 4000 || error.code > 4999) {
             throw error;
           }

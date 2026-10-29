@@ -1,4 +1,4 @@
-import { createClient, type Client } from "graphql-sse";
+import { createClient, type Client, type ClientOptions } from "graphql-sse";
 
 import {
   asResult,
@@ -8,7 +8,11 @@ import {
   type Transport
 } from "./transport.js";
 
-export interface SseOptions {
+/** graphql-sse's client options (`retryAttempts`, `retry`, `credentials`...), plus: */
+export interface SseOptions extends Omit<
+  ClientOptions<boolean>,
+  "url" | "headers" | "fetchFn"
+> {
   /** Default: the client's `url`. */
   url?: string | URL;
   headers?: HeadersSource;
@@ -19,11 +23,12 @@ export interface SseOptions {
 /** Subscriptions as server-sent events, over graphql-sse. */
 export const sse: Transport<SseOptions> = {
   kind: "sse",
-  connect(endpoint) {
-    let client: Client | undefined;
+  connect(endpoint, options = {}) {
+    let client: Client<boolean> | undefined;
     return {
       async *subscribe(document, variables, signal) {
         client ??= createClient({
+          ...options,
           url: endpoint.url,
           fetchFn: endpoint.fetch,
           headers: async () => Object.fromEntries(await endpoint.headers())

@@ -313,7 +313,7 @@ describe("subscriptions", () => {
     await rotating.close();
   });
 
-  test("a refused connection is an error result, as over SSE; close() ends everything", async () => {
+  test("a refused connection is an error result; close() ends everything", async () => {
     const banned = testClient(operations, handlers, {
       headers: { "x-user": "banned" }
     });
@@ -389,6 +389,59 @@ describe("subscriptions", () => {
       expect((await take(live.subscription.ticks({ upTo: 2 }), 2)).length).toBe(
         2
       );
+      await live.close();
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test("ws and sse take graphql-ws's and graphql-sse's options, such as retries", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: (request, bun) =>
+        bun.upgrade(request)
+          ? undefined
+          : new Response("Unauthorized", { status: 401 }),
+      websocket: makeHandler({ schema: app.schema, onConnect: () => false })
+    });
+    try {
+      // Both libraries retry a refusal by default, for about 40 s.
+      const refused = createClient(operations, {
+        url: `http://localhost:${server.port}/graphql`,
+        ws: { retryAttempts: 0 },
+        sse: { retryAttempts: 0 }
+      });
+      const [overWs] = await take(refused.subscription.viewer(), 1);
+      expect(overWs?.errors?.[0]?.extensions).toEqual({
+        code: "WEBSOCKET_CLOSED",
+        closeCode: 4403
+      });
+      await expect(
+        take(refused.subscription.ticksOverSse({ upTo: 1 }), 1)
+      ).rejects.toThrow("401");
+      await refused.close();
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test("an operation the server rejects is an error result over WebSocket too", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: (request, bun) =>
+        bun.upgrade(request) ? undefined : handler(request),
+      websocket: makeHandler({
+        schema: app.schema,
+        onSubscribe: () => [new GraphQLError("Too costly")]
+      })
+    });
+    try {
+      const live = createClient(operations, {
+        url: `http://localhost:${server.port}/graphql`
+      });
+      expect(await take(live.subscription.viewer(), 1)).toEqual([
+        { data: null, errors: [{ message: "Too costly" }] }
+      ]);
       await live.close();
     } finally {
       await server.stop(true);

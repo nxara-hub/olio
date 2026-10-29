@@ -131,8 +131,8 @@ for await (const { data } of client.subscription.stockChanged({ sku: "CHAIR-01" 
 
 Breaking out of the loop, or aborting `signal`, ends the subscription.
 
-- **WebSocket:** one socket per client, opened on the first subscription, closed after the last, reconnected with backoff. Browsers can't set headers on a WebSocket, so the client sends its headers as `connectionParams: { headers }`; `ws.connectionParams` replaces that. They're sent when the socket connects: after the token changes (sign-in), `client.reconnect()` makes live subscriptions resume on a new connection with the new one. A server that refuses the connection (a context hook that throws) gives a result with an error, as over SSE. The socket URL is `url` with `http(s)` read as `ws(s)`, unless `ws.url` says otherwise.
-- **Server-sent events:** one request per subscription, with the client's headers; the server needs no WebSocket support (fine for serverless and edge runtimes). SSE needs a `fetch` that streams (fetch, ky; not axios).
+- **WebSocket:** one socket per client, opened on the first subscription, closed after the last, reconnected with backoff. Browsers can't set headers on a WebSocket, so the client sends its headers as `connectionParams: { headers }`; `ws.connectionParams` replaces that. They're sent when the socket connects: after the token changes (sign-in), `client.reconnect()` makes live subscriptions resume on a new connection with the new one. A server that closes the socket with a 4xxx code ends the subscription with an error result (`extensions: { code: "WEBSOCKET_CLOSED", closeCode }`). An operation the server rejects (in its `onSubscribe`) is an error result, as over HTTP and SSE. The socket URL is `url` with `http(s)` read as `ws(s)`, unless `ws.url` says otherwise.
+- **Server-sent events:** one request per subscription, with the client's headers; the server needs no WebSocket support (fine for serverless and edge runtimes). SSE needs a `fetch` that streams (fetch, ky; not axios). A response that isn't 2xx throws graphql-sse's `NetworkError` (its `response` holds the status).
 - `client.close()` ends every subscription and closes the connections.
 
 ## Transport settings
@@ -153,6 +153,8 @@ createClient(operations, {
 ```
 
 `ws` and `sse` exist only when some operation uses that transport: a section for a transport nothing uses is a compile error.
+
+They also take the [graphql-ws](https://the-guild.dev/graphql/ws/docs/client/interfaces/ClientOptions) and [graphql-sse](https://the-guild.dev/graphql/sse/docs/client/interfaces/ClientOptions) client options, such as `retryAttempts`. By default both retry a refused connection for about 40 s before reporting it (graphql-ws on a 4403 close, graphql-sse on any non-2xx response); `ws: { shouldRetry }` or `retryAttempts: 0` reports it at once.
 
 ## Bundle size
 
