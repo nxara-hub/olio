@@ -358,3 +358,46 @@ describe("onOperationEnd", () => {
     ]);
   });
 });
+
+describe("graphql-http's own options", () => {
+  test("pass through, while context, validationRules and masking still apply", async () => {
+    const stored: Record<string, string> = {
+      q1: "{ whoami broken }",
+      q2: "{ forbidden }"
+    };
+    const handler = fetchHandler(app, {
+      context: (request) => ({
+        user: request.headers.get("x-user") ?? undefined
+      }),
+      validationRules: [forbid("forbidden")],
+      onUnexpectedError: () => {},
+      // Persisted queries: the request names a stored query by id.
+      parseRequestParams: (req) => {
+        const id = new URL(req.url).searchParams.get("id");
+        return { query: stored[id ?? ""] ?? "" };
+      },
+      // Runs after masking: the hidden error arrives as "Unexpected error.".
+      formatError: (error) => new GraphQLError(`[api] ${error.message}`)
+    });
+    const get = (id: string) =>
+      handler(
+        new Request(`http://localhost/graphql?id=${id}`, {
+          headers: { "x-user": "ada" }
+        })
+      ).then(
+        (r) =>
+          r.json() as Promise<{
+            data?: unknown;
+            errors?: { message: string }[];
+          }>
+      );
+    const first = await get("q1");
+    expect(first.data).toEqual({ whoami: "ada", broken: null });
+    expect(first.errors?.map((e) => e.message)).toEqual([
+      "[api] Unexpected error."
+    ]);
+    expect((await get("q2")).errors?.map((e) => e.message)).toEqual([
+      "[api] forbidden is off limits"
+    ]);
+  });
+});

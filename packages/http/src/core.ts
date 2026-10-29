@@ -56,8 +56,21 @@ export type ValidationRules =
   | readonly ValidationRule[]
   | ((operation: OperationInfo) => readonly ValidationRule[]);
 
-export type HttpOptions<Request> = ErrorOptions<Request> &
-  ContextOption<Request> & {
+/**
+ * graphql-http's own options that the handlers don't build on, passed as
+ * they are: `execute`, `parse`, `validate`, `getOperationAST`, `rootValue`,
+ * `formatError`, `parseRequestParams` (persisted queries: map an id to its
+ * query). Not `onSubscribe`: operation args returned from it would skip
+ * `context` and every validation rule.
+ */
+export type GraphQLHttpOptions<Options> = Omit<
+  Options,
+  "schema" | "context" | "validationRules" | "onOperation" | "onSubscribe"
+>;
+
+export type HttpOptions<Request, Passed = unknown> = ErrorOptions<Request> &
+  ContextOption<Request> &
+  Passed & {
     /**
      * Rules run with graphql's own before any resolver, such as a complexity
      * or depth limit. Added to graphql's rules, never in place of them.
@@ -71,9 +84,9 @@ export type HttpOptions<Request> = ErrorOptions<Request> &
   };
 
 /** A handler's options, required once `context` is. */
-export type OptionsArgs<Request> = undefined extends Context
-  ? [options?: HttpOptions<Request>]
-  : [options: HttpOptions<Request>];
+export type OptionsArgs<Request, Passed = unknown> = undefined extends Context
+  ? [options?: HttpOptions<Request, Passed>]
+  : [options: HttpOptions<Request, Passed>];
 
 export interface ErrorMasker<Ctx = Context> {
   /**

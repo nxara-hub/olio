@@ -1,5 +1,6 @@
 import type { Context } from "@nxlab/core";
-import { createHandler } from "graphql-http/lib/use/fetch";
+import type { OperationContext } from "graphql-http";
+import { createHandler, type HandlerOptions } from "graphql-http/lib/use/fetch";
 
 import {
   contextFailure,
@@ -7,15 +8,21 @@ import {
   operationEnd,
   handlerRules,
   type ErrorInfo,
+  type GraphQLHttpOptions,
   type HttpOptions,
   type OptionsArgs,
   type Servable
 } from "./core.js";
 
+type Passed = GraphQLHttpOptions<HandlerOptions<OperationContext>>;
+
 /** GraphQL over HTTP for anything that speaks the Fetch API. */
 export function fetchHandler(
   app: Servable,
-  ...[options = {} as HttpOptions<Request>]: OptionsArgs<Request>
+  ...[options = {} as HttpOptions<Request, Passed>]: OptionsArgs<
+    Request,
+    Passed
+  >
 ): (request: Request) => Promise<Response> {
   const mask = masking<ErrorInfo<Request>>(options);
   const { context } = options;
@@ -23,6 +30,7 @@ export function fetchHandler(
   // Kept per request, so `onOperationEnd` can run after the response.
   const contexts = new WeakMap<Request, Context>();
   const http = createHandler({
+    ...options,
     schema: app.schema,
     context: context
       ? async (req) => {

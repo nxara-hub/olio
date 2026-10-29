@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { Context } from "@nxlab/core";
-import { createHandler } from "graphql-http/lib/use/http";
+import type { OperationContext } from "graphql-http";
+import { createHandler, type HandlerOptions } from "graphql-http/lib/use/http";
 
 import {
   contextFailure,
@@ -9,17 +10,21 @@ import {
   operationEnd,
   handlerRules,
   type ErrorInfo,
+  type GraphQLHttpOptions,
   type HttpOptions,
   type OptionsArgs,
   type Servable
 } from "./core.js";
 
+type Passed = GraphQLHttpOptions<HandlerOptions<OperationContext>>;
+
 /** GraphQL over HTTP for Node. Koa: pass `ctx.req`/`ctx.res`; Fastify: `request.raw`/`reply.raw`. */
 export function nodeHandler(
   app: Servable,
-  ...[
-    options = {} as HttpOptions<IncomingMessage>
-  ]: OptionsArgs<IncomingMessage>
+  ...[options = {} as HttpOptions<IncomingMessage, Passed>]: OptionsArgs<
+    IncomingMessage,
+    Passed
+  >
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   const mask = masking<ErrorInfo<IncomingMessage>>(options);
   const { context } = options;
@@ -27,6 +32,7 @@ export function nodeHandler(
   // Kept per request, so `onOperationEnd` can run after the response.
   const contexts = new WeakMap<IncomingMessage, Context>();
   const http = createHandler({
+    ...options,
     schema: app.schema,
     context: context
       ? async (req) => {

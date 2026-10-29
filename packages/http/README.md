@@ -221,3 +221,4 @@ createHandler({
 | `onOperationEnd` | none | Called once per operation, after the response is built. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
 | `onUnexpectedError` | `console.error` of the error | `(error, { ctx, request }) => void`: receives each hidden error, with the context and request it happened in (`ctx` is `undefined` when the `context` hook failed) |
+| graphql-http's own | its defaults | `execute`, `parse`, `validate`, `getOperationAST`, `rootValue`, `formatError` (runs after masking) and `parseRequestParams` (e.g. persisted queries: map an id to its stored query) go to [graphql-http](https://github.com/graphql/graphql-http) as they are. Not `onSubscribe`: operation args returned from it would skip `context` and every validation rule |
