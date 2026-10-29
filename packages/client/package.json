@@ -40,7 +40,6 @@
     "@nxlab/codegen": "workspace:*",
     "@nxlab/http": "workspace:*",
     "@nxlab/olio": "workspace:*",
-    "axios": "^1.20.0",
     "graphql": "^16.14.2",
     "ky": "^2.2.0"
   },

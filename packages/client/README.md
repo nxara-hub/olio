@@ -71,20 +71,37 @@ if (data?.login.__typename === "Session") data.login.token;
 
 ## Custom fetch
 
-`fetch` takes anything fetch-shaped, such as a ky instance; axios goes through `fromAxios`:
+`fetch` takes anything fetch-shaped, such as a ky instance:
 
 ```ts
 import ky from "ky";
 
 createClient(operations, { url, fetch: ky.create({ throwHttpErrors: false }) });
-
-import { fromAxios } from "@nxlab/client";
-import axios from "axios";
-
-createClient(operations, { url, fetch: fromAxios(axios) });
 ```
 
-GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: false` (`fromAxios` does the same for axios). `fetch` is for queries and mutations; subscriptions go through your own clients.
+GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: false`. A library that isn't fetch-shaped, such as axios, needs a few lines that return a `Response`:
+
+```ts
+import type { Fetch } from "@nxlab/client";
+
+const axiosFetch: Fetch = async (url, init) => {
+  const res = await axios.request({
+    url,
+    method: init.method,
+    headers: Object.fromEntries(new Headers(init.headers)),
+    data: init.body,
+    signal: init.signal ?? undefined,
+    responseType: "text",
+    validateStatus: () => true // GraphQL errors come with 4xx/5xx too
+  });
+  return new Response(res.data, {
+    status: res.status,
+    headers: res.headers as Record<string, string>
+  });
+};
+```
+
+`fetch` is for queries and mutations; subscriptions go through your own clients.
 
 ## Scalars
 
@@ -186,6 +203,5 @@ expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 | --- | --- |
 | `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
 | `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxlab/client/test`: the same client, answered in-process |
-| `fromAxios(axios)` | An axios instance as `fetch` |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
 | `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |

@@ -163,7 +163,7 @@ export type ClientOptions<O extends Operations> = {
   headers?: HeadersSource;
   /**
    * Default: the global `fetch`. Anything fetch-shaped works, such as a ky
-   * instance; `fromAxios(axios)` adapts axios.
+   * instance.
    */
   fetch?: Fetch;
 } & { readonly [K in Transports<O>]: SubscriptionClient };

@@ -7,7 +7,6 @@ import { codegenClient } from "@nxlab/codegen";
 import { errorMasker } from "@nxlab/http";
 import { fetchHandler } from "@nxlab/http/fetch";
 import { createModule, olio } from "@nxlab/olio";
-import axios from "axios";
 import { GraphQLError, GraphQLScalarType } from "graphql";
 import { createClient as createSseClient } from "graphql-sse";
 import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
@@ -15,7 +14,7 @@ import { createClient as createWsClient, type ServerOptions } from "graphql-ws";
 import { makeHandler } from "graphql-ws/use/bun";
 import ky from "ky";
 
-import { createClient, fromAxios } from "../src/index.js";
+import { createClient } from "../src/index.js";
 import { testClient } from "../src/test.js";
 import { operations } from "./generated.js";
 
@@ -465,7 +464,7 @@ describe("subscriptions", () => {
 });
 
 describe("custom fetch", () => {
-  test("ky and axios (through fromAxios) work as the client's fetch", async () => {
+  test("ky works as the client's fetch", async () => {
     const server = Bun.serve({ port: 0, fetch: handler });
     const url = `http://localhost:${server.port}/graphql`;
     try {
@@ -476,16 +475,7 @@ describe("custom fetch", () => {
         fetch: ky.create({ throwHttpErrors: false })
       });
       expect((await withKy.query.whoami()).data).toEqual({ whoami: "ky" });
-
-      const withAxios = createClient(queries, {
-        url,
-        headers: { "x-user": "axios" },
-        fetch: fromAxios(axios)
-      });
-      expect((await withAxios.query.whoami()).data).toEqual({
-        whoami: "axios"
-      });
-      expect((await withAxios.query.secret()).errors?.[0]?.message).toBe(
+      expect((await withKy.query.secret()).errors?.[0]?.message).toBe(
         "Forbidden"
       );
     } finally {

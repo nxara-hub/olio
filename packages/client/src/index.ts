@@ -1,10 +1,4 @@
-import {
-  asResult,
-  errorResult,
-  resolveHeaders,
-  stream,
-  type Fetch
-} from "./transport.js";
+import { asResult, errorResult, resolveHeaders, stream } from "./transport.js";
 import type {
   CallOptions,
   Client,
@@ -116,47 +110,4 @@ export function createClient<O extends Operations>(
       )
     ])
   ) as unknown as Client<O>;
-}
-
-/** The part of axios `fromAxios` uses. */
-interface Axios {
-  request(config: {
-    url: string;
-    method?: string;
-    headers?: Record<string, string>;
-    data?: unknown;
-    signal?: AbortSignal;
-    responseType: "text";
-    validateStatus: () => boolean;
-  }): Promise<{
-    status: number;
-    statusText?: string;
-    data: unknown;
-    headers: Record<string, unknown>;
-  }>;
-}
-
-/** Use an axios instance as the client's `fetch` (not for SSE: axios can't stream). */
-export function fromAxios(axios: Axios): Fetch {
-  return async (url, init) => {
-    const response = await axios.request({
-      url,
-      method: init.method,
-      headers: Object.fromEntries(new Headers(init.headers)),
-      data: init.body,
-      signal: init.signal ?? undefined,
-      responseType: "text",
-      // GraphQL errors come with 4xx/5xx statuses too; the client reads them.
-      validateStatus: () => true
-    });
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(response.headers)) {
-      if (typeof value === "string") headers.set(key, value);
-    }
-    return new Response(String(response.data), {
-      status: response.status,
-      statusText: response.statusText,
-      headers
-    });
-  };
 }
