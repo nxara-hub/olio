@@ -282,13 +282,15 @@ import type { Fields } from "@nxlab/olio";
 import type { LoginInput, Role, Scalars, User } from "./generated.js";
 
 type UserArgs = Fields["Query"]["user"]["args"]; // { id: string }
-type UserResult = Fields["Query"]["user"]["result"]; // User | null
+type UserResult = Fields["Query"]["user"]["result"]; // User | null (UserRow | null with mappers)
 type NameArgs = Fields["User"]["name"]["args"]; // { trim?: boolean | null }
 type When = Scalars["DateTime"]["input"]; // a scalar, by direction
 ```
 
 - Object, input, enum, union and interface types are exported by name from `generated.ts`.
 - `Fields` covers every field a module declares, whichever module that is. It's plain indexed access, so your editor completes the type, then the field, then `args` / `result`.
+- `result` is what the resolver returns, so with [mappers](#mappers) it's the mapped type.
+- An argument with an SDL default (`limit: Int = 10`) is a required key typed `Maybe<T>`: graphql fills in the default before the resolver runs, but a client can still send `null`. A service called from elsewhere takes its own parameter type, e.g. `{ term: string; limit?: number | null }`.
 
 ## Without codegen or tools
 
