@@ -19,14 +19,6 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./ws": {
-      "types": "./dist/ws.d.ts",
-      "default": "./dist/ws.js"
-    },
-    "./sse": {
-      "types": "./dist/sse.d.ts",
-      "default": "./dist/sse.js"
-    },
     "./test": {
       "types": "./dist/test.d.ts",
       "default": "./dist/test.js"

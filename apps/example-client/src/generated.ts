@@ -2,8 +2,6 @@
 // oxlint-disable no-redeclare
 
 import type { Scalar, TypedDocument } from "@nxlab/client";
-import { sse } from "@nxlab/client/sse";
-import { ws } from "@nxlab/client/ws";
 
 type Maybe<T> = T | null;
 
@@ -175,5 +173,5 @@ export const operations = {
     stockChanged: StockChangedDocument,
     stockChangedOverSse: StockChangedOverSseDocument
   },
-  transports: { sse, ws }
+  transports: ["sse", "ws"]
 } as const;

@@ -8,13 +8,13 @@ import { fetchHandler } from "@nxlab/http/fetch";
 import { createModule, olio } from "@nxlab/olio";
 import axios from "axios";
 import { GraphQLError, GraphQLScalarType } from "graphql";
-import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
+import { createClient as createSseClient } from "graphql-sse";
+import { createClient as createWsClient, type ServerOptions } from "graphql-ws";
 import { makeHandler } from "graphql-ws/use/bun";
 import ky from "ky";
 
 import { createClient, fromAxios } from "../src/index.js";
 import { testClient } from "../src/test.js";
-import { ws } from "../src/ws.js";
 import { operations } from "./generated.js";
 
 declare module "@nxlab/client" {
@@ -122,8 +122,6 @@ const handler = fetchHandler(app, {
   context: (request) => ({ user: request.headers.get("x-user") ?? undefined }),
   onOperationEnd: (ctx) => void ended.push(ctx)
 });
-// WebSocket subscriptions get the user from connectionParams, which the
-// client fills with its headers by default.
 // Subscriptions run in memory (WebSocket and SSE) against the schema; their
 // context comes from the client's headers.
 const subscriptionContext = (headers: Headers) => {
@@ -136,6 +134,8 @@ const handlers = {
   schema: app.schema,
   context: subscriptionContext
 };
+// Queries only, so no subscription clients are needed.
+const queries = { query: operations.query };
 const client = testClient(operations, handlers, {
   headers: { "x-user": "ada" }
 });
@@ -241,7 +241,7 @@ describe("queries and mutations", () => {
   });
 
   test("a response that isn't GraphQL is an error, not a result", async () => {
-    const broken = createClient(operations, {
+    const broken = createClient(queries, {
       url: "http://localhost/graphql",
       fetch: async () =>
         new Response("<h1>Bad Gateway</h1>", {
@@ -293,27 +293,12 @@ describe("subscriptions", () => {
     expect(overSse.map((e) => e.data?.ticks)).toEqual([1, 2]);
   });
 
-  test("the socket authenticates with the client's headers; reconnect() sends new ones", async () => {
-    let user = "t1";
-    const rotating = testClient(operations, handlers, {
-      headers: () => ({ "x-user": user })
-    });
-    const held = rotating.subscription.viewer();
-    expect((await held.next()).value?.data).toEqual({ viewer: "t1" });
-    user = "t2";
-    // Same socket, so still t1 until it reconnects.
-    expect((await take(rotating.subscription.viewer(), 1))[0]?.data).toEqual({
-      viewer: "t1"
-    });
-    rotating.reconnect();
-    expect((await take(rotating.subscription.viewer(), 1))[0]?.data).toEqual({
-      viewer: "t2"
-    });
-    await held.return?.();
-    await rotating.close();
+  test("testClient sends its headers to the subscription context", async () => {
+    const [event] = await take(client.subscription.viewer(), 1);
+    expect(event?.data).toEqual({ viewer: "ada" });
   });
 
-  test("a refused connection is an error result; close() ends everything", async () => {
+  test("a refused connection is an error result", async () => {
     const banned = testClient(operations, handlers, {
       headers: { "x-user": "banned" }
     });
@@ -327,13 +312,6 @@ describe("subscriptions", () => {
         }
       ]
     });
-
-    const open = testClient(operations, handlers);
-    const watching = open.subscription.viewer();
-    await watching.next();
-    const done = watching.next();
-    await open.close();
-    expect((await done).done).toBe(true);
   });
 
   test("onOperationEnd takes what the subscription context returns", async () => {
@@ -348,7 +326,8 @@ describe("subscriptions", () => {
       { headers: { "x-user": "ada" } }
     );
     await take(typed.subscription.ticks({ upTo: 1 }), 1);
-    await typed.close();
+    // The server hears the subscription end on a later tick.
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(ended).toEqual(["ada"]);
 
     testClient(operations, {
@@ -362,54 +341,64 @@ describe("subscriptions", () => {
     expect(() => testClient(operations, handler)).toThrow("schema: app.schema");
   });
 
-  test("against a real server: the socket URL comes from `url`, http read as ws", async () => {
-    // The app's own graphql-ws server, as in production: @nxlab/http serves
-    // only HTTP.
-    const server = Bun.serve({
-      port: 0,
-      fetch: (request, bun) =>
-        bun.upgrade(request) ? undefined : handler(request),
-      websocket: makeHandler({
-        schema: app.schema,
-        context: ({ connectionParams }) => ({
-          user: (
-            connectionParams?.headers as Record<string, string> | undefined
-          )?.["x-user"]
-        })
-      })
-    });
-    try {
-      const live = createClient(operations, {
-        url: `http://localhost:${server.port}/graphql`,
-        headers: { "x-user": "lin" }
-      });
-      expect((await take(live.subscription.viewer(), 1))[0]?.data).toEqual({
-        viewer: "lin"
-      });
-      expect((await take(live.subscription.ticks({ upTo: 2 }), 2)).length).toBe(
-        2
-      );
-      await live.close();
-    } finally {
-      await server.stop(true);
-    }
-  });
-
-  test("ws and sse take graphql-ws's and graphql-sse's options, such as retries", async () => {
-    const server = Bun.serve({
+  // The app's own graphql-ws server and clients, as in production.
+  const serve = (options: Omit<ServerOptions, "schema">) =>
+    Bun.serve({
       port: 0,
       fetch: (request, bun) =>
         bun.upgrade(request)
           ? undefined
           : new Response("Unauthorized", { status: 401 }),
-      websocket: makeHandler({ schema: app.schema, onConnect: () => false })
+      websocket: makeHandler({ schema: app.schema, ...options })
+    });
+
+  test("subscriptions go through the app's graphql-ws client: terminate() reconnects with new credentials", async () => {
+    const server = serve({
+      context: ({ connectionParams }) => ({
+        user: (
+          connectionParams?.headers as Record<string, string> | undefined
+        )?.["x-user"]
+      })
+    });
+    let user = "t1";
+    const socket = createWsClient({
+      url: `ws://localhost:${server.port}/graphql`,
+      connectionParams: () => ({ headers: { "x-user": user } }),
+      // A reconnect the app asks for needn't wait out the backoff.
+      retryWait: async () => {}
     });
     try {
-      // Both libraries retry a refusal by default, for about 40 s.
-      const refused = createClient(operations, {
+      const live = createClient(operations, {
         url: `http://localhost:${server.port}/graphql`,
-        ws: { retryAttempts: 0 },
-        sse: { retryAttempts: 0 }
+        ws: socket,
+        sse: createSseClient({ url: `http://localhost:${server.port}/graphql` })
+      });
+      const held = live.subscription.viewer();
+      expect((await held.next()).value?.data).toEqual({ viewer: "t1" });
+      user = "t2";
+      socket.terminate();
+      // graphql-ws resubscribes on the new socket.
+      expect((await held.next()).value?.data).toEqual({ viewer: "t2" });
+      await held.return?.();
+    } finally {
+      await socket.dispose();
+      await server.stop(true);
+    }
+  });
+
+  test("a server refusing: ws gives an error result, sse throws graphql-sse's NetworkError", async () => {
+    const server = serve({ onConnect: () => false });
+    const url = `http://localhost:${server.port}/graphql`;
+    // Both libraries retry a refusal by default, for about 40 s.
+    const socket = createWsClient({
+      url: url.replace(/^http/, "ws"),
+      retryAttempts: 0
+    });
+    try {
+      const refused = createClient(operations, {
+        url,
+        ws: socket,
+        sse: createSseClient({ url, retryAttempts: 0 })
       });
       const [overWs] = await take(refused.subscription.viewer(), 1);
       expect(overWs?.errors?.[0]?.extensions).toEqual({
@@ -419,31 +408,29 @@ describe("subscriptions", () => {
       await expect(
         take(refused.subscription.ticksOverSse({ upTo: 1 }), 1)
       ).rejects.toThrow("401");
-      await refused.close();
     } finally {
+      await socket.dispose();
       await server.stop(true);
     }
   });
 
   test("an operation the server rejects is an error result over WebSocket too", async () => {
-    const server = Bun.serve({
-      port: 0,
-      fetch: (request, bun) =>
-        bun.upgrade(request) ? undefined : handler(request),
-      websocket: makeHandler({
-        schema: app.schema,
-        onSubscribe: () => [new GraphQLError("Too costly")]
-      })
+    const server = serve({
+      onSubscribe: () => [new GraphQLError("Too costly")]
     });
+    const url = `http://localhost:${server.port}/graphql`;
+    const socket = createWsClient({ url: url.replace(/^http/, "ws") });
     try {
       const live = createClient(operations, {
-        url: `http://localhost:${server.port}/graphql`
+        url,
+        ws: socket,
+        sse: createSseClient({ url })
       });
       expect(await take(live.subscription.viewer(), 1)).toEqual([
         { data: null, errors: [{ message: "Too costly" }] }
       ]);
-      await live.close();
     } finally {
+      await socket.dispose();
       await server.stop(true);
     }
   });
@@ -451,33 +438,18 @@ describe("subscriptions", () => {
 
 describe("custom fetch", () => {
   test("ky and axios (through fromAxios) work as the client's fetch", async () => {
-    // HTTP through @nxlab/http, SSE through the app's own graphql-sse handler.
-    const sse = createSseHandler({ schema: app.schema });
-    const server = Bun.serve({
-      port: 0,
-      fetch: (request) =>
-        request.headers.get("accept")?.includes("text/event-stream")
-          ? sse(request)
-          : handler(request)
-    });
+    const server = Bun.serve({ port: 0, fetch: handler });
     const url = `http://localhost:${server.port}/graphql`;
     try {
-      const withKy = createClient(operations, {
+      const withKy = createClient(queries, {
         url,
         headers: { "x-user": "ky" },
         // GraphQL errors can come with 4xx/5xx: let the client read them.
         fetch: ky.create({ throwHttpErrors: false })
       });
       expect((await withKy.query.whoami()).data).toEqual({ whoami: "ky" });
-      const ticks: unknown[] = [];
-      for await (const { data } of withKy.subscription.ticksOverSse({
-        upTo: 2
-      })) {
-        ticks.push(data?.ticks);
-      }
-      expect(ticks).toEqual([1, 2]);
 
-      const withAxios = createClient(operations, {
+      const withAxios = createClient(queries, {
         url,
         headers: { "x-user": "axios" },
         fetch: fromAxios(axios)
@@ -518,16 +490,19 @@ describe("codegen", () => {
 });
 
 describe("types", () => {
-  test("ws and sse options exist only for transports the operations use", () => {
-    const wsOnly = { query: {}, transports: { ws } } as const;
-    createClient(wsOnly, {
-      url: "http://x",
-      ws: { connectionParams: { token: "t" } }
-    });
+  test("ws and sse are required exactly for the transports the operations use", () => {
+    const wsOnly = { query: {}, transports: ["ws"] } as const;
+    const ws = createWsClient({ url: "ws://x" });
+    const sse = createSseClient({ url: "http://x" });
+    createClient(wsOnly, { url: "http://x", ws });
+    // @ts-expect-error an operation subscribes over WebSocket
+    createClient(wsOnly, { url: "http://x" });
     // @ts-expect-error no operation subscribes over SSE
-    createClient(wsOnly, { url: "http://x", sse: {} });
+    createClient(wsOnly, { url: "http://x", ws, sse });
     // @ts-expect-error nor over WebSocket
-    createClient({ query: {} } as const, { url: "http://x", ws: {} });
+    createClient({ query: {} } as const, { url: "http://x", ws });
+    // @ts-expect-error a client of the transport's library, not its options
+    createClient(wsOnly, { url: "http://x", ws: { url: "ws://x" } });
   });
 
   test("variables and results are typed from the operation", () => {

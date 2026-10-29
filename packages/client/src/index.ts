@@ -1,10 +1,9 @@
 import {
   asResult,
+  errorResult,
   resolveHeaders,
-  type Endpoint,
-  type Fetch,
-  type Subscriber,
-  type Transport
+  stream,
+  type Fetch
 } from "./transport.js";
 import type {
   CallOptions,
@@ -12,10 +11,11 @@ import type {
   ClientOptions,
   Operations,
   Result,
+  SubscriptionClient,
   TypedDocument
 } from "./types.js";
 
-export type { Fetch, HeadersSource, Transport } from "./transport.js";
+export type { Fetch, HeadersSource } from "./transport.js";
 export type {
   CallOptions,
   Client,
@@ -25,49 +25,38 @@ export type {
   Operations,
   Result,
   Scalar,
+  SubscriptionClient,
   TypedDocument
 } from "./types.js";
 
 const ACCEPT = "application/graphql-response+json, application/json";
 
-type Kind = "ws" | "sse";
 type AnyDocument = TypedDocument<unknown, unknown>;
-interface Section {
-  url?: string | URL;
-  headers?: Parameters<typeof resolveHeaders>[0];
-  fetch?: Fetch;
-}
 
 /**
  * A typed client for the operations codegen emitted:
  * `client.mutation.login({ email, password }, { headers })`. Queries and
- * mutations go over HTTP; subscriptions over WebSocket, or server-sent events
- * for operations marked `@sse`.
+ * mutations go over HTTP; subscriptions through the app's graphql-ws client,
+ * or its graphql-sse client for operations marked `@sse`.
  */
 export function createClient<O extends Operations>(
   operations: O,
   options: ClientOptions<O>
 ): Client<O> {
-  const sections = options as unknown as Partial<
-    Record<Kind | "http", Section>
+  const send = options.fetch ?? ((target, init) => fetch(target, init));
+  const subscriptionClients = options as unknown as Partial<
+    Record<"ws" | "sse", SubscriptionClient>
   >;
-  const endpoint = (section: Section = {}, url?: string): Endpoint => ({
-    url: String(section.url ?? url ?? options.url),
-    fetch:
-      section.fetch ?? options.fetch ?? ((target, init) => fetch(target, init)),
-    headers: (extra) => resolveHeaders(options.headers, section.headers, extra)
-  });
-  const http = endpoint(sections.http);
 
   const request = async (
     document: AnyDocument,
     variables: unknown,
     call: CallOptions = {}
   ): Promise<Result<never>> => {
-    const headers = await http.headers(call.headers);
+    const headers = await resolveHeaders(options.headers, call.headers);
     headers.set("accept", ACCEPT);
     headers.set("content-type", "application/json");
-    const response = await http.fetch(http.url, {
+    const response = await send(String(options.url), {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -85,32 +74,33 @@ export function createClient<O extends Operations>(
     return asResult((await response.json()) as never);
   };
 
-  // Connected on first use, so a transport costs nothing until a
-  // subscription needs it.
-  const subscribers = new Map<Kind, Subscriber>();
-  const subscriber = (document: AnyDocument): Subscriber => {
+  async function* subscribe(
+    document: AnyDocument,
+    variables: unknown,
+    signal: AbortSignal | undefined
+  ): AsyncGenerator<Result<never>> {
     const kind = document.transport ?? "ws";
-    const connected = subscribers.get(kind);
-    if (connected) return connected;
-    const transport = operations.transports?.[kind] as
-      | Transport<unknown>
-      | undefined;
-    if (!transport) {
+    const client = subscriptionClients[kind];
+    if (!client) {
       throw new Error(
-        `${document.name} subscribes over ${kind}, but the operations don't include that transport; rerun codegen`
+        `${document.name} subscribes over ${kind}: pass createClient a graphql-${kind} client as \`${kind}\``
       );
     }
-    const wsUrl =
-      kind === "ws" ? String(options.url).replace(/^http/, "ws") : undefined;
-    const created = transport.connect(
-      endpoint(sections[kind], wsUrl),
-      sections[kind]
-    );
-    subscribers.set(kind, created);
-    return created;
-  };
+    const events = client.iterate({
+      query: document.query,
+      variables: variables as Record<string, unknown> | undefined,
+      operationName: document.name
+    });
+    try {
+      for await (const event of stream(events, signal)) yield asResult(event);
+    } catch (error) {
+      const result = errorResult(error);
+      if (!result) throw error;
+      yield result;
+    }
+  }
 
-  const calls = Object.fromEntries(
+  return Object.fromEntries(
     (["query", "mutation", "subscription"] as const).map((root) => [
       root,
       Object.fromEntries(
@@ -120,26 +110,12 @@ export function createClient<O extends Operations>(
           name,
           (variables?: unknown, call?: CallOptions) =>
             root === "subscription"
-              ? subscriber(document).subscribe(
-                  document,
-                  variables,
-                  call?.signal
-                )
+              ? subscribe(document, variables, call?.signal)
               : request(document, variables, call)
         ])
       )
     ])
-  );
-  return {
-    ...calls,
-    reconnect: () => {
-      for (const connected of subscribers.values()) connected.reconnect();
-    },
-    close: async () => {
-      await Promise.all([...subscribers.values()].map((s) => s.close()));
-      subscribers.clear();
-    }
-  } as unknown as Client<O>;
+  ) as unknown as Client<O>;
 }
 
 /** The part of axios `fromAxios` uses. */

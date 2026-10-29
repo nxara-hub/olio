@@ -5,39 +5,6 @@ export type MaybePromise<T> = T | Promise<T>;
 /** Headers, or a function for values that change, such as a token. */
 export type HeadersSource = HeadersValue | (() => MaybePromise<HeadersValue>);
 
-/** Where a transport sends: the client's settings with its own section applied. */
-export interface Endpoint {
-  url: string;
-  fetch: Fetch;
-  /** The client's headers, the transport's, then `extra`, later ones winning. */
-  headers(extra?: HeadersValue): Promise<Headers>;
-}
-
-export interface SubscriptionDocument {
-  readonly name: string;
-  readonly query: string;
-}
-
-export interface Subscriber {
-  subscribe(
-    document: SubscriptionDocument,
-    variables: unknown,
-    signal: AbortSignal | undefined
-  ): AsyncGenerator<Result<never>>;
-  /** Reconnects with fresh credentials, where a connection outlives them. */
-  reconnect(): void;
-  close(): Promise<void>;
-}
-
-/** What `@nxlab/client/ws` and `/sse` export, and codegen imports as needed. */
-export interface Transport<Options> {
-  readonly kind: "ws" | "sse";
-  // Method syntax, so a Transport<WsOptions> passes as a Transport<unknown>.
-  connect(endpoint: Endpoint, options: Options | undefined): Subscriber;
-  /** Carries `Options` for `createClient`'s types, never set. */
-  readonly "~options"?: Options;
-}
-
 export const asResult = (body: {
   data?: unknown;
   errors?: readonly GraphQLErrorJSON[];
@@ -87,4 +54,36 @@ export async function* stream<T>(
   } finally {
     signal?.removeEventListener("abort", stop);
   }
+}
+
+interface CloseEvent {
+  code: number;
+  reason: string;
+}
+
+const isClose = (error: unknown): error is CloseEvent =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  "reason" in error;
+
+/**
+ * What graphql-ws throws that is a result over HTTP and SSE: an operation's
+ * errors (a bare array), or the close event (not an Error, so its code
+ * wouldn't even show in a log) of a server refusing with a 4xxx code.
+ */
+export function errorResult(error: unknown): Result<never> | undefined {
+  if (Array.isArray(error)) {
+    return asResult({ errors: error as GraphQLErrorJSON[] });
+  }
+  if (!isClose(error) || error.code < 4000 || error.code > 4999) return;
+  return {
+    data: null,
+    errors: [
+      {
+        message: error.reason || `WebSocket closed (${error.code})`,
+        extensions: { code: "WEBSOCKET_CLOSED", closeCode: error.code }
+      }
+    ]
+  };
 }

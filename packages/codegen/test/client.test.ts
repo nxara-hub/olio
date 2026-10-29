@@ -48,24 +48,21 @@ describe("client operations", () => {
     );
   });
 
-  test("subscriptions default to ws; @sse overrides; only used transports are imported", () => {
+  test("subscriptions default to ws; @sse overrides; operations list the transports used", () => {
     const wsOnly = emitClient(schema, [doc("subscription Ticks { ticks }")]);
-    expect(wsOnly).toContain('import { ws } from "@nxlab/client/ws";');
-    expect(wsOnly).not.toContain("@nxlab/client/sse");
     expect(wsOnly).toContain('transport: "ws"');
-    expect(wsOnly).toContain("transports: { ws }");
+    expect(wsOnly).toContain('transports: ["ws"]');
 
     const both = emitClient(schema, [
       doc("subscription Ticks { ticks }\nsubscription Feed @sse { ticks }")
     ]);
-    expect(both).toContain("transports: { sse, ws }");
+    expect(both).toContain('transports: ["sse", "ws"]');
     // The directive is the client's: the query the server receives has none.
     expect(both).toContain(
       'query: "subscription Feed {\\n  ticks\\n}",\n  transport: "sse"'
     );
 
     const none = emitClient(schema, [doc("query Me { me { name } }")]);
-    expect(none).not.toContain("@nxlab/client/ws");
     expect(none).not.toContain("transports");
   });
 

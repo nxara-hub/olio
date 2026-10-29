@@ -128,7 +128,7 @@ const requireAuth =
   };
 ```
 
-It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which the client retries by default ([@nxlab/client](../client/README.md#transport-settings)).
+It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which graphql-ws's client retries by default ([@nxlab/client](../client/README.md#subscriptions)).
 
 ## Validation rules
 

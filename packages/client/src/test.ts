@@ -1,13 +1,19 @@
 import type { GraphQLSchema } from "graphql";
+import { createClient as createSseClient } from "graphql-sse";
 import { createHandler as createSseHandler } from "graphql-sse/lib/use/fetch";
 import {
   CloseCode,
+  createClient as createWsClient,
   GRAPHQL_TRANSPORT_WS_PROTOCOL,
   makeServer
 } from "graphql-ws";
 
 import { createClient } from "./index.js";
-import type { MaybePromise } from "./transport.js";
+import {
+  resolveHeaders,
+  type HeadersSource,
+  type MaybePromise
+} from "./transport.js";
 import type { Client, ClientOptions, Operations } from "./types.js";
 
 /** `Ctx` is what `context` returns, and so what `onOperationEnd` receives. */
@@ -17,8 +23,8 @@ export interface TestServer<Ctx = unknown> {
   /** For subscriptions, which run in memory over both transports: `app.schema`. */
   schema?: GraphQLSchema;
   /**
-   * Context for subscriptions, from the client's headers (over WebSocket, the
-   * `connectionParams.headers` the client sends).
+   * Context for subscriptions, from the test client's headers (over
+   * WebSocket, sent as `connectionParams: { headers }`).
    */
   context?: (headers: Headers) => MaybePromise<Ctx>;
   /** Called once a subscription ends, as on the server: `(ctx) => ctx.di.dispose()`. */
@@ -57,7 +63,7 @@ const paramsHeaders = (params: Readonly<Record<string, unknown>> | undefined) =>
 
 /**
  * A WebSocket connected straight to a graphql-ws server for `schema`, with
- * no network: what `testClient` hands the client's WebSocket transport.
+ * no network: what `testClient`'s graphql-ws client connects through.
  */
 function memoryWebSocket<Ctx>(
   server: TestServer<Ctx> & { schema: GraphQLSchema }
@@ -146,14 +152,14 @@ function memoryWebSocket<Ctx>(
 /**
  * The client, answered in-process, like Hono's `testClient`: queries and
  * mutations through the app's fetch handler (its context, error masking and
- * `onOperationEnd` run), subscriptions over WebSocket and server-sent events
- * against an in-memory graphql-ws / graphql-sse server for `schema`. No
- * server is started. In production, you run your own subscription server.
+ * `onOperationEnd` run), subscriptions through graphql-ws and graphql-sse
+ * clients of its own, against in-memory servers for `schema`. No server is
+ * started. In production, you run your own subscription server.
  */
 export function testClient<O extends Operations, Ctx = unknown>(
   operations: O,
   server: TestServer<Ctx> | TestServer["http"],
-  options?: Omit<ClientOptions<O>, "url" | "fetch"> & { url?: string | URL }
+  options: { url?: string | URL; headers?: HeadersSource } = {}
 ): Client<O> {
   const handlers: TestServer<Ctx> =
     typeof server === "function" ? { http: server } : server;
@@ -163,6 +169,9 @@ export function testClient<O extends Operations, Ctx = unknown>(
       "These operations have subscriptions: pass testClient(operations, { http, schema: app.schema, context })"
     );
   }
+  const url = String(options.url ?? "http://localhost/graphql");
+  const headers = async (): Promise<Record<string, string>> =>
+    Object.fromEntries(await resolveHeaders(options.headers));
   const subscriptions = schema ? { ...handlers, schema } : undefined;
   const sse = subscriptions
     ? createSseHandler({
@@ -175,19 +184,30 @@ export function testClient<O extends Operations, Ctx = unknown>(
         onComplete: (ctx) => subscriptions.onOperationEnd?.(ctx as Ctx)
       })
     : undefined;
-  const given = (options ?? {}) as { url?: string | URL; ws?: object };
+  const fetch = async (
+    target: string,
+    init: RequestInit
+  ): Promise<Response> => {
+    const request = new Request(target, init);
+    const streams = request.headers
+      .get("accept")
+      ?.includes("text/event-stream");
+    return sse && streams ? sse(request) : handlers.http(request);
+  };
   return createClient(operations, {
-    ...given,
-    url: given.url ?? "http://localhost/graphql",
-    fetch: async (url: string, init: RequestInit) => {
-      const request = new Request(url, init);
-      const streams = request.headers
-        .get("accept")
-        ?.includes("text/event-stream");
-      return sse && streams ? sse(request) : handlers.http(request);
-    },
+    url,
+    headers: options.headers,
+    fetch,
     ...(subscriptions
-      ? { ws: { ...given.ws, webSocket: memoryWebSocket(subscriptions) } }
+      ? {
+          ws: createWsClient({
+            url: url.replace(/^http/, "ws"),
+            webSocketImpl: memoryWebSocket(subscriptions),
+            lazy: true,
+            connectionParams: async () => ({ headers: await headers() })
+          }),
+          sse: createSseClient({ url, fetchFn: fetch, headers })
+        }
       : {})
   } as unknown as ClientOptions<O>);
 }

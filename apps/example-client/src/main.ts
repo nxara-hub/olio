@@ -1,4 +1,6 @@
 import { createClient, type Result } from "@nxlab/client";
+import { createClient as createSseClient } from "graphql-sse";
+import { createClient as createWsClient } from "graphql-ws";
 
 import { operations } from "./generated.js";
 
@@ -6,10 +8,19 @@ import { operations } from "./generated.js";
 const url = process.env.GRAPHQL_URL ?? "http://localhost:4000/graphql";
 
 const session: { token?: string } = {};
+const headers = (): Record<string, string> =>
+  session.token ? { authorization: `Bearer ${session.token}` } : {};
 const client = createClient(operations, {
   url,
-  headers: (): Record<string, string> =>
-    session.token ? { authorization: `Bearer ${session.token}` } : {}
+  headers,
+  // Subscriptions go through your own graphql-ws and graphql-sse clients.
+  // Browsers can't set headers on a WebSocket, so the server reads them from
+  // connectionParams, sent each time the socket connects.
+  ws: createWsClient({
+    url: url.replace(/^http/, "ws"),
+    connectionParams: () => ({ headers: headers() })
+  }),
+  sse: createSseClient({ url, headers })
 });
 
 const show = (title: string, { data, errors }: Result<unknown>): void => {

@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@nxlab/client": "workspace:*",
-    "graphql": "^16.14.2"
+    "graphql": "^16.14.2",
+    "graphql-sse": "2.6.3",
+    "graphql-ws": "^6.4.1"
   },
   "devDependencies": {
     "@nxlab/codegen": "workspace:*"

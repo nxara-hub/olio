@@ -406,13 +406,15 @@ export function emitClient(
     calls.push(`    ${lowerFirst(name)}: ${name}Document`);
     byRoot.set(operation.operation, calls);
   }
-  // Only the transports some subscription uses, so an app bundles no other.
+  // The clients `createClient` then requires, one per transport used.
   const used = [...new Set(transports.values())].sort();
   const map = [
     ...[...byRoot].map(
       ([root, calls]) => `  ${root}: {\n${calls.join(",\n")}\n  }`
     ),
-    ...(used.length ? [`  transports: { ${used.join(", ")} }`] : [])
+    ...(used.length
+      ? [`  transports: [${used.map((kind) => `"${kind}"`).join(", ")}]`]
+      : [])
   ].join(",\n");
   const inputs = emitInputs(ctx);
   const enums = [...ctx.enums]
@@ -430,10 +432,7 @@ export function emitClient(
     .filter((name) => !BUILTIN_SCALARS.has(name));
   return `${[
     HEADER,
-    [
-      'import type { Scalar, TypedDocument } from "@nxlab/client";',
-      ...used.map((kind) => `import { ${kind} } from "@nxlab/client/${kind}";`)
-    ].join("\n"),
+    'import type { Scalar, TypedDocument } from "@nxlab/client";',
     "type Maybe<T> = T | null;",
     custom.length
       ? [

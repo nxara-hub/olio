@@ -10,7 +10,7 @@ const { data } = await client.mutation.login({ email, password }, { headers });
 bun add @nxlab/client
 ```
 
-`graphql` 16 is a peer dependency (graphql-sse, used for SSE subscriptions, declares it).
+`graphql` 16 is a peer dependency. For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws) and/or [graphql-sse](https://github.com/enisdenjo/graphql-sse): the client takes your own clients of them.
 
 ## Operations
 
@@ -67,7 +67,7 @@ if (data?.login.__typename === "Session") data.login.token;
 - Variables are typed from the operation; they may be left out when none are required.
 - `data` is the operation's result, typed from its selection: fragments narrow on `__typename`, fields under `@include` / `@skip` are optional. `errors` are the GraphQL errors as the server sent them. A response that isn't GraphQL at all (a proxy's 502 page) rejects.
 - `options` takes per-call `headers` and a `signal`.
-- Headers, shared, per section or per call, are an object, a `Headers`, or entries; in an object, `undefined` values are left out (`token ? { authorization } : {}` works too). Later sources win: shared, then the section, then the call.
+- Headers, on the client or per call, are an object, a `Headers`, or entries; in an object, `undefined` values are left out (`token ? { authorization } : {}` works too). The call's win.
 
 ## Custom fetch
 
@@ -84,7 +84,7 @@ import axios from "axios";
 createClient(operations, { url, fetch: fromAxios(axios) });
 ```
 
-GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: false` (`fromAxios` does the same for axios). SSE subscriptions need a fetch that streams the response (fetch, ky); axios can't. `fetch` doesn't apply to WebSocket subscriptions; `ws.webSocket` sets the WebSocket constructor (default: the global one).
+GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: false` (`fromAxios` does the same for axios). `fetch` is for queries and mutations; subscriptions go through your own clients.
 
 ## Scalars
 
@@ -129,40 +129,39 @@ for await (const { data } of client.subscription.stockChanged({ sku: "CHAIR-01" 
 }
 ```
 
-Breaking out of the loop, or aborting `signal`, ends the subscription.
-
-- **WebSocket:** one socket per client, opened on the first subscription, closed after the last, reconnected with backoff. Browsers can't set headers on a WebSocket, so the client sends its headers as `connectionParams: { headers }`; `ws.connectionParams` replaces that. They're sent when the socket connects: after the token changes (sign-in), `client.reconnect()` makes live subscriptions resume on a new connection with the new one. A server that closes the socket with a 4xxx code ends the subscription with an error result (`extensions: { code: "WEBSOCKET_CLOSED", closeCode }`). An operation the server rejects (in its `onSubscribe`) is an error result, as over HTTP and SSE. The socket URL is `url` with `http(s)` read as `ws(s)`, unless `ws.url` says otherwise.
-- **Server-sent events:** one request per subscription, with the client's headers; the server needs no WebSocket support (fine for serverless and edge runtimes). SSE needs a `fetch` that streams (fetch, ky; not axios). A response that isn't 2xx throws graphql-sse's `NetworkError` (its `response` holds the status).
-- `client.close()` ends every subscription and closes the connections.
-
-## Transport settings
-
-Shared settings first, then a section per transport, each overriding them:
+They go through your own [graphql-ws](https://github.com/enisdenjo/graphql-ws) and [graphql-sse](https://github.com/enisdenjo/graphql-sse) clients, which `createClient` requires as `ws` and `sse` once an operation uses that transport (and rejects when none does):
 
 ```ts
-createClient(operations, {
+import { createClient as createSseClient } from "graphql-sse";
+import { createClient as createWsClient } from "graphql-ws";
+
+const headers = () => ({ authorization: token && `Bearer ${token}` });
+const ws = createWsClient({
+  url: "wss://erp.example/graphql",
+  // Browsers can't set headers on a WebSocket: send them here.
+  connectionParams: () => ({ headers: headers() })
+});
+const client = createClient(operations, {
   url: "https://erp.example/graphql",
-  headers: () => ({ authorization: token && `Bearer ${token}` }),
-  http: { fetch: fromAxios(axios) }, // queries and mutations
-  ws: {
-    url: "wss://ws.erp.example/graphql",
-    connectionParams: () => ({ token: getToken() })
-  },
-  sse: { headers: { "x-client": "web" } }
+  headers,
+  ws,
+  sse: createSseClient({ url: "https://erp.example/graphql", headers })
 });
 ```
 
-`ws` and `sse` exist only when some operation uses that transport: a section for a transport nothing uses is a compile error.
+The client calls their `iterate` and types the results; the rest is theirs and yours to configure: connecting, retries, keep-alive. Breaking out of the loop, or aborting `signal`, ends the subscription.
 
-They also take the [graphql-ws](https://the-guild.dev/graphql/ws/docs/client/interfaces/ClientOptions) and [graphql-sse](https://the-guild.dev/graphql/sse/docs/client/interfaces/ClientOptions) client options, such as `retryAttempts`. By default both retry a refused connection for about 40 s before reporting it (graphql-ws on a 4403 close, graphql-sse on any non-2xx response); `ws: { shouldRetry }` or `retryAttempts: 0` reports it at once.
+- **New credentials:** graphql-ws sends `connectionParams` each time the socket connects. After the token changes, `ws.terminate()` reconnects, and graphql-ws resubscribes live subscriptions on the new socket. It waits out its retry backoff first (`retryWait`, about 1.3 to 4 s by default), and events sent in between are lost. An open SSE stream keeps its headers until you subscribe again.
+- **Refusals:** by default both libraries retry a refused connection for about 40 s before reporting it (graphql-ws on a 4403 close, graphql-sse on any response that isn't 2xx); `retryAttempts: 0` or graphql-ws's `shouldRetry` reports it at once. Then a WebSocket closed with a 4xxx code is an error result (`extensions: { code: "WEBSOCKET_CLOSED", closeCode }`), and graphql-sse throws its `NetworkError` (its `response` holds the status).
+- **Rejected operations** (the server's `onSubscribe` returning errors) are an error result on both, as over HTTP.
 
 ## Bundle size
 
-Codegen imports a transport only if an operation uses it: an app without subscriptions bundles neither graphql-ws nor graphql-sse; one whose subscriptions all use the default bundles only graphql-ws. The client's own code is about 0.5 KB gzipped, each transport about 3.3 KB.
+The client imports neither library: an app bundles only the ones it creates clients with. The client's own code is about 1 KB gzipped.
 
 ## Tests
 
-`testClient` from `@nxlab/client/test` is the same client, answered in-process like Hono's `testClient`. Queries and mutations go through the app's fetch handler, so its context, error masking and `onOperationEnd` run. Subscriptions, over WebSocket and SSE alike, run against an in-memory graphql-ws / graphql-sse server for the schema. No server is started:
+`testClient` from `@nxlab/client/test` is the same client, answered in-process like Hono's `testClient`. Queries and mutations go through the app's fetch handler, so its context, error masking and `onOperationEnd` run. Subscriptions go through graphql-ws and graphql-sse clients of its own, against in-memory servers for the schema. No server is started:
 
 ```ts
 import { testClient } from "@nxlab/client/test";
@@ -181,15 +180,14 @@ const client = testClient(
 expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 ```
 
-The subscription `context` gets the client's headers (over WebSocket, the `connectionParams.headers` the client sends); `onOperationEnd` runs when a subscription ends. Without subscriptions, the fetch handler alone is enough: `testClient(operations, fetchHandler(app))`. It's a separate import, so it never ends up in an app's bundle.
+The subscription `context` gets the test client's headers (over WebSocket, sent as `connectionParams: { headers }`); `onOperationEnd` runs when a subscription ends. Without subscriptions, the fetch handler alone is enough: `testClient(operations, fetchHandler(app))`. It's a separate import, so it never ends up in an app's bundle.
 
 ## API
 
 |  |  |
 | --- | --- |
-| `createClient(operations, { url, headers?, fetch?, http?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. Sections override per transport |
-| `client.reconnect()` / `client.close()` | A new WebSocket connection (fresh `connectionParams`) / end everything |
+| `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
 | `testClient(operations, handler \| { http, schema?, context?, onOperationEnd? }, { headers?, url? })` | From `@nxlab/client/test`: the same client, answered in-process |
 | `fromAxios(axios)` | An axios instance as `fetch` |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
-| `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `Transport` | The types behind the calls |
+| `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |

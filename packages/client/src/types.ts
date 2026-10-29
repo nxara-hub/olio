@@ -1,4 +1,4 @@
-import type { Fetch, HeadersSource, Transport } from "./transport.js";
+import type { Fetch, HeadersSource } from "./transport.js";
 
 /**
  * Scalar types, the way the server's `CustomScalars` works: one type, or
@@ -105,17 +105,29 @@ interface AnyDocument<Op extends Operation> {
 
 /**
  * What codegen emits as `operations`: each operation by root and name, and
- * the subscription transports they use (imported only if used, so an app
- * bundles no transport it doesn't need).
+ * the subscription transports they use, whose clients `createClient` needs.
  */
 export interface Operations {
   readonly query?: Readonly<Record<string, AnyDocument<"query">>>;
   readonly mutation?: Readonly<Record<string, AnyDocument<"mutation">>>;
   readonly subscription?: Readonly<Record<string, AnyDocument<"subscription">>>;
-  readonly transports?: {
-    readonly ws?: Transport<unknown>;
-    readonly sse?: Transport<unknown>;
-  };
+  readonly transports?: readonly ("ws" | "sse")[];
+}
+
+/**
+ * What `ws` and `sse` take: a graphql-ws or graphql-sse client, created and
+ * configured by the app (retries, `connectionParams`, `terminate()` to
+ * reconnect with new credentials).
+ */
+export interface SubscriptionClient {
+  iterate(request: {
+    query: string;
+    variables?: Record<string, unknown>;
+    operationName?: string;
+  }): AsyncIterableIterator<{
+    data?: unknown;
+    errors?: readonly GraphQLErrorJSON[];
+  }>;
 }
 
 type Call<D> =
@@ -132,44 +144,25 @@ export type Client<O extends Operations> = {
   readonly [Op in keyof O & Operation]: {
     readonly [K in keyof O[Op]]: Call<O[Op][K]>;
   };
-} & {
-  /**
-   * Reconnects the WebSocket, so it sends fresh `connectionParams` (after
-   * sign-in, say). Live subscriptions resume on the new connection.
-   */
-  reconnect(): void;
-  /** Ends every subscription and closes the connections. */
-  close(): Promise<void>;
 };
 
-interface Endpoint {
-  /** Default: the client's `url`. */
-  url?: string | URL;
-  headers?: HeadersSource;
-  fetch?: Fetch;
+type Transports<O extends Operations> = O extends {
+  transports: readonly (infer K)[];
 }
-
-type TransportOptions<O extends Operations> = O extends {
-  transports: infer T;
-}
-  ? {
-      [K in keyof T]?: T[K] extends Transport<infer Options> ? Options : never;
-    }
-  : unknown;
+  ? K & ("ws" | "sse")
+  : never;
 
 /**
- * The client's settings, plus overrides per transport: `http` for queries and
- * mutations, `ws` and `sse` for subscriptions. `ws` and `sse` exist only when
- * the operations use them.
+ * Queries and mutations go to `url` with `headers`, through `fetch`.
+ * Subscriptions go through the app's own clients: `ws` (graphql-ws) and
+ * `sse` (graphql-sse), each required once an operation uses it.
  */
 export type ClientOptions<O extends Operations> = {
   url: string | URL;
   headers?: HeadersSource;
   /**
    * Default: the global `fetch`. Anything fetch-shaped works, such as a ky
-   * instance; `fromAxios(axios)` adapts axios. SSE needs one that streams
-   * the response (fetch, ky), which axios can't.
+   * instance; `fromAxios(axios)` adapts axios.
    */
   fetch?: Fetch;
-  http?: Endpoint;
-} & TransportOptions<O>;
+} & { readonly [K in Transports<O>]: SubscriptionClient };
