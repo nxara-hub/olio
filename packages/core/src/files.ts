@@ -1,4 +1,4 @@
-import { glob, readFile } from "node:fs/promises";
+import { globSync, readFileSync } from "node:fs";
 import { extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -9,16 +9,15 @@ import type { Pattern, TypeSource } from "./index.js";
 const COMMENT = /#[^\n]*/g;
 
 // Sorted for stable output. A pattern matching nothing throws, so a typo
-// can't load an empty module.
+// can't load an empty module. Synchronous: this runs while the app starts,
+// often one module after another, and each async glob waits about 1 ms.
 export async function matchFiles(
   patterns: readonly Pattern[]
 ): Promise<string[]> {
   const paths = patterns.map((p) =>
     typeof p === "string" ? p : fileURLToPath(p)
   );
-  const matches = await Promise.all(
-    paths.map((path) => Array.fromAsync(glob(path)))
-  );
+  const matches = paths.map((path) => globSync(path));
   for (const [i, found] of matches.entries()) {
     if (found.length === 0) throw new Error(`No files match "${paths[i]}"`);
   }
@@ -52,7 +51,7 @@ export async function loadGraphQLFile(
 ): Promise<DocumentNode | undefined> {
   const ext = extname(file);
   if (ext === ".graphql" || ext === ".gql") {
-    const source = await readFile(file, "utf8");
+    const source = readFileSync(file, "utf8");
     return source.replace(COMMENT, "").trim() === ""
       ? undefined
       : parseFile(source, file);

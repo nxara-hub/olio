@@ -53,11 +53,11 @@ The example server, loaded with these functions, against the same app wired by h
 
 |                             | Loaded         | Wired by hand             |
 | --------------------------- | -------------- | ------------------------- |
-| Import + schema, at startup | 98 ms          | 60 ms                     |
-| Heap / RSS after GC         | 4.3 MB / 34 MB | 3.0 MB / 24 MB            |
+| Import + schema, at startup | 90 ms          | 64 ms                     |
+| Heap / RSS after GC         | 4.1 MB / 30 MB | 3.0 MB / 24 MB            |
 | Type-check (tsc 7)          | 0.11 s         | 0.11 s                    |
 | Single-file bundle for Node | doesn't run    | runs (581 KB, 91 KB gzip) |
 
-- **About 35 ms, once, at startup.** It's the loading itself: globbing, reading each `.gql` and importing each file. The package adds about 3 ms. Requests aren't affected; the schema is the same either way.
+- **About 25 ms, once, at startup.** Globbing and reading files are synchronous, so most of it is finding files at runtime: modules with top-level `await` evaluate asynchronously, and a module's files are imported only once its `index.ts` has run, so the runtime can't load the whole graph up front. The package adds about 3 ms. Requests aren't affected; the schema is the same either way.
 - **Type-checking costs nothing extra.** Loaded maps aren't checked as a whole (`LoadedResolvers`), but each file is still typed where it's written.
 - **Bundles need the files.** The patterns resolve against `import.meta.url` when the app starts, so a bundled app looks for `modules/*/index.ts` next to the bundle and throws `No files match`. Deploy the sources (or the build output) as files, or wire modules by hand to ship one bundle.
