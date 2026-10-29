@@ -106,9 +106,29 @@ useServer(
 
 When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
 
-To refuse a bad token, don't throw in `context`: build a context without a user, and refuse in middleware with a `GraphQLError` (`UNAUTHENTICATED`). Then the client gets the same error result on every transport, at once. A `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in `onConnect` closes it with 4403, which the client retries by default ([@nxlab/client](../client/README.md#transport-settings)).
-
 With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxlab/client/test` runs both transports in memory.
+
+## Refusing a bad token
+
+Don't throw from `context`. A throw there refuses the whole request before any field runs, so a client still holding an expired token can't even call `login` to get a new one. Build a context without a user instead, and refuse in middleware; public fields skip it with `@bypass` (olio's README, [Skipping middleware](../olio/README.md#skipping-middleware-bypass)):
+
+```ts
+fetchHandler(app, {
+  // An invalid or expired token gives `userId: undefined`, not an error.
+  context: (request) => ({
+    userId: verify(request.headers.get("authorization"))
+  })
+});
+
+const requireAuth =
+  (): MiddlewareFn =>
+  ({ ctx, bypass }, next) => {
+    if (!ctx.userId && !bypass.has("auth")) throw unauthenticated();
+    return next();
+  };
+```
+
+It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which the client retries by default ([@nxlab/client](../client/README.md#transport-settings)).
 
 ## Validation rules
 
@@ -157,7 +177,7 @@ onSubscribe: (_req, params) => {
 
 ## Errors
 
-Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost. That includes a `context` hook that throws: a `GraphQLError` from it (say, `UNAUTHENTICATED` for a bad token) reaches the client as a normal GraphQL error with status 200; anything else is a 500 with "Unexpected error.".
+Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost. That includes a `context` hook that throws: a `GraphQLError` from it (say, `BAD_REQUEST` for a malformed header) reaches the client as a normal GraphQL error with status 200; anything else is a 500 with "Unexpected error.". It refuses the whole request, so a bad token belongs in middleware instead ([Refusing a bad token](#refusing-a-bad-token)).
 
 ```ts
 throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // the client sees this
