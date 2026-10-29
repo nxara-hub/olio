@@ -46,3 +46,18 @@ export const app = olio({
 **`loadEnums(...patterns)`** loads enum internal values for a module's `enums` the same way: every named export is one enum's map, written with olio's builder (`export const OrderStatus = resolvers.sales.orders.OrderStatus({ ... })`). The result satisfies a required `enums` unchecked, like `loadResolvers` does `resolvers`, so an enum missing from the files isn't a compile error; it fails per query, with an error naming the enum.
 
 Every pattern must match at least one file; a pattern that matches nothing throws, so a typo can't quietly load an empty module. String globs resolve from the working directory, so prefer `new URL(..., import.meta.url)` inside modules.
+
+## Cost
+
+The example server, loaded with these functions, against the same app wired by hand: the same resolver, middleware and SDL files, imported directly with the SDL inlined (`apps/example-server/bench`; rerun with `bun run --cwd apps/example-server bench`). Bun 1.4.4 on an Apple Silicon Mac, medians of 20 fresh processes:
+
+|                             | Loaded         | Wired by hand             |
+| --------------------------- | -------------- | ------------------------- |
+| Import + schema, at startup | 98 ms          | 60 ms                     |
+| Heap / RSS after GC         | 4.3 MB / 34 MB | 3.0 MB / 24 MB            |
+| Type-check (tsc 7)          | 0.11 s         | 0.11 s                    |
+| Single-file bundle for Node | doesn't run    | runs (581 KB, 91 KB gzip) |
+
+- **About 35 ms, once, at startup.** It's the loading itself: globbing, reading each `.gql` and importing each file. The package adds about 3 ms. Requests aren't affected; the schema is the same either way.
+- **Type-checking costs nothing extra.** Loaded maps aren't checked as a whole (`LoadedResolvers`), but each file is still typed where it's written.
+- **Bundles need the files.** The patterns resolve against `import.meta.url` when the app starts, so a bundled app looks for `modules/*/index.ts` next to the bundle and throws `No files match`. Deploy the sources (or the build output) as files, or wire modules by hand to ship one bundle.

@@ -45,6 +45,7 @@ bun test                             # inside one package
 bun run --cwd apps/example-server codegen   # regenerate src/generated.ts + src/schema.gql
 bun run --cwd apps/example-server start     # run the example end to end
 bun run --cwd apps/example-server serve     # the example over HTTP, SSE and WebSocket (Hono on Node, via tsx)
+bun run --cwd apps/example-server bench     # olio-tools' load functions vs the same app wired by hand (bench/wired.ts)
 bun run --cwd apps/example-client codegen   # client types from the server's schema.gql
 bun run --cwd apps/example-client start     # the client walkthrough, against a running `serve`
 ```
