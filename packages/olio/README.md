@@ -12,7 +12,8 @@ declare module "@nxlab/olio" {
   interface Olio {
     application: Application;
     ctx: { req_id: string; userId?: string };
-    sub_ctx: SubGQLCtx; // context for subscriptions; defaults to ctx
+    // Optional: subscriptions' own context. Leave it out and they get ctx.
+    sub_ctx: { connectionId: string; userId?: string };
   }
 }
 ```
