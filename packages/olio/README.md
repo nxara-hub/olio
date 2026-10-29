@@ -135,7 +135,7 @@ You can also list modules yourself: `modules: [usersModule, authModule]`.
 
 `olio()` composes the modules' SDL through `@nxlab/schema` and checks the result before returning:
 
-- **Root types come for free.** Modules `extend type Query` (or `Mutation`); nobody needs a placeholder `type Query { _empty: String }`. That also means a module can be tested alone: `olio({ modules: [usersModule] })`.
+- **Root types come for free.** Modules `extend type Query` (or `Mutation`); nobody needs a placeholder `type Query { _empty: String }`. That also means a module that only extends root types can be tested alone: `olio({ modules: [usersModule] })`. One that uses another module's types takes that module too: `olio({ modules: [catalog, reviews] })`.
 - **A module resolves only what it declares.** It owns the fields in its own definitions and `extend`s, and the defining module owns `__isTypeOf` / `__resolveType`. Resolving another module's field throws: `Module "posts": "User.name" is declared by module "users"; only that module can resolve it`. With codegen, the same message is the compile error, on the field: `Type '(row) => …' is not assignable to type '"User.name is declared by module users; only that module can resolve it"'`.
 - **Errors point at files.** SDL and schema errors are reported as `file:line:column: message`.
 
