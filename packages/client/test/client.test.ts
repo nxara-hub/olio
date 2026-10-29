@@ -482,6 +482,21 @@ describe("custom fetch", () => {
       await server.stop();
     }
   });
+
+  test("fetch gets the variables as passed, before JSON (files for multipart)", async () => {
+    const after = new Date("2026-02-01");
+    let variables: unknown;
+    const spy = createClient(queries, {
+      url: "http://localhost/graphql",
+      fetch: (url, init, params) => {
+        ({ variables } = params);
+        return handler(new Request(url, init));
+      }
+    });
+    await spy.query.recent({ after });
+    expect(variables).toEqual({ after });
+    expect((variables as { after: unknown }).after).toBe(after);
+  });
 });
 
 describe("codegen", () => {

@@ -103,6 +103,80 @@ const axiosFetch: Fetch = async (url, init) => {
 
 `fetch` is for queries and mutations; subscriptions go through your own clients.
 
+## Uploading files
+
+The client sends JSON, and a `File` in JSON is `{}`. `fetch` also gets the request before JSON, with the variables as you passed them, so it can send them the [multipart request spec](https://github.com/jaydenseric/graphql-multipart-request-spec)'s way instead:
+
+```ts
+import type { Fetch } from "@nxara/olio-client";
+
+const multipart: Fetch = (url, init, { query, variables, operationName }) => {
+  const files = new Map<File, string[]>();
+  // Files leave the variables (null in their place); `map` says where each goes back.
+  const strip = (value: unknown, path: string): unknown => {
+    if (value instanceof File) {
+      files.set(value, [...(files.get(value) ?? []), path]);
+      return null;
+    }
+    if (Array.isArray(value)) {
+      return value.map((v, i) => strip(v, `${path}.${i}`));
+    }
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.entries(value).map(([k, v]) => [k, strip(v, `${path}.${k}`)])
+      );
+    }
+    return value;
+  };
+  const stripped = strip(variables, "variables");
+  if (files.size === 0) return fetch(url, init);
+
+  const form = new FormData();
+  form.set(
+    "operations",
+    JSON.stringify({ query, variables: stripped, operationName })
+  );
+  form.set(
+    "map",
+    JSON.stringify(Object.fromEntries([...files.values()].entries()))
+  );
+  for (const [i, file] of [...files.keys()].entries())
+    form.set(String(i), file);
+
+  const headers = new Headers(init.headers);
+  headers.delete("content-type"); // fetch sets it, with the boundary
+  headers.set("x-upload", "1"); // browsers can't add it cross-site, so the server can refuse CSRF
+  return fetch(url, { ...init, headers, body: form });
+};
+
+const client = createClient(operations, { url, fetch: multipart });
+await client.mutation.uploadAvatar({ file });
+```
+
+Register the scalar as `File` (`interface ClientScalars { Upload: File }`). On the server, `@nxara/olio-http` passes graphql-http's `parseRequestParams` through, which puts the files back:
+
+```ts
+fetchHandler(app, {
+  context,
+  parseRequestParams: async (req) => {
+    const request = req.raw as Request;
+    if (!request.headers.get("content-type")?.startsWith("multipart/form-data"))
+      return; // JSON, as usual
+    if (!request.headers.get("x-upload"))
+      return new Response(null, { status: 400 });
+    const form = await request.formData();
+    const params = JSON.parse(String(form.get("operations")));
+    const map: Record<string, string[]> = JSON.parse(String(form.get("map")));
+    for (const [key, paths] of Object.entries(map)) {
+      for (const path of paths) setPath(params, path, form.get(key)); // e.g. lodash's set
+    }
+    return params;
+  }
+});
+```
+
+with `scalar Upload` in the SDL, typed `File` in `CustomScalars`. Size limits are the server's (or its proxy's). Many apps skip all this: a mutation returns a signed upload URL, and the browser sends the file straight to storage.
+
 ## Scalars
 
 The way the server's `CustomScalars` works: one type, or `{ input; output }` when variables and results differ. Custom scalars are `unknown` until registered:
@@ -201,7 +275,7 @@ expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 
 |  |  |
 | --- | --- |
-| `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one. `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
+| `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: default the global one; called with `(url, init, params)`, `params` being the request before JSON (see Uploading files). `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
 | `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxara/olio-client/test`: the same client, answered in-process |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
 | `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |

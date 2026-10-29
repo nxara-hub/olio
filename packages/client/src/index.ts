@@ -9,7 +9,7 @@ import type {
   TypedDocument
 } from "./types.js";
 
-export type { Fetch, HeadersSource } from "./transport.js";
+export type { Fetch, HeadersSource, RequestParams } from "./transport.js";
 export type {
   CallOptions,
   Client,
@@ -50,16 +50,21 @@ export function createClient<O extends Operations>(
     const headers = await resolveHeaders(options.headers, call.headers);
     headers.set("accept", ACCEPT);
     headers.set("content-type", "application/json");
-    const response = await send(String(options.url), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        query: document.query,
-        variables,
-        operationName: document.name
-      }),
-      signal: call.signal
-    });
+    const params = {
+      query: document.query,
+      variables,
+      operationName: document.name
+    };
+    const response = await send(
+      String(options.url),
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(params),
+        signal: call.signal
+      },
+      params
+    );
     if (!response.headers.get("content-type")?.includes("json")) {
       throw new Error(
         `${document.name}: HTTP ${response.status} ${response.statusText}`.trim()

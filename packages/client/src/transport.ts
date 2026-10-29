@@ -1,6 +1,19 @@
 import type { GraphQLErrorJSON, HeadersValue, Result } from "./types.js";
 
-export type Fetch = (url: string, init: RequestInit) => Promise<Response>;
+export interface RequestParams {
+  query: string;
+  variables: unknown;
+  operationName: string;
+}
+/**
+ * `params` is the request before JSON, with the variables as passed, so an
+ * app can send files (`File`, `Blob`) as multipart instead.
+ */
+export type Fetch = (
+  url: string,
+  init: RequestInit,
+  params: RequestParams
+) => Promise<Response>;
 export type MaybePromise<T> = T | Promise<T>;
 /** Headers, or a function for values that change, such as a token. */
 export type HeadersSource = HeadersValue | (() => MaybePromise<HeadersValue>);
