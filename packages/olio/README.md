@@ -9,7 +9,7 @@ bun add @nxara/olio graphql@16
 bun add -d @nxara/olio-codegen
 ```
 
-`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries).
+`graphql` 16 is a peer dependency.
 
 ## Register your app
 

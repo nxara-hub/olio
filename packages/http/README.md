@@ -6,7 +6,7 @@ Serve an olio app over HTTP, on any framework: GraphQL over HTTP ([graphql-http]
 bun add @nxara/olio-http graphql@16
 ```
 
-`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries); graphql-http is its only third-party dependency.
+`graphql` 16 is a peer dependency; graphql-http is its only third-party dependency.
 
 ## Adapters
 

@@ -1,6 +1,6 @@
 # Nxara
 
-Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` 16 (16.13+) as a peer dependency. Not 17: 17.0.2 creates and aborts an `AbortController` per execution, which makes small queries about 4× slower.
+Modular, type-safe GraphQL for TypeScript, a successor in spirit to `graphql-modules`. Bun workspaces + Turborepo, TypeScript 7, ESM only, `graphql` 16 (16.13+) as a peer dependency.
 
 ## Layout
 
