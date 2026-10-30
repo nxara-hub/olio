@@ -5,10 +5,10 @@ Load modules, and a module's type definitions and resolvers, from files.
 ## Install
 
 ```sh
-bun add @nxara/olio-tools
+bun add @nxara/olio-tools graphql@16
 ```
 
-`graphql` 16 and `@nxara/olio` are peer dependencies.
+`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries).
 
 ## Usage
 

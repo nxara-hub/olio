@@ -7,10 +7,10 @@ const { data } = await client.mutation.login({ email, password }, { headers });
 ```
 
 ```sh
-bun add @nxara/olio-client
+bun add @nxara/olio-client graphql@16
 ```
 
-`graphql` 16 is a peer dependency. For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws) and/or [graphql-sse](https://github.com/enisdenjo/graphql-sse): the client takes your own clients of them.
+`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries). For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws) and/or [graphql-sse](https://github.com/enisdenjo/graphql-sse): the client takes your own clients of them.
 
 ## Operations
 

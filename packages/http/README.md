@@ -3,10 +3,10 @@
 Serve an olio app over HTTP, on any framework: GraphQL over HTTP ([graphql-http](https://github.com/graphql/graphql-http), the reference implementation), with `context`, error masking and per-operation cleanup. Nothing more: subscriptions are yours to serve, with the libraries you choose (below).
 
 ```sh
-bun add @nxara/olio-http
+bun add @nxara/olio-http graphql@16
 ```
 
-`graphql` 16 and `@nxara/olio` are peer dependencies; graphql-http is the only dependency.
+`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries); graphql-http is its only third-party dependency.
 
 ## Adapters
 

@@ -9,10 +9,10 @@ It is deliberately small - SDL in, types out. Schema composition belongs to `@nx
 ## Install
 
 ```sh
-bun add @nxara/olio-codegen
+bun add @nxara/olio-codegen graphql@16
 ```
 
-`graphql` 16 is a peer dependency.
+`graphql` 16 is a peer dependency (not 17, which is about 4× slower on small queries).
 
 ## Usage
 
