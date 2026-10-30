@@ -1,11 +1,4 @@
-import { createClient as createSseClient } from "graphql-sse";
-import {
-  CloseCode,
-  createClient as createWsClient,
-  GRAPHQL_TRANSPORT_WS_PROTOCOL,
-  makeServer,
-  type ServerOptions
-} from "graphql-ws";
+import type { ServerOptions } from "graphql-ws";
 
 import { createClient } from "./index.js";
 import {
@@ -16,6 +9,19 @@ import {
 import type { Client, ClientOptions, Operations, Transports } from "./types.js";
 
 type Handler = (request: Request) => MaybePromise<Response>;
+
+// Optional peer dependencies: an app needs only the ones it subscribes over.
+const graphqlWs = await import("graphql-ws").catch(() => undefined);
+const graphqlSse = await import("graphql-sse").catch(() => undefined);
+
+const installed = <M>(module: M | undefined, name: string): M => {
+  if (!module) {
+    throw new Error(
+      `testClient: install ${name} to test subscriptions over it`
+    );
+  }
+  return module;
+};
 
 /**
  * The app's own servers, so tests run its production wiring: context,
@@ -41,8 +47,11 @@ type Listener = ((event: never) => void) | null;
  * A WebSocket connected straight to a graphql-ws server for `options`, with
  * no network: what `testClient`'s graphql-ws client connects through.
  */
-function memoryWebSocket(options: ServerOptions<never, never>) {
-  const graphqlWs = makeServer(options);
+function memoryWebSocket(
+  ws: typeof import("graphql-ws"),
+  options: ServerOptions<never, never>
+) {
+  const graphqlWs = ws.makeServer(options);
 
   // Messages are delivered on a later microtask, as a network would, so
   // neither side runs inside the other's call.
@@ -53,7 +62,7 @@ function memoryWebSocket(options: ServerOptions<never, never>) {
     static readonly CLOSED = 3;
 
     readyState: number = Socket.CONNECTING;
-    readonly protocol = GRAPHQL_TRANSPORT_WS_PROTOCOL;
+    readonly protocol = ws.GRAPHQL_TRANSPORT_WS_PROTOCOL;
     onopen: Listener = null;
     onmessage: Listener = null;
     onclose: Listener = null;
@@ -88,7 +97,7 @@ function memoryWebSocket(options: ServerOptions<never, never>) {
         // What graphql-ws's own adapters do when handling a message throws.
         this.#receive?.(data).catch((error: unknown) =>
           this.#finish(
-            CloseCode.InternalServerError,
+            ws.CloseCode.InternalServerError,
             error instanceof Error ? error.message : String(error)
           )
         );
@@ -147,20 +156,23 @@ export function testClient<O extends Operations>(
       ? handlers.sse(request)
       : handlers.http(request);
   };
+  const ws = handlers.ws && installed(graphqlWs, "graphql-ws");
+  const sse = handlers.sse && installed(graphqlSse, "graphql-sse");
   return createClient(operations, {
     url,
     headers: options.headers,
     fetch,
     ws:
+      ws &&
       handlers.ws &&
-      createWsClient({
+      ws.createClient({
         url: url.replace(/^http/, "ws"),
-        webSocketImpl: memoryWebSocket(handlers.ws),
+        webSocketImpl: memoryWebSocket(ws, handlers.ws),
         retryAttempts: 0,
         connectionParams: async () => ({ headers: await headers() })
       }),
     sse:
-      handlers.sse &&
-      createSseClient({ url, fetchFn: fetch, headers, retryAttempts: 0 })
+      sse &&
+      sse.createClient({ url, fetchFn: fetch, headers, retryAttempts: 0 })
   } as unknown as ClientOptions<O>);
 }

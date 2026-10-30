@@ -37,18 +37,26 @@
     "test": "bun test",
     "check-types": "bun test/generate.ts && tsc -p tsconfig.test.json"
   },
-  "dependencies": {
-    "graphql-sse": "2.6.3",
-    "graphql-ws": "^6.4.1"
-  },
   "devDependencies": {
     "@nxara/olio": "workspace:*",
     "@nxara/olio-codegen": "workspace:*",
     "@nxara/olio-http": "workspace:*",
     "graphql": "^16.14.2",
+    "graphql-sse": "2.6.3",
+    "graphql-ws": "^6.4.1",
     "ky": "^2.2.0"
   },
   "peerDependencies": {
-    "graphql": "^16.13.0"
+    "graphql": "^16.13.0",
+    "graphql-sse": "^2.6.3",
+    "graphql-ws": "^6.4.1"
+  },
+  "peerDependenciesMeta": {
+    "graphql-sse": {
+      "optional": true
+    },
+    "graphql-ws": {
+      "optional": true
+    }
   }
 }

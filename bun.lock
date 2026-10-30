@@ -55,20 +55,24 @@
     "packages/client": {
       "name": "@nxara/olio-client",
       "version": "0.1.0-rc.1",
-      "dependencies": {
-        "graphql-sse": "2.6.3",
-        "graphql-ws": "^6.4.1",
-      },
       "devDependencies": {
         "@nxara/olio": "workspace:*",
         "@nxara/olio-codegen": "workspace:*",
         "@nxara/olio-http": "workspace:*",
         "graphql": "^16.14.2",
+        "graphql-sse": "2.6.3",
+        "graphql-ws": "^6.4.1",
         "ky": "^2.2.0",
       },
       "peerDependencies": {
         "graphql": "^16.13.0",
+        "graphql-sse": "^2.6.3",
+        "graphql-ws": "^6.4.1",
       },
+      "optionalPeers": [
+        "graphql-sse",
+        "graphql-ws",
+      ],
     },
     "packages/codegen": {
       "name": "@nxara/olio-codegen",
