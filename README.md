@@ -57,7 +57,7 @@ export const app = olio({
 
 ## Development
 
-[Bun](https://bun.com) workspaces with [Turborepo](https://turborepo.dev).
+[Bun](https://bun.com) workspaces with [Turborepo](https://turborepo.dev). Tool versions (bun, node, zizmor) are pinned in `mise.toml` and locked in `mise.lock`; CI installs them the same way (`mise install`).
 
 ```sh
 bun install
@@ -78,10 +78,10 @@ All packages share one version. On a clean `main`:
 
 ```sh
 bun run release 0.3.0         # bumps every package, commits and tags v0.3.0
-git push origin main v0.3.0   # CI checks, publishes to npm (bun publish), creates the GitHub release
+git push origin main v0.3.0   # CI checks, publishes to npm, creates the GitHub release
 ```
 
-A version with a suffix (`0.3.0-rc.1`) publishes under npm's `next` tag and as a GitHub prerelease. Publishing needs an npm token with publish rights to `@nxara` in the repo's `NPM_TOKEN` secret. A failed run can be rerun: versions already on npm are skipped.
+A version with a suffix (`0.3.0-rc.1`) publishes under npm's `next` tag and as a GitHub prerelease. npm trusts the release workflow itself ([trusted publishing](https://docs.npmjs.com/trusted-publishers), with provenance), so there's no npm token to keep. A package's very first publish is the exception: npm sets up trusted publishing per existing package, so that one runs with a short-lived `NPM_TOKEN` secret, deleted afterwards. A failed run can be rerun: versions already on npm are skipped.
 
 ## License
 

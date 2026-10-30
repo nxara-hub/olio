@@ -54,7 +54,8 @@ bun run release 0.3.0                       # every package to 0.3.0, committed 
 ## Gotchas
 
 - Workspace packages resolve to `dist/`. After changing a package, run `bun run build` before type-checking or running the example.
-- Publish only through a pushed tag (`bun run release`, then `.github/workflows/release.yml`), with `bun publish --recursive`: it rewrites `workspace:*` (npm doesn't, and the root's `devEngines` makes npm refuse to run in the repo). bun can't sign npm provenance.
+- Publish only through a pushed tag (`bun run release`, then `.github/workflows/release.yml`). bun packs, since it rewrites `workspace:*`; npm publishes, since only npm signs in with trusted publishing (OIDC, no token). npm runs outside the repo: the root's `devEngines` makes it refuse to run inside.
+- Tool versions live in `mise.toml` / `mise.lock` (bun, node, zizmor); change them with `mise use`, then `mise lock --platform linux-x64,linux-arm64,macos-arm64`. Workflows pin actions to commit SHAs and pass zizmor (`zizmor .github/workflows`).
 - `generated.ts` is generated (and lint/format ignored). Never hand-edit it; rerun codegen. `.gql` files are not formatted by oxfmt.
 - Relative imports use `.js` specifiers (`nodenext`). `noUncheckedIndexedAccess` is on.
 - `@nxara/olio-http`'s `onOperationEnd(ctx)` runs once per operation, after the HTTP response. Subscription servers are the app's, so ending their contexts is too (see `apps/example-server/src/subscriptions.ts`).
