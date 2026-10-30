@@ -78,7 +78,7 @@ All packages share one version. On a clean `main`:
 
 ```sh
 bun run release 0.3.0         # bumps every package, commits and tags v0.3.0
-git push origin main v0.3.0   # CI checks, publishes to npm with provenance, creates the GitHub release
+git push origin main v0.3.0   # CI checks, publishes to npm (bun publish), creates the GitHub release
 ```
 
 A version with a suffix (`0.3.0-rc.1`) publishes under npm's `next` tag and as a GitHub prerelease. Publishing needs an npm token with publish rights to `@nxara` in the repo's `NPM_TOKEN` secret. A failed run can be rerun: versions already on npm are skipped.
