@@ -48,11 +48,13 @@ bun run --cwd apps/example-server serve     # the example over HTTP, SSE and Web
 bun run --cwd apps/example-server bench     # olio-tools' load functions vs the same app wired by hand (bench/wired.ts)
 bun run --cwd apps/example-client codegen   # client types from the server's schema.gql
 bun run --cwd apps/example-client start     # the client walkthrough, against a running `serve`
+bun run release 0.3.0                       # every package to 0.3.0, committed and tagged; pushing the tag publishes (.github/workflows/release.yml)
 ```
 
 ## Gotchas
 
 - Workspace packages resolve to `dist/`. After changing a package, run `bun run build` before type-checking or running the example.
+- Publish only through a pushed tag (`bun run release`, then `.github/workflows/release.yml`): bun packs, since it rewrites `workspace:*` and npm doesn't; npm publishes, for provenance, from outside the repo, since the root's `devEngines` makes npm refuse to run inside it.
 - `generated.ts` is generated (and lint/format ignored). Never hand-edit it; rerun codegen. `.gql` files are not formatted by oxfmt.
 - Relative imports use `.js` specifiers (`nodenext`). `noUncheckedIndexedAccess` is on.
 - `@nxara/olio-http`'s `onOperationEnd(ctx)` runs once per operation, after the HTTP response. Subscription servers are the app's, so ending their contexts is too (see `apps/example-server/src/subscriptions.ts`).

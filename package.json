@@ -11,7 +11,8 @@
     "test": "turbo run test",
     "check-types": "turbo run check-types",
     "check": "ultracite check",
-    "fix": "ultracite fix"
+    "fix": "ultracite fix",
+    "release": "bun scripts/release.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",

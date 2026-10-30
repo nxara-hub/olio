@@ -11,6 +11,11 @@
     "sdl"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nxara-hub/olio.git",
+    "directory": "packages/schema"
+  },
   "files": [
     "dist"
   ],
