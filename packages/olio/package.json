@@ -1,6 +1,6 @@
 {
   "name": "@nxara/olio",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.0",
   "description": "Modular, type-safe GraphQL applications.",
   "keywords": [
     "graphql",
