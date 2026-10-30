@@ -54,7 +54,7 @@
     },
     "packages/client": {
       "name": "@nxara/olio-client",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "graphql-sse": "2.6.3",
         "graphql-ws": "^6.4.1",
@@ -72,7 +72,7 @@
     },
     "packages/codegen": {
       "name": "@nxara/olio-codegen",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "@nxara/olio-core": "workspace:*",
         "@nxara/olio-schema": "workspace:*",
@@ -86,7 +86,7 @@
     },
     "packages/core": {
       "name": "@nxara/olio-core",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "devDependencies": {
         "graphql": "^16.14.2",
       },
@@ -96,14 +96,14 @@
     },
     "packages/di": {
       "name": "@nxara/olio-di",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "awilix": "^13.0.5",
       },
     },
     "packages/http": {
       "name": "@nxara/olio-http",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "@nxara/olio-core": "workspace:*",
         "graphql-http": "^1.23.1",
@@ -118,7 +118,7 @@
     },
     "packages/olio": {
       "name": "@nxara/olio",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "@nxara/olio-core": "workspace:*",
         "@nxara/olio-schema": "workspace:*",
@@ -133,7 +133,7 @@
     },
     "packages/schema": {
       "name": "@nxara/olio-schema",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "devDependencies": {
         "graphql": "^16.14.2",
       },
@@ -143,7 +143,7 @@
     },
     "packages/tools": {
       "name": "@nxara/olio-tools",
-      "version": "0.0.0",
+      "version": "0.1.0-rc.1",
       "dependencies": {
         "@nxara/olio-core": "workspace:*",
       },
