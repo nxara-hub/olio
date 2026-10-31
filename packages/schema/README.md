@@ -20,7 +20,7 @@ bun add @nxara/olio-schema graphql@16
 ```ts
 import { compose } from "@nxara/olio-schema";
 
-const { document, schema, ownership } = compose(
+const { document, schema, ownership, roots, bypass } = compose(
   [
     { id: "users", typeDefs: [usersDoc] },
     { id: "posts", typeDefs: [postsDoc] }
@@ -32,8 +32,8 @@ const { document, schema, ownership } = compose(
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
 - **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports the ones the schema has: `{ query: "RootQuery" }`, never a default with no type behind it.
 - **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`. Enum values are owned the same way, so only the declaring module can give them internal values. A scalar is owned by the module that defines it (marked `__scalar`).
-- **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name.
-- **`bypass`** (`Map<"Type.field", Set<key>>`) holds what `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema`, before the other directives run. olio hands the keys to middleware; see its README.
+- **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name, so parse with one (`parse(new Source(sdl, "users/user.gql"))`, as `loadTypeDefs` does). A duplicate lists every place it's declared (`also at …`).
+- **`bypass`** (`Map<"Type.field", Set<key>>`) holds what `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema`, before the other directives run, so `@copy` and `@implements` don't carry it to the fields they copy. It needs no declaration; `bypassDefinition` holds its SDL for editor tooling. olio hands the keys to middleware; see its README.
 
 You rarely call this yourself: codegen and olio call it with the `directives` you pass them.
 
@@ -69,7 +69,7 @@ import { applyDirectives } from "@nxara/olio-schema";
 const document = applyDirectives(parse(sdl), directives);
 ```
 
-Only the directives you pass are enabled. Their order doesn't matter: `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
+Only the directives you pass are enabled; `compose` reports any other as `Unknown directive "@copy"`. Their order doesn't matter: `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
 
 ## @implements
 
@@ -138,4 +138,6 @@ Overriding is allowed, with spread semantics (`{ ...A, ...B, ...local }`): a lat
 
 ## Writing a directive
 
-A directive is a `SchemaDirective`: a `name`, its SDL `definition`, an optional `validate(document)` that runs before any transform, and `transform(document, context)`. A transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` will call it again on the next pass.
+A directive is a `SchemaDirective`: a `name`, its SDL `definition` (for editor tooling; it isn't added to the schema), an optional `validate(document)` that runs before any transform, and `transform(document, context)`. A transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` will call it again on the next pass.
+
+Passes run while a type definition or extension still carries one of the directives, so a directive goes on types, not on fields, and its transform removes the usages it handles. A pass that removes none fails as a cycle.

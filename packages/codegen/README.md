@@ -2,17 +2,18 @@
 
 Generate TypeScript types from GraphQL SDL.
 
-`@nxara/olio-codegen` discovers modules from a directory layout, reads each module's GraphQL SDL, and emits a single strongly typed TypeScript file: schema types, per-module operation contracts, and the application type.
+`@nxara/olio-codegen` discovers modules from a directory layout, reads each module's GraphQL SDL, and emits a single strongly typed TypeScript file: the schema types, and the `Application` type that tells olio what each module owns. `codegenClient` does the same for a client's operations.
 
 It is deliberately small - SDL in, types out. Schema composition belongs to `@nxara/olio-schema`, the runtime to `@nxara/olio`.
 
 ## Install
 
 ```sh
-bun add @nxara/olio-codegen graphql@16
+bun add -d @nxara/olio-codegen
+bun add graphql@16
 ```
 
-`graphql` 16 is a peer dependency.
+`graphql` 16 is a peer dependency. The generated file imports types from `@nxara/olio-codegen`, so keep it installed (a dev dependency is enough).
 
 ## Usage
 
@@ -31,18 +32,29 @@ await codegen({
 
 Relative paths (`modules`, `output`, `schemaOutput`) resolve against `root`, which defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `typeDefs` is the exception: it resolves inside each module. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
 
-Both reject with a message that names the file and position. Uncaught, the runtime prints it with a stack; to print just the message:
+Both reject on invalid SDL or operations with a message that names the file and position (`src/modules/users/typedefs/users.gql:2:6: Unknown type "Nope".`). Uncaught, the runtime prints it with a stack; to print just the message:
 
 ```ts
-await codegen({ ... }).catch((error: Error) => {
+await codegen({
+  root: import.meta.dirname,
+  modules: "src/modules",
+  typeDefs: "**/typedefs/**/*.gql",
+  output: "src/generated.ts"
+}).catch((error: Error) => {
   console.error(error.message);
   process.exitCode = 1;
 });
 ```
 
-`modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed).
+`modules` points to a directory whose **direct child directories** are modules. `typeDefs` is resolved relative to each module directory. `codegen` discovers modules, loads and parses their SDL, generates TypeScript, and writes the output (creating parent directories as needed). A file whose content is unchanged isn't rewritten, so watchers and builds see no change.
 
-SDL files are read exactly as `loadTypeDefs` in `@nxara/olio-tools` reads them (both go through `@nxara/olio-core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
+The other options:
+
+- **`watch`** (default `false`): after the first run, rerun whenever a file under `modules` changes. The promise never resolves, and an error in a rerun is printed while watching goes on.
+- **`clear`** (default `false`): delete an output file before writing its new content.
+- **`logs`** (default `true`): `false` prints nothing; errors still reject.
+
+SDL files are read exactly as `loadTypeDefs` in `@nxara/olio-tools` reads them (both go through `@nxara/olio-core/files`): `.graphql` / `.gql`, or `.ts` / `.js` files whose default export is SDL or a `DocumentNode`, so an app moving from untyped to typed keeps its SDL where it is (`typeDefs: "**/typedefs/**/*.{gql,ts}"`). A file holding only comments, or a `.ts` / `.js` file without a default export, is skipped. Codegen imports `.ts` files, so run it with something that executes TypeScript (bun, tsx, or Node 23.6+).
 
 ### Directives
 
@@ -69,9 +81,9 @@ Set `schemaOutput` to write the final schema to a file, printed from the built s
 
 `codegenClient({ schema, documents, output })` generates the types for [`@nxara/olio-client`](../client), the way graphql-codegen does: `schema` is an SDL file (typically the `schemaOutput` file above) or the running server's URL, introspected (`headers` for one that needs a token); `documents` are the client's `.graphql` operations. The operations are checked against the schema first, with `file:line:column` errors. `watch: true` reruns when an operation (including a new file) or the schema file changes; a server URL isn't watched.
 
-Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` says the default explicitly. The directive is the client's: codegen records it in the document and removes it from the query the server receives, and imports only the transports the operations use. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
+Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` says the default explicitly. The directive is the client's: codegen records it in the document (`transport: "sse"`) and removes it from the query the server receives, and lists the transports the operations use in `operations.transports`, which makes `createClient` require exactly those clients. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
 
-Per operation it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Types are what a client sees on the wire: enums by name, scalars through `ClientScalars`.
+Per operation it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Every operation needs a name, since its types are named after it. Types are what a client sees on the wire: enums by name, scalars through `ClientScalars`. `logs: false` silences it, as for `codegen`.
 
 ```ts
 import { codegenClient } from "@nxara/olio-codegen";
@@ -101,11 +113,11 @@ src/modules/
         └── typedefs/orders.gql
 ```
 
-This yields modules `auth`, `user`, and `sales`. `typeDefs` resolves inside each module (`src/modules/auth/**/typedefs/**/*.gql`, and so on), so each module's files belong exclusively to that module.
+This yields modules `auth`, `user`, and `sales`. `typeDefs` resolves inside each module (`src/modules/auth/**/typedefs/**/*.gql`, and so on), so each module's files belong exclusively to that module. A module directory where `typeDefs` matches nothing is an error.
 
-A direct subfolder of a module in which `typeDefs` finds files of its own is a **feature** of that module: here `sales/orders`, with its own entry in `Application` (`"sales/orders"`). Features don't nest.
+A direct subfolder of a module in which `typeDefs` finds files of its own is a **feature** of that module: here `sales/orders`, with its own entry in `Application` (`"sales/orders"`). Features don't nest. A feature folder can't share its name with a type its module declares fields on, or with a function property (`name`, `length`, `call`, …), since both appear on the same builders (`resolvers.sales.orders` next to `resolvers.sales.Customer`).
 
-So the glob decides what is a feature, because codegen runs it inside each subfolder. `**/typedefs/**/*.gql` finds nothing inside `users/typedefs/` itself (there's no `typedefs/` in it), so that folder stays the module's own SDL. `**/*.gql` does find its files, so it makes `typedefs` a feature of every module (`"users/typedefs"`), and `users` ends up with no fields. Keep SDL in `typedefs/` folders and use `**/typedefs/**/*.gql`. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
+So the glob decides what is a feature, because codegen runs it inside each subfolder. `**/typedefs/**/*.gql` finds nothing inside `user/typedefs/` itself (there's no `typedefs/` in it), so that folder stays the module's own SDL. `**/*.gql` does find its files, so it makes `typedefs` a feature of every module (`"user/typedefs"`), and `user` ends up with no fields. Keep SDL in `typedefs/` folders and use `**/typedefs/**/*.gql`. The ID is used as-is as the module's key in `Application` (quoted when it is not a valid identifier).
 
 ## Application
 
@@ -117,8 +129,9 @@ export type Application = {
     Query: {
       type: Query;
       fields: "user" | "users";
+      root: "query";
       args: {
-        user: { id: string };
+        user: { id: Scalars["ID"]["input"] };
       };
     };
     User: { type: User; fields: "__isTypeOf" | "id" | "name" };
@@ -154,6 +167,8 @@ A schema type can't be named `Application`, `Maybe`, `ResolveEnum`, `ResolveScal
 Every scalar goes through one exported table, `Scalars`, so fields read `Scalars["DateTime"]["output"]`. Built-in scalars default to their usual TypeScript types (`ID`/`String` → `string`, `Int`/`Float` → `number`, `Boolean` → `boolean`), and custom scalars default to `unknown`. Register or remap any of them by augmenting `CustomScalars`:
 
 ```ts
+import type { ObjectId } from "mongodb";
+
 declare module "@nxara/olio-codegen" {
   interface CustomScalars {
     DateTime: Date;
@@ -179,7 +194,7 @@ declare module "@nxara/olio-codegen" {
 }
 ```
 
-Every generated position then uses it: object fields, arguments, and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime through the owning module's `enums` option. Once `CustomEnums` registers an enum, olio's types require it there, with a value for every value the module declares:
+Every generated position then uses it: object fields, arguments, and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime through the owning module's `enums` option. Once `CustomEnums` registers an enum, olio's types require it there, with a value for every value the module declares (a module that adds values with `extend enum` supplies those):
 
 ```ts
 export const sales = module.sales({
@@ -217,7 +232,7 @@ export type User = {
 
 The full output contains:
 
-- the `Scalars` table
+- the `Scalars` table, one entry per scalar the schema uses
 - enums as `const` objects plus union types
 - object types (root types included), interfaces, inputs, and unions. Nullable inputs without a default are optional keys.
 - the `Application` type
@@ -226,6 +241,7 @@ The header marks the file as generated:
 
 ```ts
 // Generated by @nxara/olio-codegen - do not edit.
+// oxlint-disable no-redeclare
 ```
 
 ## Relationship to @nxara/olio-schema
