@@ -13,7 +13,7 @@ bun run --cwd apps/website preview
 | Path | What |
 | --- | --- |
 | `src/pages/index.astro` | The landing page |
-| `src/components/Hero3D.astro` | The 3D hero; the scene is `src/components/hero/olio-hero.js` |
+| `src/components/hero-3d.astro` | The 3D hero; the scene is `src/components/hero/olio-hero.js` |
 | `src/content/docs/**/*.md(x)` | Docs pages. Each file is a page; its folder is the URL |
 | `src/content/docs/reference/` | Generated from `packages/*/README.md`; don't edit, it's gitignored |
 | `readmes.ts` | Copies the package READMEs in on every dev and build, and rewrites their links |

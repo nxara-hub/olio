@@ -40,9 +40,7 @@ const rewriteLink = (dir: string, target: string): string => {
     return target;
   }
   const [file = "", anchor] = target.split("#");
-  const fromRoot = path.posix.normalize(
-    path.posix.join("packages", dir, file)
-  );
+  const fromRoot = path.posix.normalize(path.posix.join("packages", dir, file));
   const pkg = /^packages\/([^/]+)\/?(README\.md)?$/.exec(fromRoot)?.[1];
   if (pkg && (packages as readonly string[]).includes(pkg)) {
     return `/reference/${pkg}/${anchor ? `#${anchor}` : ""}`;

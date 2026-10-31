@@ -2,9 +2,9 @@
 import { Code } from "astro:components";
 
 import "../styles/landing.css";
-import Hero3D from "../components/Hero3D.astro";
-import Mark from "../components/Mark.astro";
-import MarkSprite from "../components/MarkSprite.astro";
+import Hero3D from "../components/hero-3d.astro";
+import Mark from "../components/mark.astro";
+import MarkSprite from "../components/mark-sprite.astro";
 import { repoUrl } from "../../readmes.ts";
 
 const docs = "/getting-started/introduction/";
@@ -150,7 +150,9 @@ only that module can resolve it`;
         let stored = null;
         try {
           stored = localStorage.getItem("starlight-theme");
-        } catch {}
+        } catch {
+          // Storage can be blocked (private mode): fall back to the system preference.
+        }
         const theme =
           stored === "light" || stored === "dark"
             ? stored
