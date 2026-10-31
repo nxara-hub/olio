@@ -13,9 +13,9 @@ Codegen turns the SDL into types, so every resolver, argument and middleware tar
 
 One schema file works on day one. A few months later it's the file everyone edits and nobody owns. olio gives each part of the API a home from the start:
 
-- **A module owns what it declares.** It resolves the fields in its own definitions and `extend`s, and only those. Resolving another module's field is an error: at compile time with codegen, and when the schema is built without it.
+- **A module owns what it declares.** It resolves the fields in its own definitions and `extend`s, and only those. Resolving another module's field is an error: at compile time with codegen, and at runtime when `olio()` builds the schema, with or without codegen.
 - **Root types come for free.** Modules `extend type Query`; nobody writes a placeholder `type Query { _empty: String }`. That also means a module can be tested on its own.
-- **Middleware is layered.** The app, a module and a feature each add middleware, and the chain for a field runs from the outside in. A field can opt out of a middleware with `@bypass` in its SDL.
+- **Middleware is layered.** The app, a module and a feature each add middleware, and the chain for a field runs from the outside in. A field can ask middleware to skip it with `@bypass(keys: ...)` in its SDL; each middleware checks the keys and decides.
 - **Large modules split into features**: subfolders that each own part of the module's schema, with their own typed builders.
 - **Errors point at files.** SDL and schema errors are reported as `file:line:column: message`.
 
@@ -28,7 +28,7 @@ Start with `@nxara/olio`. Everything else is optional.
 | [`@nxara/olio`](/reference/olio/) | The runtime: modules, typed resolvers and layered middleware, composed into a schema |
 | [`@nxara/olio-codegen`](/reference/codegen/) | SDL to TypeScript: schema types, per-module contracts and the `Application` type |
 | [`@nxara/olio-schema`](/reference/schema/) | Composes module SDL into one validated schema; the `@implements` and `@copy` directives |
-| [`@nxara/olio-tools`](/reference/tools/) | Loads modules, SDL and resolver files from globs |
+| [`@nxara/olio-tools`](/reference/tools/) | Loads modules, features, SDL, resolvers and enums from globs |
 | [`@nxara/olio-http`](/reference/http/) | Serves an app over HTTP, with Fetch and Node adapters, context, error masking and cleanup |
 | [`@nxara/olio-client`](/reference/client/) | A typed client: operations in `.graphql` files, one call per operation |
 | [`@nxara/olio-di`](/reference/di/) | Typed dependency injection, with singletons and per-operation instances |
