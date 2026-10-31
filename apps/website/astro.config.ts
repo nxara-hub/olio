@@ -2,13 +2,12 @@ import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 
-import { readmes, repoUrl } from "./readmes.ts";
+import { repoUrl } from "./site.ts";
 
 export default defineConfig({
   site: "https://olio.nxara.dev",
   vite: { plugins: [tailwindcss()] },
   integrations: [
-    readmes(),
     starlight({
       title: "olio",
       description:
