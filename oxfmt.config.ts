@@ -23,6 +23,8 @@ export default defineConfig({
     "**/*.graphql",
     // oxfmt moves code fences out of components nested in list items (Starlight
     // <Tabs> inside <Steps>), which breaks the MDX.
-    "**/*.mdx"
+    "**/*.mdx",
+    // Written by `mise lock`.
+    ".mise/**"
   ]
 });

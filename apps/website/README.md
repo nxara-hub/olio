@@ -8,6 +8,10 @@ bun run --cwd apps/website build     # static site in dist/
 bun run --cwd apps/website preview
 ```
 
+## Deploying
+
+`.github/workflows/website.yml` builds the site and deploys it to Cloudflare Pages (project `olio`, at https://olio.nxara.dev) with wrangler, pinned in `mise.toml`. A push to `main` deploys to production; a pull request from this repo gets a preview URL, printed in the job's log. It needs the repo secrets `CLOUDFLARE_API_TOKEN` (an API token with Cloudflare Pages: Edit) and `CLOUDFLARE_ACCOUNT_ID`.
+
 ## Where things live
 
 | Path | What |
