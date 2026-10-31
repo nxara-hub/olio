@@ -37,8 +37,16 @@ import { nodeHandler } from "@nxara/olio-http/node";
 const graphql = nodeHandler(app, {
   context: (req) => createContext(req.headers.authorization)
 });
-expressApp.all("/graphql", (req, res) => graphql(req, res)); // or: createServer(graphql)
+createServer(graphql); // node:http
+expressApp.use("/graphql", graphql); // Express, Connect
+koaApp.use((ctx) => graphql(ctx.req, ctx.res, ctx.request.body)); // Koa (set ctx.respond = false)
+fastifyApp.all("/graphql", async (request, reply) => {
+  await graphql(request.raw, reply.raw, request.body); // Fastify
+  return reply.hijack();
+});
 ```
+
+The Node handler reads the request body itself, unless a body parser got there first. Then it uses the parsed body: from `req.body` (Express's `express.json()`, Connect's body parsers) or from the third argument, for frameworks that keep it elsewhere (Fastify's `request.body`, Koa's `ctx.request.body`). If the body was read and isn't passed, the request fails at once with a 500, and `onUnexpectedError` gets an error saying so.
 
 ## Subscriptions
 
