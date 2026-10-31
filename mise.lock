@@ -68,11 +68,14 @@ url = "https://unofficial-builds.nodejs.org/download/release/v24.22.1/node-v24.2
 checksum = "sha256:89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7"
 url = "https://nodejs.org/dist/v24.22.1/node-v24.22.1-darwin-arm64.tar.gz"
 
-[[tools."npm:wrangler"]]
+[[tools.wrangler]]
 version = "4.156.0"
-aube = { path = ".mise/locks/npm-wrangler/4.156.0", digest = "sha256:710fd8fc68b4eea0c322297f25c3af570b7907e9b060132b0df0e0262d578127" }
+aube = { path = ".mise/locks/wrangler/4.156.0~d1f80b8e", digest = "sha256:710fd8fc68b4eea0c322297f25c3af570b7907e9b060132b0df0e0262d578127" }
 backend = "npm:wrangler"
 specifiers = ["4.156.0"]
+
+[tools.wrangler.options]
+allow_builds = '["esbuild", "sharp", "workerd"]'
 
 [[tools.zizmor]]
 version = "1.31.1"
