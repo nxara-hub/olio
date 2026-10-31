@@ -86,13 +86,13 @@ export type Services = Readonly<Record<string, Provider<unknown>>> & {
 export type Scope<S extends Services> = {
   readonly [K in keyof S]: S[K] extends Provider<infer T> ? T : never;
 } & AsyncDisposable & {
-    /** Disposes this operation's instances, newest first. */
+    /** Disposes this operation's instances, all at once: none waits for another. */
     dispose(): Promise<void>;
   };
 
 export interface Container<S extends Services> extends AsyncDisposable {
   scope(ctx: Ctx): Scope<S>;
-  /** Disposes every singleton, newest first. */
+  /** Disposes every singleton, all at once: none waits for another. */
   dispose(): Promise<void>;
 }
 
