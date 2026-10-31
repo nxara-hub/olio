@@ -2,10 +2,10 @@
 
 Compose module SDL into one validated GraphQL schema.
 
-`@nxara/olio-schema` is the step between your `.gql` files and a schema. Codegen and olio both go through it, so they always agree on the schema and on which module owns which field. It provides:
+`@nxara/olio-schema` is the step between your `.gql` files and a schema. Codegen and olio both go through it, so they always agree on the schema and on which module owns which field. You rarely call it yourself, but you choose its directives. It provides:
 
 - **`compose(modules, directives)`**: merges every module's SDL, adds root types that modules only extend, applies directives, validates, and reports which module declares each field.
-- **`@implements` and `@copy`**: schema-design directives that save repeating fields across types. The output is ordinary GraphQL: the directives, and their definitions if you declared them, are removed.
+- **`@implements` and `@copy`**: schema-design directives that save you from repeating fields across types. The output is ordinary GraphQL: the directives, and their definitions if you declared them, are removed.
 
 ## Install
 
@@ -32,10 +32,10 @@ const { document, schema, ownership, roots, bypass } = compose(
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
 - **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports the ones the schema has: `{ query: "RootQuery" }`, never a default with no type behind it.
 - **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`. Enum values are owned the same way, so only the declaring module can give them internal values. A scalar is owned by the module that defines it (marked `__scalar`).
-- **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name, so parse with one (`parse(new Source(sdl, "users/user.gql"))`, as `loadTypeDefs` does). A duplicate lists every place it's declared (`also at …`).
-- **`bypass`** (`Map<"Type.field", Set<key>>`) holds what `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema`, before the other directives run, so `@copy` and `@implements` don't carry it to the fields they copy. It needs no declaration; `bypassDefinition` holds its SDL for editor tooling. olio hands the keys to middleware; see its README.
+- **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name. So parse with one (`parse(new Source(sdl, "users/user.gql"))`), as `loadTypeDefs` does. A duplicate lists every place it's declared (`also at …`).
+- **`bypass`** (`Map<"Type.field", Set<key>>`) holds the keys `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema` before the other directives run, so `@copy` and `@implements` don't carry it to the fields they copy. It needs no declaration; `bypassDefinition` holds its SDL for editor tooling. olio hands the keys to middleware (see [olio's README](../olio#skipping-middleware-bypass)).
 
-You rarely call this yourself: codegen and olio call it with the `directives` you pass them.
+Codegen and olio call `compose` for you, with the `directives` you pass them.
 
 ## Directives
 
@@ -59,7 +59,7 @@ await codegen({
 export const app = olio({ modules, directives });
 ```
 
-Codegen records the directives' names in `Application` (`"~directives": "implements" | "copy"`), so in a typed app `olio()` doesn't compile without the same ones. A directive's `name` is its literal type (`SchemaDirective<"copy">`) for that check.
+Codegen records the directives' names in `Application` (`"~directives": "implements" | "copy"`), so in a typed app `olio()` doesn't compile without the same ones. For that check, a directive's `name` has a literal type (`SchemaDirective<"copy">`).
 
 Or apply them yourself:
 
@@ -69,11 +69,11 @@ import { applyDirectives } from "@nxara/olio-schema";
 const document = applyDirectives(parse(sdl), directives);
 ```
 
-Only the directives you pass are enabled; `compose` reports any other as `Unknown directive "@copy"`. Their order doesn't matter: `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
+Only the directives you pass are enabled; `compose` reports any other as `Unknown directive "@copy"`. Their order doesn't matter. `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
 
 ## @implements
 
-On object types and their extensions. It adds the interfaces to the type's `implements` list and copies their fields.
+`@implements` goes on object types and their extensions. It adds the interfaces to the type's `implements` list and copies their fields:
 
 ```graphql
 interface Node {
@@ -98,11 +98,11 @@ type User implements Node & Timestamped {
 }
 ```
 
-Interface fields can't be overridden. Redeclaring one with a different type, arguments or directives, whether locally or from a second interface, is an error, so the mismatch shows up when the SDL loads. Repeating a field exactly, for example to add a description, is fine.
+Interface fields can't be overridden. Redeclaring one with a different type, arguments or directives, whether locally or from a second interface, is an error, so a mismatch shows up when the SDL loads. Repeating a field exactly, for example to add a description, is fine.
 
 ## @copy
 
-On object types, input types, and their extensions. It copies fields without adding an `implements` clause. Objects copy from objects and interfaces, inputs from inputs.
+`@copy` goes on object types, input types and their extensions. It copies fields without adding an `implements` clause. Objects copy from objects and interfaces, inputs from inputs:
 
 ```graphql
 input CommonPagination {
@@ -124,9 +124,9 @@ input UserPagination {
 }
 ```
 
-Overriding is allowed, with spread semantics (`{ ...A, ...B, ...local }`): a later source overrides an earlier one, local fields override every source, and each field keeps the position where it first appeared.
+Unlike `@implements`, `@copy` allows overriding, with spread semantics (`{ ...A, ...B, ...local }`): a later source overrides an earlier one, local fields override every source, and each field keeps the position where it first appeared.
 
-## Both directives
+## Rules for both directives
 
 - `from` takes a list of type names, or one name: `@copy(from: "Base")`.
 - On an extension, fields the type already declares elsewhere are skipped, so a module can `extend type User @implements(from: ["Timestamped"])`.
@@ -138,6 +138,11 @@ Overriding is allowed, with spread semantics (`{ ...A, ...B, ...local }`): a lat
 
 ## Writing a directive
 
-A directive is a `SchemaDirective`: a `name`, its SDL `definition` (for editor tooling; it isn't added to the schema), an optional `validate(document)` that runs before any transform, and `transform(document, context)`. A transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` will call it again on the next pass.
+A directive is a `SchemaDirective`:
 
-Passes run while a type definition or extension still carries one of the directives, so a directive goes on types, not on fields, and its transform removes the usages it handles. A pass that removes none fails as a cycle.
+- **`name`**.
+- **`definition`**: its SDL, for editor tooling. It isn't added to the schema.
+- **`validate(document)`** (optional): runs before any transform.
+- **`transform(document, context)`**: a transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` calls it again on the next pass.
+
+Passes run while a type definition or extension still carries one of the directives. So a directive goes on types, not on fields, and its transform removes the usages it handles. A pass that removes none fails as a cycle.
