@@ -7,7 +7,9 @@ sidebar:
 
 import { FileTree, Steps, TabItem, Tabs } from "@astrojs/starlight/components";
 
-This builds a one-module API with generated types and serves it over HTTP. You need Bun, or Node 24+ (which runs the codegen script directly; the server runs through `tsx`).
+This guide builds an API with one module and generated types, and serves it over HTTP. You need Bun, or Node 24+. On Node, the codegen script runs directly and the server runs through `tsx`.
+
+The finished project looks like this:
 
 <FileTree>
 
@@ -30,7 +32,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
 
 <Steps>
 
-1.  **Set up the project** in an empty folder. olio's packages are ESM only, and the files below use top-level `await`, so the project is ESM too:
+1.  **Set up the project** in an empty folder. olio's packages are ESM only and the files below use top-level `await`, so the project is ESM too:
 
     ```json title="package.json"
     {
@@ -74,7 +76,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
       </TabItem>
     </Tabs>
 
-3.  **Write the module's SDL.** A module extends the root types; olio adds `Query` itself.
+3.  **Write the module's SDL.** A module extends the root types, and olio adds `Query` itself.
 
     ```graphql title="src/modules/users/typedefs/users.gql"
     type User {
@@ -87,7 +89,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
     }
     ```
 
-4.  **Generate the types.** There's no CLI; a short script drives codegen. Every direct child folder of `modules` is a module.
+4.  **Generate the types.** There's no CLI: a short script drives codegen. Every direct child folder of `modules` is a module.
 
     ```ts title="codegen.ts"
     import { codegen } from "@nxara/olio-codegen";
@@ -100,9 +102,9 @@ This builds a one-module API with generated types and serves it over HTTP. You n
     });
     ```
 
-    Run it with `bun codegen.ts`, or `node codegen.ts` on Node 24. It writes `src/generated.ts`; rerun it whenever the SDL changes.
+    Run it with `bun codegen.ts`, or `node codegen.ts` on Node 24. It writes `src/generated.ts`. Rerun it whenever the SDL changes.
 
-5.  **Register the app.** This is where the builders get their types: the generated `Application`, and your context.
+5.  **Register the app.** The builders get their types from here: the generated `Application`, and your context type, `ctx`.
 
     ```ts title="src/olio.d.ts"
     import type { Application } from "./generated.js";
@@ -115,7 +117,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
     }
     ```
 
-6.  **Write the resolvers and the module.** `query.users` only accepts the fields the `users` module declares, with their argument and return types.
+6.  **Write the resolvers and the module.** `query.users` accepts only the fields the `users` module declares, with their argument and return types.
 
     ```ts title="src/modules/users/query.ts"
     import { query } from "@nxara/olio";
@@ -138,7 +140,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
     });
     ```
 
-7.  **Compose the app.** `olio()` merges the modules' SDL, checks ownership and every middleware key, and returns the app; `app.schema` is a plain `GraphQLSchema` that any GraphQL server can run.
+7.  **Compose the app.** `olio()` merges the modules' SDL, checks ownership and every middleware key, and returns the app. `app.schema` is a plain `GraphQLSchema` that any GraphQL server can run.
 
     ```ts title="src/app.ts"
     import { olio } from "@nxara/olio";
@@ -151,7 +153,7 @@ This builds a one-module API with generated types and serves it over HTTP. You n
     });
     ```
 
-8.  **Serve it.** Because the app registers a `ctx`, the handler requires a `context` hook.
+8.  **Serve it.** Because the app registers a `ctx`, the handler requires a `context` hook that builds it from each request.
 
     <Tabs syncKey="runtime">
       <TabItem label="Bun">
@@ -221,7 +223,8 @@ This builds a one-module API with generated types and serves it over HTTP. You n
 
 ## Where to next
 
-- Add a second module: another folder under `modules/`, then rerun codegen. It can `extend type User` to add fields of its own.
-- Add [middleware](/reference/olio/#middleware) for auth and logging, at the app, module or field level.
+- Add a second module: create another folder under `modules/`, then rerun codegen. The new module can `extend type User` to add fields of its own.
+- Add [middleware](/reference/olio/#middleware) for auth and logging, at the app, module or feature level, down to single fields.
+- See [how the pieces fit](/concepts/how-it-fits/) and [how to lay out a project](/concepts/project-structure/).
 - Split a growing module into [features](/reference/olio/#features-splitting-a-large-module).
 - Call the API from a typed client with [`@nxara/olio-client`](/reference/client/).

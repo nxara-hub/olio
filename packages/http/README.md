@@ -1,6 +1,8 @@
 # @nxara/olio-http
 
-Serve an olio app over HTTP, on any framework: GraphQL over HTTP ([graphql-http](https://github.com/graphql/graphql-http), the reference implementation), with `context`, error masking and per-operation cleanup. Nothing more: subscriptions are yours to serve, with the libraries you choose (below).
+Serve an olio app over HTTP, from any framework. It runs [graphql-http](https://github.com/graphql/graphql-http), the reference GraphQL-over-HTTP implementation, and adds `context`, error masking and per-operation cleanup. Subscriptions aren't included: you serve them with the libraries you choose (see [Subscriptions](#subscriptions)).
+
+## Install
 
 ```sh
 bun add @nxara/olio-http graphql@16
@@ -15,7 +17,7 @@ bun add @nxara/olio-http graphql@16
 | `@nxara/olio-http/fetch` | Anything that speaks the Fetch API: Hono, Elysia, Bun.serve, Deno, Cloudflare Workers, Next.js route handlers, SvelteKit, Remix |
 | `@nxara/olio-http/node` | Node's `IncomingMessage` / `ServerResponse`: `node:http`, Express, Connect, Koa (`ctx.req`, `ctx.res`), Fastify (`request.raw`, `reply.raw`) |
 
-Your `context` hook receives the framework's request: a Fetch `Request`, or a Node `IncomingMessage`. Once your app registers a `ctx` type (`interface Olio { ctx: … }`), the hook is required: without it graphql-http passes no context, and every resolver reading `ctx` would fail at runtime. So `fetchHandler(app)` is then a compile error (`Expected 2 arguments`), as is an options object without `context`.
+Your `context` hook builds `ctx` from the framework's request: a Fetch `Request`, or a Node `IncomingMessage`. Once your app registers a `ctx` type (`interface Olio { ctx: … }`), the hook is required. Without it, graphql-http passes no context, and every resolver reading `ctx` would fail at runtime. So `fetchHandler(app)` is then a compile error (`Expected 2 arguments`), as is an options object without `context`.
 
 ```ts
 import { fetchHandler } from "@nxara/olio-http/fetch";
@@ -40,12 +42,12 @@ expressApp.all("/graphql", (req, res) => graphql(req, res)); // or: createServer
 
 ## Subscriptions
 
-Not included, the way Apollo Server leaves them out: install and run the reference libraries yourself, at the versions you want, next to the HTTP handler.
+Like Apollo Server, `@nxara/olio-http` leaves subscriptions to you. Install and run the reference libraries yourself, at the versions you want, next to the HTTP handler:
 
 - [graphql-ws](https://github.com/enisdenjo/graphql-ws): subscriptions over WebSocket (`useServer` on a `ws` server, `makeHandler` on Bun).
 - [graphql-sse](https://github.com/enisdenjo/graphql-sse): subscriptions as server-sent events, on the same URL (route `Accept: text/event-stream` to its handler).
 
-Pass them `app.schema`; `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies its rules. Both, with a context (and DI scope) per subscription, disposed when it ends:
+Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies the same [validation rules](#validation-rules). Here are both, with a context (and DI scope) per subscription that is disposed when the subscription ends:
 
 ```ts
 import type { SubscriptionContext } from "@nxara/olio";
@@ -105,13 +107,15 @@ export const wsOptions: ServerOptions = {
 useServer(wsOptions, new WebSocketServer({ server, path: "/graphql" }));
 ```
 
-When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
+When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so nothing is cleaned up until one arrives. Return the event source's own iterator instead (see [Subscriptions](../olio#subscriptions) in olio's README).
 
-`server` is the `node:http` server the HTTP handler runs on, so both share a port. With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxara/olio-client/test` runs these same options and handler in memory, which is why `wsOptions` and `sseHandler` are exported.
+- **`server`** is the `node:http` server the HTTP handler runs on, so both share a port. With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`.
+- **Tests:** `testClient` from `@nxara/olio-client/test` runs these same options and handler in memory, which is why `wsOptions` and `sseHandler` are exported.
+- **A running version:** [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running.
 
 ## Refusing a bad token
 
-Don't throw from `context`. A throw there refuses the whole request before any field runs, so a client still holding an expired token can't even call `login` to get a new one. Build a context without a user instead, and refuse in middleware; public fields skip it with `@bypass` (olio's README, [Skipping middleware](../olio/README.md#skipping-middleware-bypass)):
+Don't throw from `context`. A throw there refuses the whole request before any field runs, so a client still holding an expired token can't even call `login` to get a new one. Instead, build a context without a user and refuse in middleware. Public fields skip that middleware with `@bypass` (see [Skipping middleware](../olio#skipping-middleware-bypass) in olio's README):
 
 ```ts
 fetchHandler(app, {
@@ -129,11 +133,11 @@ const requireAuth =
   };
 ```
 
-It's also the only way that gives clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which graphql-ws's client retries by default ([@nxara/olio-client](../client/README.md#subscriptions)).
+It's also the only way to give clients the same `UNAUTHENTICATED` result, at once, on every transport. Over subscriptions, a `context` that throws is a server error to both libraries: graphql-ws closes the socket with 4500 (the error's code is lost), and graphql-sse's handler throws (your framework answers 500). Refusing the socket in graphql-ws's `onConnect` closes it with 4403, which graphql-ws's client retries by default (see [`@nxara/olio-client`](../client#subscriptions)).
 
 ## Validation rules
 
-`validationRules` run with graphql's own, before any resolver: a cost or depth limit, say. They're added to graphql's rules, never in their place. Pass a list, or a function of the operation (`{ variables, operationName }`) for rules that need its variables, like [graphql-query-complexity](https://github.com/slicknode/graphql-query-complexity) pricing a page by its size:
+`validationRules` run with graphql's own rules, before any resolver: a cost or depth limit, for example. They're added to graphql's rules, never used in their place. Pass a list, or a function of the operation (`{ variables, operationName }`) for rules that need its variables, like [graphql-query-complexity](https://github.com/slicknode/graphql-query-complexity) pricing a page by its size:
 
 ```ts
 import {
@@ -157,7 +161,7 @@ fetchHandler(app, {
 });
 ```
 
-`fieldExtensionsEstimator` reads each field's `complexity` extension, which olio sets from the resolver's `{ resolve, extensions }`. An operation over the limit gets the rule's error, and nothing runs.
+`fieldExtensionsEstimator` reads each field's `complexity` extension, which olio sets from the resolver's `{ resolve, extensions }` (see [Field extensions](../olio#field-extensions) in olio's README). An operation over the limit gets the rule's error, and nothing runs.
 
 Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`; it returns the errors (none when the operation is valid):
 
@@ -178,14 +182,16 @@ onSubscribe: (_req, params) => {
 
 ## Errors
 
-Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost. That includes a `context` hook that throws: a `GraphQLError` from it (say, `BAD_REQUEST` for a malformed header) reaches the client as a normal GraphQL error with status 200; anything else is a 500 with "Unexpected error.". It refuses the whole request, so a bad token belongs in middleware instead ([Refusing a bad token](#refusing-a-bad-token)).
+Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost.
+
+That includes a `context` hook that throws. A `GraphQLError` from it (say, `BAD_REQUEST` for a malformed header) reaches the client as a normal GraphQL error with status 200; anything else is a 500 with "Unexpected error.". Either way it refuses the whole request, so a bad token belongs in middleware instead (see [Refusing a bad token](#refusing-a-bad-token)).
 
 ```ts
 throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // the client sees this
 throw new Error("connection refused"); // the client sees "Unexpected error."
 ```
 
-`onUnexpectedError(error, { ctx, request })` gets what the error happened in, so logs can tie it to a request: `ctx` is the operation's context (`undefined` when the `context` hook itself failed), `request` the adapter's (a Fetch `Request`, or Node's `IncomingMessage`).
+`onUnexpectedError(error, { ctx, request })` gets what the error happened in, so logs can tie it to a request. `ctx` is the operation's context (`undefined` when the `context` hook itself failed), and `request` is the adapter's (a Fetch `Request`, or Node's `IncomingMessage`).
 
 ```ts
 fetchHandler(app, {
@@ -195,7 +201,7 @@ fetchHandler(app, {
 });
 ```
 
-`errorMasker(options?)`, from `@nxara/olio-http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional), and gives the functions below. Each takes the operation's context as a last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there); type it with `errorMasker<SubscriptionContext>()`:
+`errorMasker(options?)`, from `@nxara/olio-http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional) and returns the functions below. Each takes the operation's context as its last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there). Type it with `errorMasker<SubscriptionContext>()`:
 
 |  |  |
 | --- | --- |
