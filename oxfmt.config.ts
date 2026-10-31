@@ -20,6 +20,9 @@ export default defineConfig({
     // GraphQL SDL is codegen input, not hand-formatted source; empty files are
     // valid and oxfmt's GraphQL parser rejects them.
     "**/*.gql",
-    "**/*.graphql"
+    "**/*.graphql",
+    // oxfmt moves code fences out of components nested in list items (Starlight
+    // <Tabs> inside <Steps>), which breaks the MDX.
+    "**/*.mdx"
   ]
 });
