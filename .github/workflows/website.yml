@@ -9,7 +9,6 @@ on:
       - bunfig.toml
       - mise.toml
       - mise.lock
-      - .mise/**
       - .github/workflows/website.yml
   pull_request:
     paths:
@@ -18,7 +17,6 @@ on:
       - bunfig.toml
       - mise.toml
       - mise.lock
-      - .mise/**
       - .github/workflows/website.yml
 
 permissions: {}
@@ -52,4 +50,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: wrangler pages deploy apps/website/dist --project-name=olio --branch="$BRANCH"
+        run: bun run --cwd apps/website deploy --branch="$BRANCH"
