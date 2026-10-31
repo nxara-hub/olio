@@ -51,7 +51,9 @@ Pass them `app.schema`; `errorMasker` hides their unexpected errors the way the 
 import type { SubscriptionContext } from "@nxara/olio";
 import { errorMasker, validateOperation } from "@nxara/olio-http";
 import { createHandler } from "graphql-sse/lib/use/fetch";
+import type { ServerOptions } from "graphql-ws";
 import { useServer } from "graphql-ws/use/ws";
+import { WebSocketServer } from "ws";
 
 const mask = errorMasker<SubscriptionContext>();
 
@@ -73,40 +75,39 @@ export const sseHandler = createHandler({
 // graphql-ws, on a `ws` server: `context` runs once per subscription, so the
 // scope is per operation; keep it by connection and id to end it.
 const live = new WeakMap<object, Map<string, SubscriptionContext>>();
-useServer(
-  {
-    schema: app.schema,
-    context: (ctx, id) => {
-      // A browser can't set WebSocket headers: @nxara/olio-client sends them here.
-      const headers = ctx.connectionParams?.headers as
-        | Record<string, string>
-        | undefined;
-      const value = createContext(headers?.authorization);
-      live.set(ctx, (live.get(ctx) ?? new Map()).set(id, value));
-      return value as never;
-    },
-    onSubscribe: (_ctx, _id, payload) => {
-      const errors = validateOperation(app.schema, payload, validationRules);
-      return errors.length ? errors : undefined;
-    },
-    onNext: (ctx, id, _payload, _args, result) =>
-      mask.result(result, live.get(ctx)?.get(id)),
-    onError: (ctx, id, _payload, errors) =>
-      errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
-    // Also runs when the socket closes mid-subscription (see the note below).
-    onComplete: async (ctx, id) => {
-      const value = live.get(ctx)?.get(id);
-      live.get(ctx)?.delete(id);
-      await value?.di.dispose();
-    }
+// Exported for testClient (see the note below).
+export const wsOptions: ServerOptions = {
+  schema: app.schema,
+  context: (ctx, id) => {
+    // A browser can't set WebSocket headers: @nxara/olio-client sends them here.
+    const headers = ctx.connectionParams?.headers as
+      | Record<string, string>
+      | undefined;
+    const value = createContext(headers?.authorization);
+    live.set(ctx, (live.get(ctx) ?? new Map()).set(id, value));
+    return value as never;
   },
-  new WebSocketServer({ server, path: "/graphql" })
-);
+  onSubscribe: (_ctx, _id, payload) => {
+    const errors = validateOperation(app.schema, payload, validationRules);
+    return errors.length ? errors : undefined;
+  },
+  onNext: (ctx, id, _payload, _args, result) =>
+    mask.result(result, live.get(ctx)?.get(id)),
+  onError: (ctx, id, _payload, errors) =>
+    errors.map((e) => mask.error(e, live.get(ctx)?.get(id)).toJSON()),
+  // Also runs when the socket closes mid-subscription (see the note below).
+  onComplete: async (ctx, id) => {
+    const value = live.get(ctx)?.get(id);
+    live.get(ctx)?.delete(id);
+    await value?.di.dispose();
+  }
+};
+useServer(wsOptions, new WebSocketServer({ server, path: "/graphql" }));
 ```
 
 When a socket closes, graphql-ws ends each live subscription and waits for it before `onComplete`. A resolver that's an `async *` waiting inside `for await` can only end at its next event, so until one arrives, nothing is cleaned up. Return the event source's own iterator instead (olio's README, [Subscriptions](../olio/README.md#subscriptions)).
 
-With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxara/olio-client/test` runs these same options and handler in memory, so export them (the example exports `wsOptions` and `sseHandler`).
+`server` is the `node:http` server the HTTP handler runs on, so both share a port. With `@hono/node-server`, `serve()` is typed to return HTTP/2 servers too: pass `server as Server` (from `node:http`) to `WebSocketServer`. [`apps/example-server/src/subscriptions.ts`](../../apps/example-server/src/subscriptions.ts) is all of this, running. For tests, `testClient` from `@nxara/olio-client/test` runs these same options and handler in memory, which is why `wsOptions` and `sseHandler` are exported.
 
 ## Refusing a bad token
 

@@ -66,7 +66,7 @@ if (data?.login.__typename === "Session") data.login.token;
 - `client.<query | mutation | subscription>.<operation>(variables?, options?)`. The operation's name with its first letter lowercased: `mutation Login` is `client.mutation.login`.
 - Variables are typed from the operation; they may be left out when none are required.
 - `data` is the operation's result, typed from its selection: fragments narrow on `__typename`, fields under `@include` / `@skip` are optional. `errors` are the GraphQL errors as the server sent them. A response that isn't GraphQL at all (a proxy's 502 page) rejects.
-- `options` takes per-call `headers` and a `signal`.
+- `options` takes per-call `headers` and a `signal` (a subscription takes only `signal`: its headers are its transport client's).
 - Headers, on the client or per call, are an object, a `Headers`, or entries; in an object, `undefined` values are left out (`token ? { authorization } : {}` works too). The call's win.
 
 ## Custom fetch
@@ -83,6 +83,7 @@ GraphQL errors can come with 4xx/5xx statuses, so ky needs `throwHttpErrors: fal
 
 ```ts
 import type { Fetch } from "@nxara/olio-client";
+import axios from "axios";
 
 const axiosFetch: Fetch = async (url, init) => {
   const res = await axios.request({
@@ -162,8 +163,9 @@ fetchHandler(app, {
     const request = req.raw as Request;
     if (!request.headers.get("content-type")?.startsWith("multipart/form-data"))
       return; // JSON, as usual
+    // graphql-http's response, [body, init], not a Fetch Response.
     if (!request.headers.get("x-upload"))
-      return new Response(null, { status: 400 });
+      return [null, { status: 400, statusText: "Bad Request" }];
     const form = await request.formData();
     const params = JSON.parse(String(form.get("operations")));
     const map: Record<string, string[]> = JSON.parse(String(form.get("map")));
@@ -226,7 +228,9 @@ They go through your own [graphql-ws](https://github.com/enisdenjo/graphql-ws) a
 import { createClient as createSseClient } from "graphql-sse";
 import { createClient as createWsClient } from "graphql-ws";
 
-const headers = () => ({ authorization: token && `Bearer ${token}` });
+// graphql-sse sends an `undefined` value as the text "undefined": leave the key out.
+const headers = (): Record<string, string> =>
+  token ? { authorization: `Bearer ${token}` } : {};
 const ws = createWsClient({
   url: "wss://erp.example/graphql",
   // Browsers can't set headers on a WebSocket: send them here.
@@ -255,11 +259,14 @@ The client imports neither library: an app bundles only the ones it creates clie
 `testClient` from `@nxara/olio-client/test` is the same client, answered in-process like Hono's `testClient`, through the app's own servers: its fetch handler for queries and mutations, and for subscriptions the graphql-ws options it passes to `useServer` (run over an in-memory socket) and its graphql-sse handler. So tests run production's context, `onConnect`, `onSubscribe`, error masking and cleanup. No server is started:
 
 ```ts
+import { expect } from "bun:test";
+
 import { testClient } from "@nxara/olio-client/test";
 
 // The same objects the server uses.
 import { graphqlHandler } from "../src/http.js";
 import { sseHandler, wsOptions } from "../src/subscriptions.js";
+import { operations } from "./generated.js";
 
 const client = testClient(
   operations,

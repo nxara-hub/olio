@@ -20,14 +20,24 @@ Providers are plain values, declared next to the code that uses them. A factory 
 
 ```ts
 import { operation, singleton } from "@nxara/olio-di";
+import DataLoader from "dataloader";
+import pg from "pg";
 
-export const Db = singleton(() => new Pool(env.DATABASE_URL), {
-  dispose: (pool) => pool.end()
-});
+export const Db = singleton(
+  () => new pg.Pool({ connectionString: env.DATABASE_URL }),
+  { dispose: (pool) => pool.end() }
+);
 
 export const ProductLoader = operation(
   ({ get }) =>
-    new DataLoader((skus: readonly string[]) => get(Db).products.bySkus(skus))
+    new DataLoader(async (skus: readonly string[]) => {
+      const { rows } = await get(Db).query(
+        "select * from products where sku = any($1)",
+        [skus]
+      );
+      // DataLoader wants one value per key, in the keys' order.
+      return skus.map((sku) => rows.find((row) => row.sku === sku));
+    })
 );
 
 export const Orders = operation(
@@ -99,5 +109,5 @@ Each container is independent, so tests don't share singletons.
 | `createContainer(services, { override? })` | The root: `scope(ctx)`, `dispose()`, `Symbol.asyncDispose` |
 | `scope.<name>` | An instance for this operation: its own for `operation` providers, the shared one for singletons |
 | `ScopeOf<typeof container>` | The scope's type, for `ctx.di` |
-| `scope.dispose()` | Disposes this operation's instances, newest first. Also `Symbol.asyncDispose` |
+| `scope.dispose()` | Runs `dispose` on the instances this operation created, all at once and in no set order (Awilix starts them together), and waits for them. Also `Symbol.asyncDispose` |
 | `override(provider, value)` | A typed replacement for tests |
