@@ -36,7 +36,19 @@ src/
 
 ## Modules
 
-Every **direct child folder** of the `modules` directory you give codegen is a module, named after the folder. Its SDL is whatever the `typeDefs` glob matches inside it, for example `**/typedefs/**/*.gql`.
+Every **direct child folder** of the `modules` directory you give codegen is a module, named after the folder: `modules/users` is `module.users`. Its SDL is whatever the `typeDefs` glob matches inside it, and a module folder where it matches nothing is an error.
+
+```ts
+// codegen.ts, run with `bun codegen.ts`
+import { codegen } from "@nxara/olio-codegen";
+
+await codegen({
+  root: import.meta.dirname,
+  modules: "src/modules",
+  typeDefs: "**/typedefs/**/*.gql",
+  output: "src/generated.ts"
+});
+```
 
 Resolver files export one object per type, named after the type, built with a typed helper: `export const Query = query.users({...})`. `loadResolvers` collects them by export name.
 
@@ -44,14 +56,14 @@ Resolver files export one object per type, named after the type, built with a ty
 
 A **direct subfolder** of a module becomes a feature when the `typeDefs` glob finds SDL files of its own there. With `**/typedefs/**/*.gql`, `sales/orders/typedefs/` makes `orders` a feature, while `sales/typedefs/` stays the module's own SDL. Features don't nest: deeper folders belong to their feature.
 
-A feature owns the fields its SDL declares, exactly like a module, and has its own builders: `query.sales.orders`, `mw.sales.orders`. Middleware nests app, then module, then feature. Feature folders can't share a name with a type the module declares.
+A feature owns the fields its SDL declares, exactly like a module, and has its own builders: `query.sales.orders`, `mw.sales.orders`. Middleware nests app, then module, then feature. Feature folders can't share a name with a type the module declares, or with a function property such as `name` or `length`, since both sit side by side in the builders; codegen says so if one does.
 
 ## Testing a module
 
-Because root types come for free, a module that only extends `Query` or `Mutation` composes on its own:
+Because root types come for free, a module that only extends root types composes on its own, as long as it adds at least one `Query` field (GraphQL requires one):
 
 ```ts
-const app = olio({ modules: [usersModule] });
+const app = olio({ modules: [usersModule] }); // plus `directives`, if codegen uses any
 ```
 
 A module that uses another module's types takes that module too: `olio({ modules: [catalog, reviews] })`.

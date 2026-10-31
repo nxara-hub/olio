@@ -5,13 +5,15 @@ Modular, type-safe GraphQL applications. Each module owns its SDL, resolvers and
 ## Install
 
 ```sh
-bun add @nxara/olio graphql@16
+bun add @nxara/olio @nxara/olio-tools graphql@16
 bun add -d @nxara/olio-codegen
 ```
 
-`graphql` 16 is a peer dependency.
+`graphql` 16 is a peer dependency. [`@nxara/olio-tools`](../tools) loads modules and files from globs; the samples below use it, but it's optional (see [Without codegen or tools](#without-codegen-or-tools)).
 
 ## Register your app
+
+Run [codegen](../codegen#usage) to write `generated.ts` from your modules' SDL, then register its `Application` once:
 
 ```ts
 // src/olio.d.ts
@@ -48,11 +50,15 @@ Resolver files export one object per type, built with a typed helper:
 
 ```ts
 // query.ts
+import { query } from "@nxara/olio";
+
 export const Query = query.users({
   user: (root, { id }, ctx, info) => findUser(id)
 });
 
 // resolvers/user.ts
+import { resolvers } from "@nxara/olio";
+
 export const User = resolvers.users.User({
   name: (user, { trim }) => user.name
 });
@@ -88,15 +94,18 @@ src/modules/sales/
 ├── customers/            # feature "customers"
 │   ├── index.ts
 │   ├── typedefs/customers.gql
-│   ├── query.ts  mutation.ts  middleware.ts
+│   └── query.ts  mutation.ts
 └── orders/               # feature "orders"
     ├── index.ts
     ├── typedefs/orders.gql
-    └── query.ts  mutation.ts  middleware.ts
+    └── query.ts  mutation.ts
 ```
 
 ```ts
 // sales/orders/index.ts
+import { feature, mw } from "@nxara/olio";
+import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+
 export const orders = feature.sales.orders({
   typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
   resolvers: await loadResolvers(
@@ -108,6 +117,9 @@ export const orders = feature.sales.orders({
 });
 
 // sales/index.ts
+import { module, mw } from "@nxara/olio";
+import { loadFeatures } from "@nxara/olio-tools";
+
 export const salesModule = module.sales({
   middleware: mw.sales({ Mutation: { "*": [journal()] } }), // every feature's fields
   features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
@@ -124,6 +136,9 @@ export const salesModule = module.sales({
 
 ```ts
 import { mw, olio } from "@nxara/olio";
+import { loadModules } from "@nxara/olio-tools";
+
+import { directives } from "./directives.js"; // the list codegen uses
 
 const middleware = mw({
   "*": { "*": [requestLogger()] },
@@ -134,8 +149,8 @@ export const app = olio({
   middleware,
   modules: await loadModules(
     new URL("modules/*/index.{js,ts}", import.meta.url)
-  ), // from @nxara/olio-tools
-  directives // the same list codegen uses; required once codegen had some
+  ),
+  directives // required once codegen had some
 });
 // app.schema → any GraphQL server (graphql-http, Yoga, Apollo, …)
 ```
@@ -144,13 +159,15 @@ You can also list modules yourself: `modules: [usersModule, authModule]`.
 
 `olio()` composes the modules' SDL through `@nxara/olio-schema` and checks the result before returning:
 
-- **Root types come for free.** Modules `extend type Query` (or `Mutation`); nobody needs a placeholder `type Query { _empty: String }`. That also means a module that only extends root types can be tested alone: `olio({ modules: [usersModule] })`. One that uses another module's types takes that module too: `olio({ modules: [catalog, reviews] })`.
+- **Root types come for free.** Modules `extend type Query` (or `Mutation`); nobody needs a placeholder `type Query { _empty: String }`. That also means a module that only extends root types can be tested alone: `olio({ modules: [usersModule] })`, as long as it adds a `Query` field (GraphQL requires one, so a module that only extends `Mutation` can't stand alone). One that uses another module's types takes that module too: `olio({ modules: [catalog, reviews] })`.
 - **A module resolves only what it declares.** It owns the fields in its own definitions and `extend`s, and the defining module owns `__isTypeOf` / `__resolveType`. Resolving another module's field throws: `Module "posts": "User.name" is declared by module "users"; only that module can resolve it`. With codegen, the same message is the compile error, on the field: `Type '(row) => …' is not assignable to type '"User.name is declared by module users; only that module can resolve it"'`.
 - **Errors point at files.** SDL and schema errors are reported as `file:line:column: message`.
 
 ## Middleware
 
 ```ts
+import type { MiddlewareFn } from "@nxara/olio";
+
 const requireAuth =
   (): MiddlewareFn =>
   ({ root, args, ctx, info }, next) => {
@@ -159,7 +176,7 @@ const requireAuth =
   };
 ```
 
-Written inline under a field key, in `mw.<id>()` or a module's `middleware`, a middleware gets that field's types: `root` is its parent (the mapper, if any) and `args` its arguments, so `mw.users({ User: { email: [({ root }, next) => …] } })` sees the `User` row. Root types have `root: undefined`, and `"*"` keys stay loose since they span fields. A middleware written on its own, like `requireAuth`, is typed `MiddlewareFn`: `root: unknown` and `args: Record<string, unknown>`, so it fits any key.
+Written inline under a field key, in `mw.<id>()` or a module's `middleware`, a middleware gets that field's types: `root` is its parent (the mapper, if any) and `args` its arguments, so `mw.users({ User: { email: [({ root }, next) => …] } })` sees the `User` row. Root types have `root: undefined`, and `"*"` keys stay loose since they span fields. A middleware written on its own, like `requireAuth`, is typed `MiddlewareFn`: `root: unknown` and `args: Record<string, unknown>`, so it fits any query or mutation key. With a separate `sub_ctx`, `"*"` and `Subscription` keys need `MiddlewareFn<Context | SubscriptionContext>` or `MiddlewareFn<SubscriptionContext>` (see [Subscriptions](#subscriptions)).
 
 Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver the chain runs top-down:
 
@@ -212,9 +229,13 @@ Every key is checked when `olio()` builds the schema, even without codegen. A ke
 A subscription field is a function that returns an async iterable of the field's values. Return the event source's own iterator, filtered at the source:
 
 ```ts
+import { subscription } from "@nxara/olio";
+
+import { pubsub } from "../../pubsub.js";
+
 export const Subscription = subscription.users({
-  userUpdated: (_root, { id }, ctx) =>
-    ctx.pubsub.subscribe("user:updated", (row) => row._id === id)
+  userUpdated: (_root, { id }) =>
+    pubsub.subscribe("user:updated", (user) => user.id === id)
 });
 ```
 
@@ -223,11 +244,11 @@ An async generator works too, for mapping events (`async *userUpdated() { for aw
 - **Each yielded value is the field's value**, checked against the field type (with [mappers](#mappers) applied). Nested field resolvers run for every event.
 - **Middleware runs once**, when a client subscribes, which is the place for auth and logging. Per-event logic belongs in the iterator.
 - **Context:** subscription resolvers and `Subscription` middleware get `sub_ctx`, and `"*"` middleware can run on either kind: type it `MiddlewareFn<Context | SubscriptionContext>`. Without a separate `sub_ctx`, both are just `ctx`.
-- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. To serve them, run graphql-ws or graphql-sse with `app.schema`: `@nxara/olio-http`'s README has the setup.
+- **The event source is yours** (in-memory, Redis, …). [`apps/example-server/src/pubsub.ts`](../../apps/example-server/src/pubsub.ts) has a small typed in-memory one. To serve them, run graphql-ws or graphql-sse with `app.schema`: [`@nxara/olio-http`'s README](../http#subscriptions) has the setup.
 
 ## Field extensions
 
-A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName].extensions`. Read back there, registered keys keep their types (`complexity` is a number, or a function of `{ args, childComplexity }`); graphql's index signature still lets any other key through as `unknown`.
+A field's value can also be an object, `{ resolve?, extensions? }`, to attach `extensions` to the schema field. Tools read them from there: graphql-query-complexity's `complexity`, Grafast's plans, or your own middleware through `info.parentType.getFields()[info.fieldName]?.extensions`. Read back there, registered keys keep their types (`complexity` is a number, or a function of `{ args, childComplexity }`); graphql's index signature still lets any other key through as `unknown`.
 
 ```ts
 export const Query = query.inventory({
@@ -263,6 +284,10 @@ Keys a library adds to graphql's own `GraphQLFieldExtensions` count too. Middlew
 By default a resolver returns the generated type: a `User` resolver must return a full `User`. To return what you store instead and let field resolvers fill in the rest, register a mapper:
 
 ```ts
+// src/olio.d.ts
+import type { UserRow } from "./db.js";
+import type { Application } from "./generated.js";
+
 declare module "@nxara/olio" {
   interface Olio {
     application: Application;
@@ -279,7 +304,7 @@ Mappers work for object types and interfaces, keyed by GraphQL type name:
 - **An interface without a mapper**: fields returning it return any implementer, each as its own mapper (`UserRow | Post`), because that is what graphql resolves. `__resolveType` receives the same union.
 - **Unions** map member by member.
 
-Enums with internal values are configured in codegen (`CustomEnums`) rather than here, because they also change argument and input types. See the codegen README. The values go in the owning module's (or feature's) `enums` option, never in `resolvers`; once `CustomEnums` registers an enum, `enums` is required, so they can't be forgotten. `resolvers.<id>.<Enum>({ ... })` types a map kept in its own file, and `loadEnums` from `@nxara/olio-tools` loads such files (unchecked, like `loadResolvers`). In an untyped app nothing knows values were expected, so a resolver returning an internal value no module mapped fails with `Enum "Role" cannot represent value: 1. No module gave "Role" internal values: ...`.
+Enums with internal values are configured in codegen (`CustomEnums`) rather than here, because they also change argument and input types. See [codegen's README](../codegen#enums-with-internal-values). The values go in the owning module's (or feature's) `enums` option, never in `resolvers`; once `CustomEnums` registers an enum, `enums` is required, so they can't be forgotten. `resolvers.<id>.<Enum>({ ... })` types a map kept in its own file, and `loadEnums` from `@nxara/olio-tools` loads such files (unchecked, like `loadResolvers`). In an untyped app nothing knows values were expected, so a resolver returning an internal value no module mapped fails with `Enum "Role" cannot represent value: 1. No module gave "Role" internal values: ...`.
 
 ## Field types
 
@@ -333,4 +358,4 @@ export const app = olio({
 - Use `createModule(id, config)` and `createFeature(module, id, config)`. Without an `Application` there are no known ids, so `module.<id>`, `query.<id>` and friends have nothing to check against.
 - Key resolver maps by type: `{ Query: { user } }`. The builders (`query.users({ user })`) return the _inner_ map, so wrap them the same way: `{ Query: query.users({ user }) }`. `loadResolvers` does this for you, using export names.
 - You can still register `ctx` (and `sub_ctx`) on their own, so middleware and resolvers get a typed context.
-- To get the fully typed builders without running codegen, write the `Application` type by hand. It's a plain type: per module (and `"module/feature"`), each type's `{ type; fields; args? }`, root types with `root: "query" | "mutation" | "subscription"`, abstract types with `resolveType`, enums with `fields: never; enum: "A" | "B"`. Codegen's README shows the format.
+- To get the fully typed builders without running codegen, write the `Application` type by hand. It's a plain type: per module (and `"module/feature"`), each type's `{ type; fields; args? }`, root types with `root: "query" | "mutation" | "subscription"`, abstract types with `resolveType`, enums with `fields: never; enum: "A" | "B"`, scalars with `fields: never; scalar: true`. [Codegen's README](../codegen#application) shows the format.

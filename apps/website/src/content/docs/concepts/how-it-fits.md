@@ -5,7 +5,7 @@ sidebar:
   order: 0
 ---
 
-An olio app goes from SDL files to a running schema in three steps. Two of them happen at build time.
+An olio app goes from SDL files to a running schema in three steps. Codegen runs the first two at build time; at runtime olio composes again and builds the schema.
 
 ```
 modules/*/typedefs/*.gql ─→ @nxara/olio-schema ─→ @nxara/olio-codegen ─→ generated.ts (Application)
@@ -25,18 +25,23 @@ Codegen and the runtime both compose through this package, so they can never dis
 
 [`@nxara/olio-codegen`](/reference/codegen/) reads the same SDL and writes one `generated.ts`: the schema's types, and an `Application` type keyed by module (and `"module/feature"`), listing each module's types, fields and arguments.
 
-You register it once:
+You register it once, in any `.d.ts` or `.ts` file of the app:
 
 ```ts
+// src/olio.d.ts
+import type { Application } from "./generated.js";
+
 declare module "@nxara/olio" {
   interface Olio {
     application: Application;
-    ctx: Context;
+    ctx: { userId?: string }; // what your server passes as context
   }
 }
 ```
 
-From then on, every builder is typed from it. `query.users({...})` accepts exactly the fields `users` declares on `Query`, with their arguments and return types; `mw.users({...})` accepts exactly the fields it may wrap. Resolving another module's field is a compile error at that field.
+The `import` matters: it makes the file a module, so `declare module` adds to olio's types instead of replacing them.
+
+From then on, every builder is typed from it. `query.users({...})` accepts exactly the fields `users` declares on `Query`, with their arguments and return types; `mw.users({...})` accepts exactly the fields it may wrap (its own and its features'). Resolving another module's field is a compile error at that field.
 
 ## 3. Build the schema
 
