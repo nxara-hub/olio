@@ -70,6 +70,7 @@ bun run --cwd apps/example-server codegen   # regenerate src/generated.ts
 bun run --cwd apps/example-server start     # run the example
 bun run --cwd apps/example-server serve     # serve it, then:
 bun run --cwd apps/example-client start     # the client walkthrough
+bun run --cwd apps/website dev              # the site and docs on http://localhost:4321
 ```
 
 ## Releasing

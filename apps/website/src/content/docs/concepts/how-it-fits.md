@@ -1,0 +1,51 @@
+---
+title: How the pieces fit
+description: From module SDL to a typed, served schema, and which package does each step.
+sidebar:
+  order: 0
+---
+
+An olio app goes from SDL files to a running schema in three steps. Two of them happen at build time.
+
+```
+modules/*/typedefs/*.gql ─→ @nxara/olio-schema ─→ @nxara/olio-codegen ─→ generated.ts (Application)
+                                    │                                      │ declare module "@nxara/olio"
+                                    └──────────→ @nxara/olio ←─────────────┘
+                                                     │
+                                               GraphQLSchema
+```
+
+## 1. Compose
+
+[`@nxara/olio-schema`](/reference/schema/) merges every module's SDL into one validated schema and records **ownership**: which module declared which field. A module owns the fields in its own definitions and `extend`s, on any type, and the module that defines a type also owns its `__isTypeOf` / `__resolveType`.
+
+Codegen and the runtime both compose through this package, so they can never disagree about who owns what.
+
+## 2. Generate
+
+[`@nxara/olio-codegen`](/reference/codegen/) reads the same SDL and writes one `generated.ts`: the schema's types, and an `Application` type keyed by module (and `"module/feature"`), listing each module's types, fields and arguments.
+
+You register it once:
+
+```ts
+declare module "@nxara/olio" {
+  interface Olio {
+    application: Application;
+    ctx: Context;
+  }
+}
+```
+
+From then on, every builder is typed from it. `query.users({...})` accepts exactly the fields `users` declares on `Query`, with their arguments and return types; `mw.users({...})` accepts exactly the fields it may wrap. Resolving another module's field is a compile error at that field.
+
+## 3. Build the schema
+
+At runtime, [`@nxara/olio`](/reference/olio/) takes the modules and builds the executable `GraphQLSchema`. It composes the SDL again, attaches resolvers, wraps them in their middleware layers and checks every key, so the rules codegen typed also hold without codegen.
+
+`app.schema` is a plain `GraphQLSchema`. [`@nxara/olio-http`](/reference/http/) serves it over HTTP, but any server that takes a schema works: graphql-http, Yoga, Apollo.
+
+## With or without codegen
+
+Codegen is optional. Without it, build modules with `createModule` / `createFeature`, write SDL as strings and resolvers as plain maps keyed by type. Everything behaves the same at runtime (middleware layers, features, enum values, subscriptions); only the types are looser. See [Without codegen or tools](/reference/olio/#without-codegen-or-tools).
+
+[`@nxara/olio-tools`](/reference/tools/) is optional too: it loads modules, SDL and resolver files from globs, so `index.ts` files stay short. You can always list modules yourself: `olio({ modules: [usersModule, authModule] })`.

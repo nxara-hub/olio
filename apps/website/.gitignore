@@ -1,0 +1,3 @@
+.astro
+# Generated from packages/*/README.md on every dev and build (src/readmes.ts)
+src/content/docs/reference/
