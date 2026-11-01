@@ -292,6 +292,27 @@ describe("applyDirectives", () => {
     expect(removed.sort()).toEqual(["ADMIN", "a", "x"]);
   });
 
+  test("keeps going while a pass removes any usage, even on the same type", () => {
+    const stripOne: SchemaDirective = {
+      name: "strip",
+      definition: "directive @strip on FIELD_DEFINITION",
+      transform(document) {
+        let removed = false;
+        return visit(document, {
+          Directive(node) {
+            if (removed || node.name.value !== "strip") return;
+            removed = true;
+            return null;
+          }
+        });
+      }
+    };
+    const { printed } = run("type Query { a: Int @strip b: Int @strip }", [
+      stripOne
+    ]);
+    expect(printed).not.toContain("@strip");
+  });
+
   test("returns the document unchanged with no directives", () => {
     const document = parse("type Query { a: Int }");
     expect(applyDirectives(document, [])).toBe(document);

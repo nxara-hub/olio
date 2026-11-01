@@ -37,17 +37,17 @@ export function applyDirectives(
 
   let current = document;
   let pending = directiveUsages(current, names);
-  while (pending.size > 0) {
+  while (pending.length > 0) {
     for (const directive of directives) {
-      const types = directiveUsages(current, names);
+      const types = new Set(directiveUsages(current, names));
       current = directive.transform(current, {
         isPending: (type) => types.has(type)
       });
     }
     const left = directiveUsages(current, names);
-    if (left.size === pending.size) {
+    if (left.length >= pending.length) {
       throw new Error(
-        `Schema directives reference each other in a cycle: ${[...left].map((t) => `"${t}"`).join(", ")}`
+        `Schema directives reference each other in a cycle: ${[...new Set(left)].map((t) => `"${t}"`).join(", ")}`
       );
     }
     pending = left;

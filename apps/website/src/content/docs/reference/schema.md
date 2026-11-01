@@ -151,4 +151,4 @@ A directive is a `SchemaDirective`:
 - **`validate(document)`** (optional): runs before any transform.
 - **`transform(document, context)`**: a transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` calls it again on the next pass.
 
-Passes run while any type still carries one of the directives: on the type itself, a field, an argument or an enum value. A transform removes the usages it handles, and should remove all of them that it can in one call: a pass that leaves as many types carrying a directive as before fails as a cycle, even if it removed some usages.
+Passes run while any type still carries one of the directives: on the type itself, a field, an argument or an enum value. A transform removes the usages it handles. A pass that removes none fails as a cycle.

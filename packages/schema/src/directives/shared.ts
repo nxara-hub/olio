@@ -1,5 +1,4 @@
 import {
-  BREAK,
   getLocation,
   Kind,
   print,
@@ -64,28 +63,21 @@ interface TypeNode {
 const asType = (def: DefinitionNode): TypeNode | undefined =>
   KINDS[def.kind] ? (def as unknown as TypeNode) : undefined;
 
-function uses(node: ASTNode, names: ReadonlySet<string>): boolean {
-  let found = false;
-  visit(node, {
-    Directive(directive) {
-      if (!names.has(directive.name.value)) return;
-      found = true;
-      return BREAK;
-    }
-  });
-  return found;
-}
-
-// The types that still carry a schema directive anywhere: on the type, a
-// field, an argument or an enum value.
+// One entry per usage, naming the type that carries it: on the type, a field,
+// an argument or an enum value.
 export function directiveUsages(
   document: DocumentNode,
   names: ReadonlySet<string>
-): Set<string> {
-  const types = new Set<string>();
+): string[] {
+  const types: string[] = [];
   for (const def of document.definitions) {
     const type = asType(def);
-    if (type && uses(def, names)) types.add(type.name.value);
+    if (!type) continue;
+    visit(def, {
+      Directive(directive) {
+        if (names.has(directive.name.value)) types.push(type.name.value);
+      }
+    });
   }
   return types;
 }
