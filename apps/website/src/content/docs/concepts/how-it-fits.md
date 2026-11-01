@@ -44,7 +44,7 @@ The `import` matters: it makes the file a module, so `declare module` adds to ol
 From then on, every builder is typed from it:
 
 - `query.users({...})` accepts exactly the fields `users` declares on `Query`, with their arguments and return types.
-- `mw.users({...})` accepts exactly the fields it may wrap: its own and its features'.
+- `mw.users({...})` accepts exactly the fields it may wrap: its own and its features', plus `*`.
 - Resolving another module's field is a compile error at that field.
 
 ## 3. Build the schema
@@ -55,6 +55,6 @@ At runtime, [`@nxara/olio`](/reference/olio/) takes the modules and builds the e
 
 ## With or without codegen
 
-Codegen is optional. Without it, you build modules with `createModule` / `createFeature`, and write SDL as strings and resolvers as plain maps keyed by type. Everything behaves the same at runtime (middleware layers, features, enum values, subscriptions); only the types are looser. See [Without codegen or tools](/reference/olio/#without-codegen-or-tools).
+Codegen is optional. Without it, you build modules with `createModule` / `createFeature`, and write SDL as strings and resolvers as plain maps keyed by type. Everything behaves the same at runtime (middleware layers, features, enum values, subscriptions). Only the types are looser. See [Without codegen or tools](/reference/olio/#without-codegen-or-tools).
 
 [`@nxara/olio-tools`](/reference/tools/) is optional too. It loads modules, SDL and resolver files from globs, so `index.ts` files stay short. You can always list modules yourself: `olio({ modules: [usersModule, authModule] })`.

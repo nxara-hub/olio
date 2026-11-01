@@ -72,4 +72,4 @@ A module that uses another module's types takes that module too: `olio({ modules
 
 ## A complete example
 
-The repo's [example server](https://github.com/nxara-hub/olio/tree/main/apps/example-server) is a small ERP with auth, inventory and sales split into features. It shows every part of this layout.
+The repo's [example server](https://github.com/nxara-hub/olio/tree/main/apps/example-server) is a small ERP with auth, inventory and sales split into features. It follows this layout, with `src/index.ts` and `src/types.d.ts` as its `app.ts` and `olio.d.ts`.

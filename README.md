@@ -10,19 +10,19 @@ Modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. E
 | --- | --- |
 | [`@nxara/olio`](https://olio.nxara.dev/reference/olio/) | Runtime: modules, typed resolvers, layered middleware → schema |
 | [`@nxara/olio-codegen`](https://olio.nxara.dev/reference/codegen/) | SDL → TypeScript: schema types, per-module contracts, `Application` |
-| [`@nxara/olio-schema`](https://olio.nxara.dev/reference/schema/) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
+| [`@nxara/olio-schema`](https://olio.nxara.dev/reference/schema/) | Compose module SDL into one validated schema, with the `@implements` / `@copy` directives |
 | [`@nxara/olio-di`](https://olio.nxara.dev/reference/di/) | Typed dependency injection on Awilix: singletons and per-operation instances |
 | [`@nxara/olio-http`](https://olio.nxara.dev/reference/http/) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
-| [`@nxara/olio-client`](https://olio.nxara.dev/reference/client/) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
-| [`@nxara/olio-tools`](https://olio.nxara.dev/reference/tools/) | Load SDL and resolver files for a module |
+| [`@nxara/olio-client`](https://olio.nxara.dev/reference/client/) | A typed client: operations in `.graphql` files, codegen types them, one call per operation, and `testClient` for tests |
+| [`@nxara/olio-tools`](https://olio.nxara.dev/reference/tools/) | Load modules, features, SDL, resolvers and enums from globs |
 
 ## Examples
 
-[`apps/example-server`](./apps/example-server) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows every feature, with a map of where each one lives. [`apps/example-client`](./apps/example-client) is a separate app that uses it over HTTP with `@nxara/olio-client`.
+[`apps/example-server`](./apps/example-server) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows the main features, with a map of where each one lives. [`apps/example-client`](./apps/example-client) is a separate app that uses it over HTTP with `@nxara/olio-client`.
 
 ## Development
 
-[Bun](https://bun.com) workspaces with [Turborepo](https://turborepo.dev). Tool versions (bun, node, zizmor) are pinned in `mise.toml` and locked in `mise.lock`; CI installs them the same way (`mise install`).
+[Bun](https://bun.com) workspaces with [Turborepo](https://turborepo.dev). Tool versions (bun, node, zizmor) are pinned in `mise.toml` and locked in `mise.lock`. CI installs them the same way (`mise install`).
 
 ```sh
 bun install
@@ -57,7 +57,7 @@ cp LICENSE packages/<dir>/ && (cd packages/<dir> && bun pm pack --filename /tmp/
 cd /tmp && npm login && npm publish pkg.tgz --access public --tag next
 ```
 
-Then, on the package's npm settings: Trusted Publisher → GitHub Actions, `nxara-hub` / `olio` / `release.yml`; and Publishing access → "Require two-factor authentication and disallow tokens".
+Then, in the package's npm settings, set Trusted Publisher → GitHub Actions, `nxara-hub` / `olio` / `release.yml`, and Publishing access → "Require two-factor authentication and disallow tokens".
 
 ## License
 

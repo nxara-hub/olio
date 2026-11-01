@@ -216,14 +216,14 @@ The finished project looks like this:
     ```
 
     ```json
-    { "data": { "user": { "name": "Ada" } } }
+    {"data":{"user":{"name":"Ada"}}}
     ```
 
 </Steps>
 
 ## Where to next
 
-- Add a second module: create another folder under `modules/`, then rerun codegen. The new module can `extend type User` to add fields of its own.
+- Add a second module: create another folder under `modules/` with its own `typedefs/` and `index.ts`, then rerun codegen. The new module can `extend type User` to add fields of its own.
 - Add [middleware](/reference/olio/#middleware) for auth and logging, at the app, module or feature level, down to single fields.
 - See [how the pieces fit](/concepts/how-it-fits/) and [how to lay out a project](/concepts/project-structure/).
 - Split a growing module into [features](/reference/olio/#features-splitting-a-large-module).
