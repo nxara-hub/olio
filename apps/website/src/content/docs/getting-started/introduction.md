@@ -9,7 +9,7 @@ olio is modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-mod
 
 You write the schema first, in SDL, and split the API into **modules**. Each module owns its SDL, its resolvers and its middleware. olio composes the modules into one `GraphQLSchema` that any GraphQL server can run.
 
-Codegen turns the SDL into TypeScript types, so every resolver, argument and middleware target is checked at compile time, down to which module may resolve which field.
+Codegen turns the SDL into TypeScript types, so resolvers, arguments and middleware targets are checked at compile time, down to which module may resolve which field. Resolvers are checked when written with the builders (`query.users(...)`) or inline in a module. A plain object in a file `loadResolvers` picks up isn't type-checked.
 
 ## Why modules
 

@@ -1,6 +1,6 @@
 # @nxara/olio
 
-The olio runtime: split a GraphQL API into modules, each owning its SDL, resolvers and middleware, and compose them into one executable `GraphQLSchema`, with every resolver and middleware key typed from your schema.
+The olio runtime: split a GraphQL API into modules, each owning its SDL, resolvers and middleware, and compose them into one executable `GraphQLSchema`, with resolvers and middleware keys typed from your schema.
 
 ```sh
 bun add @nxara/olio @nxara/olio-tools graphql@16
