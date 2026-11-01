@@ -41,7 +41,7 @@ const why = [
   },
   {
     title: "Test one module",
-    body: "Root types come for free, so a module composes on its own: olio({ modules: [users] }).",
+    body: "Root types come for free, so a module that uses only its own types composes on its own: olio({ modules: [usersModule] }).",
     href: "/concepts/project-structure/#testing-a-module",
     link: "Testing modules",
     icon: "M9 3h6M10 3v6L5 19a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7.5 15h9"
@@ -64,7 +64,7 @@ const steps = [
   {
     title: "Generate types",
     body: "One script, one generated.ts for the whole app.",
-    code: 'codegen({ modules: "src/modules" })'
+    code: "codegen({ modules, typeDefs, output })"
   },
   {
     title: "Compose",
@@ -129,8 +129,20 @@ export const usersModule = module.users({
   middleware: mw.users({ Query: { user: [cache()] } })
 });`;
 
-const errorText = `Module "posts": "User.name" is declared by module "users";
-only that module can resolve it`;
+// src/modules/posts/typedefs/posts.gql only adds User.posts.
+const failingCode = `// src/modules/posts/index.ts
+export const postsModule = module.posts({
+  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+  resolvers: {
+    User: {
+      posts: (user) => findPosts(user.id), // posts declares this one
+      name: () => "Ada" // users declares this field, not posts
+    }
+  }
+});`;
+
+const errorText = `Type '() => string' is not assignable to type
+'"User.name is declared by module users; only that module can resolve it"'.`;
 ---
 
 <!doctype html>
@@ -261,8 +273,8 @@ only that module can resolve it`;
           >
             olio builds GraphQL servers out of small, self-contained modules.
             Each module owns its SDL, resolvers and middleware. olio composes
-            them into one schema, and codegen checks every resolver at compile
-            time.
+            them into one schema, and codegen's types check every resolver at
+            compile time.
           </p>
           <ul class="flex flex-col gap-3">
             {
@@ -315,7 +327,7 @@ only that module can resolve it`;
               class="flex items-center gap-1.5 rounded-xl border border-gray-300 bg-paper py-1 pr-1 pl-4 dark:border-gray-700 dark:bg-gray-800"
             >
               <code class="font-mono text-sm whitespace-nowrap" data-install
-                >npm i @nxara/olio graphql</code
+                >npm i @nxara/olio graphql@16</code
               >
               <button
                 type="button"
@@ -471,11 +483,31 @@ only that module can resolve it`;
                 <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
                 <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
                 <span class="ml-2.5 font-mono text-[13px] text-gray-400"
-                  >modules/users/index.ts</span
+                  >src/modules/users/index.ts</span
                 >
               </div>
               <Code
                 code={moduleCode}
+                lang="ts"
+                theme="github-dark"
+                class="code-panel"
+              />
+            </div>
+            <div
+              class="overflow-hidden rounded-[22px] bg-ink shadow-[0_40px_80px_-40px_rgba(23,21,26,0.45)] ring-1 ring-transparent dark:bg-[#1A181E] dark:ring-gray-700"
+            >
+              <div
+                class="flex items-center gap-2 border-b border-[#2E2A34] px-5 py-3.5"
+              >
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="ml-2.5 font-mono text-[13px] text-gray-400"
+                  >src/modules/posts/index.ts</span
+                >
+              </div>
+              <Code
+                code={failingCode}
                 lang="ts"
                 theme="github-dark"
                 class="code-panel"
