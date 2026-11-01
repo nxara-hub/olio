@@ -135,7 +135,7 @@ Unlike `@implements`, `@copy` allows overriding, with spread semantics (`{ ...A,
 ## Rules for both directives
 
 - `from` takes a list of type names, or one name: `@copy(from: "Base")`.
-- On an extension, fields the type already declares elsewhere are skipped, so a module can `extend type User @implements(from: ["Timestamped"])`.
+- On an extension, copied fields the type already has are skipped, so a module can `extend type User @implements(from: ["Timestamped"])`. A field the extension writes itself is never skipped, so writing one the type already has is a duplicate-field error.
 - Errors about a usage on a type carry the file, line and column, and name the target type:
 
   ```

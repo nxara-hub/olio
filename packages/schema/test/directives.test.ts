@@ -101,6 +101,23 @@ describe("@implements", () => {
     expect(fieldsOf(schema, "User")).toEqual(["id", "at"]);
   });
 
+  test("rejects an extension's own field the type already has", () => {
+    expect(() =>
+      run(`
+        type A { a: Int }
+        type U { x: Int }
+        extend type U @copy(from: ["A"]) { x: String }
+      `)
+    ).toThrow('Field "U.x" can only be defined once');
+    expect(() =>
+      run(`
+        interface I { a: Int }
+        type U { x: Int }
+        extend type U @implements(from: ["I"]) { x: String }
+      `)
+    ).toThrow('Field "U.x" can only be defined once');
+  });
+
   test("only references interfaces, only on object types", () => {
     expect(() =>
       run(`type A { a: Int } type T @implements(from: ["A"]) { t: Int }`)

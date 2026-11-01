@@ -148,13 +148,14 @@ function mergeFields(merge: Merge): Field[] {
   const merged = new Map<string, readonly [string, Field]>();
   const entries = [
     ...merge.sources.flatMap(([from, fields]) =>
-      fields.map((f) => [from, f] as const)
+      fields
+        .filter((f) => !merge.declaredElsewhere.has(f.name.value))
+        .map((f) => [from, f] as const)
     ),
     ...merge.local.map((f) => [merge.target, f] as const)
   ];
   for (const [from, field] of entries) {
     const name = field.name.value;
-    if (merge.declaredElsewhere.has(name)) continue;
     const previous = merged.get(name);
     if (previous && !merge.overrides && shape(previous[1]) !== shape(field)) {
       fail(
