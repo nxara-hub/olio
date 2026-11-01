@@ -270,8 +270,20 @@ export function fieldCopyDirective<Name extends string>(
       const edges: Edges = new Map();
       for (const def of document.definitions) {
         const type = asType(def);
-        const directive = type && usage(type);
-        if (!type || !directive) continue;
+        if (!type) continue;
+        visit(def, {
+          Directive(node) {
+            if (node.name.value !== name || type.directives?.includes(node)) {
+              return;
+            }
+            fail(
+              node,
+              `@${name} can only be used on ${targets.join(" and ")}, but this one is inside "${type.name.value}"`
+            );
+          }
+        });
+        const directive = usage(type);
+        if (!directive) continue;
         const sources = resolve(type, directive, analysis);
         const target = type.name.value;
         edges.set(target, [

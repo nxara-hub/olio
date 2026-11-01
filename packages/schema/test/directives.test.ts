@@ -228,6 +228,25 @@ describe("applyDirectives", () => {
     );
   });
 
+  test("rejects a usage inside a type, with its location", () => {
+    expect(() =>
+      run(`type B { b: Int } type A { x: Int @copy(from: ["B"]) }`)
+    ).toThrow(
+      'schema.gql:1:35: @copy can only be used on object types and input types, but this one is inside "A"'
+    );
+    expect(() =>
+      run(`
+        interface I { i: Int }
+        type A { x(y: Int @implements(from: ["I"])): Int }
+      `)
+    ).toThrow(
+      '@implements can only be used on object types, but this one is inside "A"'
+    );
+    expect(() =>
+      run(`type B { b: Int } enum E { X @copy(from: ["B"]) }`)
+    ).toThrow('but this one is inside "E"');
+  });
+
   test("enables only the directives passed", () => {
     const { printed } = run(
       `
