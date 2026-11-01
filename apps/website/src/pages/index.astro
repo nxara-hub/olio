@@ -777,12 +777,10 @@ const errorText = `Type '() => string' is not assignable to type
               },
               {
                 label: "Packages",
-                links: packages
-                  .slice(0, 5)
-                  .map((pkg) => [
-                    pkg.name === "olio" ? "olio" : `olio-${pkg.name}`,
-                    `/reference/${pkg.name}/`
-                  ])
+                links: packages.map((pkg) => [
+                  pkg.name === "olio" ? "olio" : `olio-${pkg.name}`,
+                  `/reference/${pkg.name}/`
+                ])
               },
               {
                 label: "Community",
