@@ -19,7 +19,7 @@ bun add -d @nxara/olio-codegen
 bun add graphql@16
 ```
 
-`graphql` 16 is a peer dependency. The generated file imports types from `@nxara/olio-codegen`, so keep it installed (a dev dependency is enough).
+`graphql` 16 is a peer dependency. `codegen`'s output imports types from `@nxara/olio-codegen`, so keep it installed (a dev dependency is enough).
 
 ## Usage
 
@@ -39,10 +39,10 @@ await codegen({
 - **`modules`**: a directory whose **direct child directories** are modules (see [Modules](#modules)).
 - **`typeDefs`**: a glob for the SDL files, resolved inside each module directory.
 - **`output`**: the TypeScript file to write. Parent directories are created as needed. A file whose content is unchanged isn't rewritten, so watchers and builds see no change.
-- **`root`**: the directory that relative paths (`modules`, `output`, `schemaOutput`) resolve against. It defaults to the working directory; pass `import.meta.dirname` so the script runs the same from any folder. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
+- **`root`**: the directory that relative paths (`modules`, `output`, `schemaOutput`) resolve against. It defaults to the working directory. Pass `import.meta.dirname` so the script runs the same from any folder. `codegenClient` takes `root` the same way, for `schema` (unless it's a URL), `documents` and `output`.
 - **`watch`** (default `false`): after the first run, rerun whenever a file under `modules` changes. The promise never resolves, and an error in a rerun is printed while watching goes on.
 - **`clear`** (default `false`): delete an output file before writing its new content.
-- **`logs`** (default `true`): `false` prints nothing; errors still reject.
+- **`logs`** (default `true`): `false` prints nothing, except an error in a `watch` rerun. Errors still reject.
 
 [`directives`](#directives) and [`schemaOutput`](#schema-file) have their own sections below.
 
@@ -52,7 +52,14 @@ SDL files are read exactly as `loadTypeDefs` in `@nxara/olio-tools` reads them (
 
 ### Errors
 
-`codegen` and `codegenClient` reject on invalid SDL or operations, with a message that names the file and position (`src/modules/users/typedefs/users.gql:2:6: Unknown type "Nope".`). Uncaught, the runtime prints it with a stack. To print just the message:
+`codegen` and `codegenClient` reject on invalid SDL or operations, with a message that names the file (by absolute path) and position. For a `users.gql` with `user: Nope` on its second line:
+
+```
+Invalid SDL:
+  /app/src/modules/users/typedefs/users.gql:2:9: Unknown type "Nope".
+```
+
+Uncaught, the runtime prints it with a stack. To print just the message:
 
 ```ts
 await codegen({
@@ -68,7 +75,7 @@ await codegen({
 
 ### Directives
 
-Pass `directives` to apply [`@nxara/olio-schema`](/reference/schema/#directives)'s directives, such as `@implements` and `@copy`, before generating:
+Pass `directives` to apply [`@nxara/olio-schema`](/reference/schema/#directives)'s directives (install it too), such as `@implements` and `@copy`, before generating:
 
 ```ts
 import { codegen } from "@nxara/olio-codegen";
@@ -78,7 +85,7 @@ await codegen({
   modules: "src/modules",
   typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
-  schemaOutput: "src/schema.graphql",
+  schemaOutput: "src/schema.gql",
   directives: [implementsDirective(), copyDirective()]
 });
 ```
@@ -109,9 +116,9 @@ await codegenClient({
 - **`watch: true`** reruns when an operation (including a new file) or the schema file changes. A server URL isn't watched.
 - **`logs: false`** silences it, as for `codegen`.
 
-Per operation, it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Every operation needs a name, since its types are named after it. Types are what a client sees on the wire: enums by name, scalars through `ClientScalars`.
+Per operation, it emits the result type, the variables type and a typed document (`LoginMutation`, `LoginMutationVariables`, `LoginDocument`), plus `operations` for `createClient`. Every operation needs a name, since its types are named after it. Types are what a client sees on the wire: enums by name, scalars through [`ClientScalars`](/reference/client/#scalars).
 
-Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`); `@ws` states the default explicitly. The directive is for the client only. Codegen records it in the document (`transport: "sse"`), removes it from the query the server receives, and lists the transports the operations use in `operations.transports`, which makes `createClient` require exactly those clients. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
+Subscriptions go over WebSocket unless marked `@sse` (`subscription Feed @sse { … }`). `@ws` states the default explicitly. The directive is for the client only. Codegen records it in the document (`transport: "sse"`), removes it from the query the server receives, and lists the transports the operations use in `operations.transports`, which makes `createClient` require exactly those clients. `@ws` / `@sse` on a query or mutation, both on one subscription, or with arguments, is an error.
 
 ## Modules
 
@@ -147,6 +154,10 @@ Keep SDL in `typedefs/` folders and use `**/typedefs/**/*.gql`.
 
 ```ts
 export type Application = {
+  posts: {
+    Post: { type: Post; fields: "__isTypeOf" | "id" };
+    User: { type: User; fields: "posts" }; // from `extend type User { posts: [Post!]! }`
+  };
   users: {
     Query: {
       type: Query;
@@ -158,19 +169,15 @@ export type Application = {
     };
     User: { type: User; fields: "__isTypeOf" | "id" | "name" };
   };
-  posts: {
-    Post: { type: Post; fields: "__isTypeOf" | "id" };
-    User: { type: User; fields: "posts" }; // from `extend type User { posts: [Post!]! }`
-  };
 };
 ```
 
 - **`type`** is the parent type. Resolvers receive it as `root` and return `type[field]`.
-- **`fields`** are the fields the module owns. A module owns every field it declares, whether in a definition or an `extend`, on root and non-root types alike. The defining module also owns `__isTypeOf` (objects) or `__resolveType` (interfaces and unions, which also list their possible types as `resolveType`).
+- **`fields`** are the fields the module owns. A module owns every field it declares on an object type, root or not, whether in a definition or an `extend`. The defining module also owns `__isTypeOf` (non-root objects) or `__resolveType` (interfaces and unions, which also list their possible types as `resolveType`).
 - **`args`** appears only for fields that take arguments.
 - **Enums** appear as `{ type; fields: never; enum: "A" | "B" }`, listing the values the module declares (an `extend enum` belongs to the extending module).
 - **Scalars** appear as `{ type; fields: never; scalar: true }` under the module that defines them, which supplies the implementation.
-- **`bypass`** lists, per owned field, the keys its `@bypass` gives it (`bypass: { login: "audit" | "auth" }`). olio types middleware's `bypass` set from every key listed here.
+- **`bypass`** lists, per owned field, the keys its [`@bypass`](/reference/olio/#skipping-middleware-bypass) gives it (`bypass: { login: "audit" | "auth" }`). olio types middleware's `bypass` set from every key listed here.
 - **`root`** marks a root type with its operation (`root: "query"`), so olio finds the roots whatever they're named. A hand-written `Application` needs it too.
 
 Middleware targets aren't emitted: a module's targets are its owned fields, and the application's are the root fields.
@@ -200,13 +207,13 @@ declare module "@nxara/olio-codegen" {
 }
 ```
 
-Like every registration, it goes in a `.ts` file, or in a `.d.ts` file with an `import` or `export {}`.
+Like every registration, its file needs an `import` or `export {}`, so `declare module` adds to the package's types instead of replacing them.
 
 Use the table directly when you need a scalar's type: `Scalars["DateTime"]["input"]`.
 
 ## Enums with internal values
 
-By default, an enum's TypeScript type is its GraphQL names (`"ADMIN" | "GUEST"`). To store something else, such as a number or a lowercase string, register the internal type by augmenting `CustomEnums`:
+By default, an enum's TypeScript type is its GraphQL names (`"CONFIRMED" | "CANCELLED"`). To store something else, such as a number or a lowercase string, register the internal type by augmenting `CustomEnums`:
 
 ```ts
 declare module "@nxara/olio-codegen" {
@@ -214,6 +221,8 @@ declare module "@nxara/olio-codegen" {
     OrderStatus: "confirmed" | "cancelled";
   }
 }
+
+export {};
 ```
 
 Every generated position then uses it: object fields, arguments and inputs, since graphql converts enum inputs to internal values too. Supply the values at runtime through the owning module's `enums` option. Once `CustomEnums` registers an enum, olio's types require it there, with a value for every value the module declares (a module that adds values with `extend enum` supplies those):
@@ -254,7 +263,7 @@ export type User = {
 
 The full output contains:
 
-- the `Scalars` table, one entry per scalar the schema uses
+- the `Scalars` table, one entry per scalar in the schema (`String` and `Boolean` are always there)
 - enums as `const` objects plus union types
 - object types (root types included), interfaces, inputs and unions. Nullable inputs without a default are optional keys.
 - the `Application` type
@@ -268,10 +277,10 @@ The header marks the file as generated:
 
 ## Relationship to @nxara/olio-schema
 
-`@nxara/olio-schema` composes a schema into ordinary GraphQL; `@nxara/olio-codegen` then turns that GraphQL into TypeScript:
+`@nxara/olio-schema` composes a schema into ordinary GraphQL, and `@nxara/olio-codegen` turns that GraphQL into TypeScript:
 
 ```
-SDL → @nxara/olio-schema → DocumentNode → @nxara/olio-codegen → TypeScript
+SDL → @nxara/olio-schema → GraphQLSchema → @nxara/olio-codegen → TypeScript
 ```
 
-Codegen knows nothing about `@implements` or `@copy`: it accepts `SchemaDirective[]` and passes the parsed document through the transformation pipeline.
+Codegen knows nothing about `@implements` or `@copy`: it accepts `SchemaDirective[]` and passes them to `compose` with the parsed SDL.
