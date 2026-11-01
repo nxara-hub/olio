@@ -36,10 +36,10 @@ const { document, schema, ownership, roots, bypass } = compose(
 ```
 
 - **Root types come for free.** If modules only `extend type Query`, a `type Query` is added, so no module needs a placeholder `_empty` field.
-- **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there; without a schema definition, GraphQL's defaults apply. `roots` reports the ones the schema has: `{ query: "RootQuery" }`, never a default with no type behind it.
+- **Root names are yours.** With `schema { query: RootQuery }` (or `extend schema`), the roots are the types named there. Without a schema definition, GraphQL's defaults apply. `roots` reports the ones the schema has: `{ query: "RootQuery" }`, never a default with no type behind it.
 - **`ownership`** maps module id → type → the fields that module declares, in a definition or an `extend`. The defining module also owns `__isTypeOf` or `__resolveType`. Enum values are owned the same way, so only the declaring module can give them internal values. A scalar is owned by the module that defines it (marked `__scalar`).
 - **Errors point at files.** SDL and schema errors are collected and reported as `file:line:column: message`, using each document's `Source` name. So parse with one (`parse(new Source(sdl, "users/user.gql"))`), as `loadTypeDefs` does. A duplicate lists every place it's declared (`also at …`).
-- **`bypass`** (`Map<"Type.field", Set<key>>`) holds the keys `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema` before the other directives run, so `@copy` and `@implements` don't carry it to the fields they copy. It needs no declaration; `bypassDefinition` holds its SDL for editor tooling. olio hands the keys to middleware (see [olio's docs](/reference/olio/#skipping-middleware-bypass)).
+- **`bypass`** (`Map<"Type.field", Set<key>>`) holds the keys `@bypass(keys: …)` gives each field: on a field, or on an object type or `extend` block for the fields it declares. Every `@bypass` is removed from `document` and `schema` before the other directives run, so `@copy` and `@implements` don't carry it to the fields they copy. It needs no declaration, and `bypassDefinition` holds its SDL for editor tooling. olio hands the keys to middleware (see [olio's docs](/reference/olio/#skipping-middleware-bypass)).
 
 Codegen and olio call `compose` for you, with the `directives` you pass them.
 
@@ -65,7 +65,7 @@ await codegen({
 export const app = olio({ modules, directives });
 ```
 
-Codegen records the directives' names in `Application` (`"~directives": "implements" | "copy"`), so in a typed app `olio()` doesn't compile without the same ones. For that check, a directive's `name` has a literal type (`SchemaDirective<"copy">`).
+Codegen records the directives' names in `Application` (`"~directives": "implements" | "copy"`), so in a typed app `olio()` doesn't compile without `directives`, or with a directive codegen didn't get. For that check, a directive's `name` has a literal type (`SchemaDirective<"copy">`). A list that's missing one still compiles, and fails when `olio()` runs if the SDL uses it: `Unknown directive "@implements"`.
 
 Or apply them yourself:
 
@@ -75,7 +75,7 @@ import { applyDirectives } from "@nxara/olio-schema";
 const document = applyDirectives(parse(sdl), directives);
 ```
 
-Only the directives you pass are enabled; `compose` reports any other as `Unknown directive "@copy"`. Their order doesn't matter. `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
+Only the directives you pass are enabled. `compose` reports any other as `Unknown directive "@copy"`. Their order doesn't matter. `applyDirectives` runs in passes, and a type waits until the types it copies from are done. So chains work (`C` copies `B`, which copies `A`, which implements `Node`), and a cycle is an error.
 
 ## @implements
 
@@ -136,7 +136,7 @@ Unlike `@implements`, `@copy` allows overriding, with spread semantics (`{ ...A,
 
 - `from` takes a list of type names, or one name: `@copy(from: "Base")`.
 - On an extension, fields the type already declares elsewhere are skipped, so a module can `extend type User @implements(from: ["Timestamped"])`.
-- Errors carry the file, line and column, and name the target type:
+- Errors about a usage on a type carry the file, line and column, and name the target type:
 
   ```
   users/user.gql:4:11: @copy on "User" references unknown type "Nope"
@@ -151,4 +151,4 @@ A directive is a `SchemaDirective`:
 - **`validate(document)`** (optional): runs before any transform.
 - **`transform(document, context)`**: a transform that reads from other types should skip a target while `context.isPending(source)` is true. `applyDirectives` calls it again on the next pass.
 
-Passes run while any type still carries one of the directives: on the type itself, a field, an argument or an enum value. A transform removes the usages it handles; a pass that removes none fails as a cycle.
+Passes run while any type still carries one of the directives: on the type itself, a field, an argument or an enum value. A transform removes the usages it handles, and should remove all of them that it can in one call: a pass that leaves as many types carrying a directive as before fails as a cycle, even if it removed some usages.

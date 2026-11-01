@@ -92,7 +92,7 @@ export const usersModule = module.users({
 });
 ```
 
-Unknown types and fields, other modules' fields and wrong return types are compile errors, reported at the field.
+Unknown types and fields, other modules' fields and wrong return types are compile errors, reported at the key.
 
 `resolvers` is one map: inline like this, or what `loadResolvers` returns. A loaded map passes through unchecked, since each file was typed where it was written. A scalar's implementation comes from the module whose SDL defines it, and only from that module.
 
@@ -135,7 +135,7 @@ import { module, mw } from "@nxara/olio";
 import { loadFeatures } from "@nxara/olio-tools";
 
 export const salesModule = module.sales({
-  middleware: mw.sales({ Mutation: { "*": [journal()] } }), // every feature's fields
+  middleware: mw.sales({ Mutation: { "*": [journal()] } }), // every feature's Mutation fields too
   features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
 });
 ```
@@ -148,7 +148,7 @@ export const salesModule = module.sales({
 
 ## Application
 
-`olio()` takes the modules, the app-wide middleware and the schema directives, and builds the app:
+`olio()` takes the modules, the app-wide middleware and the [schema directives](/reference/schema/#directives), and builds the app:
 
 ```ts
 import { mw, olio } from "@nxara/olio";
@@ -175,8 +175,17 @@ You can also list modules yourself: `modules: [usersModule, authModule]`.
 
 `olio()` composes the modules' SDL through `@nxara/olio-schema` and checks the result before returning:
 
-- **Root types come for free.** Modules `extend type Query` (or `Mutation`), so nobody needs a placeholder `type Query { _empty: String }`. A module that only extends root types can also be tested alone, `olio({ modules: [usersModule] })`, as long as it adds a `Query` field. GraphQL requires one, so a module that only extends `Mutation` can't stand alone. A module that uses another module's types takes that module too: `olio({ modules: [catalog, reviews] })`.
-- **A module resolves only what it declares.** It owns the fields in its own definitions and `extend`s, and the defining module owns `__isTypeOf` / `__resolveType`. Resolving another module's field throws: `Module "posts": "User.name" is declared by module "users"; only that module can resolve it`. With codegen, the same message is the compile error, on the field: `Type '(row) => …' is not assignable to type '"User.name is declared by module users; only that module can resolve it"'`.
+- **Root types come for free.** Modules `extend type Query` (or `Mutation`), so nobody needs a placeholder `type Query { _empty: String }`. A module that only extends root types can also be tested alone, `olio({ modules: [usersModule] })`, as long as it adds a `Query` field. GraphQL requires one, so a module that only extends `Mutation` can't stand alone. A module that uses another module's types takes that module too: if `reviews` uses a type from `catalog`, `olio({ modules: [catalog, reviews] })`.
+- **A module resolves only what it declares.** It owns the fields in its own definitions and `extend`s, and the defining module owns `__isTypeOf` / `__resolveType`. Say `users` declares `User.name`, and a `posts` module adds `extend type User { posts: [Post!]! }`, then tries to resolve `name` too:
+
+  ```ts
+  export const postsModule = module.posts({
+    resolvers: { User: { name: () => "Ada" } }
+  });
+  ```
+
+  With codegen, that's a compile error on the field: `Type '() => string' is not assignable to type '"User.name is declared by module users; only that module can resolve it"'`. If `posts` declared nothing on `User`, `User` wouldn't be a key of its map at all, so TypeScript's message is `Object literal may only specify known properties, and 'User' does not exist in type …`. At runtime, either way, `olio()` throws: `Module "posts": "User.name" is declared by module "users"; only that module can resolve it`.
+
 - **Errors point at files.** SDL and schema errors are reported as `file:line:column: message`.
 
 ## Middleware
@@ -206,7 +215,7 @@ Middleware is nested, `{ Type: { field | "*": [...] } }`. For each resolver, the
 
 Each layer targets different fields:
 
-- **The application** addresses root types only, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`.
+- **The application** addresses `"*"` (every field with a resolver, on any type) and root types, under whatever names the schema gives them: with `schema { query: RootQuery }` you write `mw({ RootQuery: { … } })` and `export const RootQuery = query.users({ … })`.
 - **A module** addresses the fields it and its features declare, including fields they add to other modules' types with `extend`.
 - **A feature** addresses only its own fields.
 
@@ -217,7 +226,7 @@ Every key is checked when `olio()` builds the schema, even without codegen. A ke
 How a middleware is typed depends on where it's written:
 
 - **Inline under a field key**, in `mw.<id>()` or a module's `middleware`, it gets that field's types: `root` is its parent (the mapper, if any) and `args` its arguments. So `mw.users({ User: { email: [({ root }, next) => …] } })` sees the `User` row. Root types have `root: undefined`.
-- **Under a `"*"` key**, the types stay loose, since the key spans fields.
+- **Under a `"*"` key**, `args` stays loose, since the key spans fields. `root` is still the type's (`unknown` under the application's `"*": { "*": … }`).
 - **On its own**, like `requireAuth`, it's typed `MiddlewareFn`: `root: unknown` and `args: Record<string, unknown>`, so it fits any query or mutation key.
 - **With a separate `sub_ctx`**, `"*"` and `Subscription` keys need `MiddlewareFn<Context | SubscriptionContext>` or `MiddlewareFn<SubscriptionContext>` (see [Subscriptions](#subscriptions)).
 
@@ -227,7 +236,7 @@ A field tells its middleware what to skip with `@bypass` in the SDL. Each middle
 
 ```graphql
 extend type Query {
-  me: Employee @bypass(keys: "auth")
+  me: User @bypass(keys: "auth")
 }
 
 # On a type, or an extend block: every field declared in that block.
@@ -294,6 +303,8 @@ resolvers.users.User({ email: { extensions: { roles: ["ADMIN"] } } }); // no res
 Extensions are typed: register the keys they may hold, and any other key is a compile error. `Source` and `Args` are the field's parent and arguments, for extensions that are functions:
 
 ```ts
+import type { Role } from "./generated.js";
+
 declare module "@nxara/olio" {
   interface FieldExtensions<Source, Args> {
     // graphql-query-complexity's shape: the field's args and its selection's cost
@@ -328,7 +339,7 @@ declare module "@nxara/olio" {
 }
 ```
 
-Then every resolver that returns a `User` returns a `UserRow`. That holds through lists, nulls, unions and the fields of other types, so `UserPage.data` takes rows too. `User` field resolvers also receive the row as `root`.
+Then every resolver that returns a `User` returns a `UserRow`. That holds through lists, nulls, unions and the fields of other types, so `data` in `type UserPage { data: [User!]! }` takes rows too. `User` field resolvers also receive the row as `root`.
 
 Mappers work for object types and interfaces, keyed by GraphQL type name:
 
@@ -393,7 +404,7 @@ export const app = olio({
 });
 ```
 
-- Use `createModule(id, config)` and `createFeature(module, id, config)`. Without an `Application` there are no known ids, so `module.<id>`, `query.<id>` and friends have nothing to check against.
-- Key resolver maps by type: `{ Query: { user } }`. The builders (`query.users({ user })`) return the _inner_ map, so wrap what they return the same way: `{ Query: query.users({ user }) }`. `loadResolvers` does this for you, using export names.
+- Use `createModule(id, config)` and `createFeature(module, id, config)`. Without an `Application` there are no known fields, so the resolver builders reject everything: `query.users({ user })` is a compile error, since a field's return type comes out as `never`. Under `noUncheckedIndexedAccess`, `module.users` and `mw.users` are too (`'module.users' is possibly 'undefined'`).
+- Key resolver maps by type: `{ Query: { user } }`. With `loadResolvers`, a file exports the inner map under the type's name: `export const Query = { user }`.
 - You can still register `ctx` (and `sub_ctx`) without an `Application`, so middleware and resolvers get a typed context.
 - To get the fully typed builders without running codegen, write the `Application` type by hand. It's a plain type: per module (and `"module/feature"`), each type's `{ type; fields; args? }`, root types with `root: "query" | "mutation" | "subscription"`, abstract types with `resolveType`, enums with `fields: never; enum: "A" | "B"`, scalars with `fields: never; scalar: true`. [Codegen's docs](/reference/codegen/#application) shows the format.
