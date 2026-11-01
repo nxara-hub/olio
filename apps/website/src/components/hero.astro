@@ -1,0 +1,35 @@
+---
+import Mark from "./mark.astro";
+---
+
+<!-- No static mark before the animation: swapping one for the other flashed.
+     The scene draws its first frame inside mount(). -->
+<div
+  data-hero
+  class="relative mx-auto aspect-square w-full max-w-[600px] sm:aspect-[7/6]"
+>
+  <noscript>
+    <div class="absolute inset-0 grid place-items-center">
+      <Mark class="w-3/5" label="olio" bare />
+    </div>
+  </noscript>
+</div>
+
+<script>
+  import { mount } from "./hero/olio-hero.js";
+
+  type Theme = "light" | "dark";
+
+  const currentTheme = (): Theme =>
+    document.documentElement.dataset.theme === "light" ? "light" : "dark";
+
+  const root = document.querySelector<HTMLElement>("[data-hero]");
+  if (root) {
+    // The scene pauses itself while off screen, so it can mount right away.
+    const hero = mount(root, { theme: currentTheme() });
+    new MutationObserver(() => hero.setTheme(currentTheme())).observe(
+      document.documentElement,
+      { attributeFilter: ["data-theme"] }
+    );
+  }
+</script>

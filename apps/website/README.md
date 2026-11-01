@@ -17,7 +17,7 @@ bun run --cwd apps/website preview
 | Path | What |
 | --- | --- |
 | `src/pages/index.astro` | The landing page |
-| `src/components/hero-3d.astro` | The 3D hero. The scene is `src/components/hero/olio-hero.js` |
+| `src/components/hero.astro` | The hero animation. The scene is `src/components/hero/olio-hero.js` |
 | `src/content/docs/**/*.md(x)` | Docs pages. Each file is a page, and its folder is the URL |
 | `src/content/docs/reference/` | One page per package. The package READMEs only link here |
 | `site.ts` | The repository URL, shared by the config and the landing page |
