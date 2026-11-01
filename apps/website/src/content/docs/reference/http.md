@@ -14,7 +14,7 @@ Serve an olio app over HTTP, from any framework. It runs [graphql-http](https://
 bun add @nxara/olio-http graphql@16
 ```
 
-`graphql` 16 is a peer dependency; graphql-http is its only third-party dependency.
+`graphql` 16 is a peer dependency. graphql-http is its only third-party dependency.
 
 ## Adapters
 
@@ -24,6 +24,8 @@ bun add @nxara/olio-http graphql@16
 | `@nxara/olio-http/node` | Node's `IncomingMessage` / `ServerResponse`: `node:http`, Express, Connect, Koa (`ctx.req`, `ctx.res`), Fastify (`request.raw`, `reply.raw`) |
 
 Your `context` hook builds `ctx` from the framework's request: a Fetch `Request`, or a Node `IncomingMessage`. Once your app registers a `ctx` type (`interface Olio { ctx: … }`), the hook is required. Without it, graphql-http passes no context, and every resolver reading `ctx` would fail at runtime. So `fetchHandler(app)` is then a compile error (`Expected 2 arguments`), as is an options object without `context`.
+
+In the samples on this page, `createContext` is your own function, which builds `ctx` from the `Authorization` header, and `ctx.di` is a per-operation scope from [`@nxara/olio-di`](/reference/di/#with-olio).
 
 ```ts
 import { fetchHandler } from "@nxara/olio-http/fetch";
@@ -45,14 +47,18 @@ const graphql = nodeHandler(app, {
 });
 createServer(graphql); // node:http
 expressApp.use("/graphql", graphql); // Express, Connect
-koaApp.use((ctx) => graphql(ctx.req, ctx.res, ctx.request.body)); // Koa (set ctx.respond = false)
+koaApp.use(bodyParser()); // Koa, with @koa/bodyparser
+koaApp.use((ctx) => {
+  ctx.respond = false; // the handler writes the response, not Koa
+  return graphql(ctx.req, ctx.res, ctx.request.body);
+});
 fastifyApp.all("/graphql", async (request, reply) => {
   await graphql(request.raw, reply.raw, request.body); // Fastify
   return reply.hijack();
 });
 ```
 
-The Node handler reads the request body itself, unless a body parser got there first. Then it uses the parsed body: from `req.body` (Express's `express.json()`, Connect's body parsers) or from the third argument, for frameworks that keep it elsewhere (Fastify's `request.body`, Koa's `ctx.request.body`). If the body was read and isn't passed, the request fails at once with a 500, and `onUnexpectedError` gets an error saying so.
+The Node handler reads the request body itself, unless a body parser got there first. Then it uses the parsed body: from `req.body` (Express's `express.json()`, Connect's body parsers) or from the third argument, for frameworks that keep it elsewhere (Fastify's `request.body`, Koa's `ctx.request.body`). Koa without a body parser has no `ctx.request.body`, in its types or at runtime: call `graphql(ctx.req, ctx.res)` there. If the body was read and isn't passed, the request fails at once with a 500, and `onUnexpectedError` gets an error saying so.
 
 ## Subscriptions
 
@@ -61,7 +67,7 @@ Like Apollo Server, `@nxara/olio-http` leaves subscriptions to you. Install and 
 - [graphql-ws](https://github.com/enisdenjo/graphql-ws): subscriptions over WebSocket (`useServer` on a `ws` server, `makeHandler` on Bun).
 - [graphql-sse](https://github.com/enisdenjo/graphql-sse): subscriptions as server-sent events, on the same URL (route `Accept: text/event-stream` to its handler).
 
-Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies the same [validation rules](#validation-rules). Here are both, with a context (and DI scope) per subscription that is disposed when the subscription ends:
+Pass them `app.schema`. `errorMasker` hides their unexpected errors the way the HTTP handler does, and `validateOperation` applies the same [validation rules](#validation-rules) (`validationRules` below is your list or function, `[]` if you have none). Here are both, with a context (and DI scope) per subscription that is disposed when the subscription ends:
 
 ```ts
 import type { SubscriptionContext } from "@nxara/olio";
@@ -133,11 +139,15 @@ Don't throw from `context`. A throw there refuses the whole request before any f
 
 ```ts
 fetchHandler(app, {
-  // An invalid or expired token gives `userId: undefined`, not an error.
+  // `verify` is yours. An invalid or expired token gives `userId: undefined`, not an error.
   context: (request) => ({
     userId: verify(request.headers.get("authorization"))
   })
 });
+
+// A GraphQLError, or the client would get "Unexpected error." (see Errors).
+const unauthenticated = (): GraphQLError =>
+  new GraphQLError("Unauthorized", { extensions: { code: "UNAUTHENTICATED" } });
 
 const requireAuth =
   (): MiddlewareFn =>
@@ -177,7 +187,7 @@ fetchHandler(app, {
 
 `fieldExtensionsEstimator` reads each field's `complexity` extension, which olio sets from the resolver's `{ resolve, extensions }` (see [Field extensions](/reference/olio/#field-extensions) in olio's docs). An operation over the limit gets the rule's error, and nothing runs.
 
-Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`; it returns the errors (none when the operation is valid):
+Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`. It returns the errors (none when the operation is valid):
 
 ```ts
 import { validateOperation } from "@nxara/olio-http";
@@ -198,7 +208,7 @@ onSubscribe: (_req, params) => {
 
 Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost.
 
-That includes a `context` hook that throws. A `GraphQLError` from it (say, `BAD_REQUEST` for a malformed header) reaches the client as a normal GraphQL error with status 200; anything else is a 500 with "Unexpected error.". Either way it refuses the whole request, so a bad token belongs in middleware instead (see [Refusing a bad token](#refusing-a-bad-token)).
+That includes a `context` hook that throws. A `GraphQLError` from it (say, `BAD_REQUEST` for a malformed header) reaches the client as a normal GraphQL error with status 200. Anything else is a 500 with "Unexpected error.". Either way it refuses the whole request, so a bad token belongs in middleware instead (see [Refusing a bad token](#refusing-a-bad-token)).
 
 ```ts
 throw new GraphQLError("Forbidden", { extensions: { code: "FORBIDDEN" } }); // the client sees this
@@ -215,23 +225,13 @@ fetchHandler(app, {
 });
 ```
 
-`errorMasker(options?)`, from `@nxara/olio-http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional) and returns the functions below. Each takes the operation's context as its last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there). Type it with `errorMasker<SubscriptionContext>()`:
+`errorMasker(options?)`, from `@nxara/olio-http`, is the same masking for your own subscription servers. It takes the handlers' `maskErrors` and `onUnexpectedError` (both optional) and returns the functions below. Each takes the operation's context as its last argument, which `onUnexpectedError` receives as `ctx` (`request` is `undefined` there). Type it with `errorMasker<SubscriptionContext>()`. [Subscriptions](#subscriptions) shows it in both libraries' hooks.
 
 |  |  |
 | --- | --- |
 | `mask.result(result, ctx?)` | The result with its errors masked, any shape: graphql's `ExecutionResult`, or what graphql-sse's and graphql-ws's `onNext` hand you |
 | `mask.error(error, ctx?)` | One error, or any caught value: a `GraphQLError` passes (unless it wraps an unexpected error), anything else becomes "Unexpected error." and is reported |
 | `mask.report(error, ctx?)` | Sends an error to `onUnexpectedError` |
-
-```ts
-import { errorMasker } from "@nxara/olio-http";
-
-const mask = errorMasker<SubscriptionContext>();
-createHandler({
-  schema: app.schema,
-  onNext: (ctx, _req, result) => mask.result(result, ctx)
-}); // graphql-sse
-```
 
 ## Options
 

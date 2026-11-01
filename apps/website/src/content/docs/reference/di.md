@@ -67,9 +67,16 @@ Factories use tokens (`get(Db)`) rather than names: typing a factory's dependenc
 Tell DI what an operation's context looks like, the same way you register olio's `ctx`:
 
 ```ts
+import type { Viewer } from "./auth.js";
+
+// Yours: what your context has, apart from `di` itself. `Orders` above reads its `viewer`.
+interface RequestInfo {
+  viewer?: Viewer;
+}
+
 declare module "@nxara/olio-di" {
   interface Register {
-    ctx: RequestInfo; // what your context has, apart from `di` itself
+    ctx: RequestInfo;
   }
 }
 ```
@@ -107,7 +114,7 @@ Subscriptions work the same way: give each one a scope in its context and dispos
 In tests, swap a provider for a fake with `override`:
 
 ```ts
-const container = createContainer(services, { override: [override(Db, fakeDb)] }); // fakeDb must fit Db
+const container = createContainer({ orders: Orders }, { override: [override(Db, fakeDb)] }); // fakeDb must fit Db
 await using scope = container.scope(testInfo); // disposed at the end of the block
 expect(await scope.orders.list()).toEqual([...]);
 ```

@@ -54,7 +54,7 @@ await codegenClient({
 });
 ```
 
-For each operation it writes three types, named the way graphql-codegen names them: `LoginMutation` (the result), `LoginMutationVariables` and `LoginDocument`. It also writes `operations`, every document by root and name, which `createClient` takes.
+For each operation it writes the result type, the variables type and a typed document, named the way graphql-codegen names them: `LoginMutation`, `LoginMutationVariables` and `LoginDocument`. It also writes `operations`, every document by root and name, which `createClient` takes.
 
 ## Calls
 
@@ -112,7 +112,7 @@ const axiosFetch: Fetch = async (url, init) => {
 };
 ```
 
-`fetch` is for queries and mutations; subscriptions go through your own clients.
+`fetch` is for queries and mutations. Subscriptions go through your own clients.
 
 ## Uploading files
 
@@ -164,7 +164,7 @@ const client = createClient(operations, { url, fetch: multipart });
 await client.mutation.uploadAvatar({ file });
 ```
 
-Register the scalar as `File` on the client (`interface ClientScalars { Upload: File }`). On the server, [`@nxara/olio-http`](/reference/http/) passes graphql-http's `parseRequestParams` through, and it puts the files back:
+The operation here is `mutation UploadAvatar($file: Upload!)`. Register the scalar as `File` on the client (`interface ClientScalars { Upload: File }`). On the server, [`@nxara/olio-http`](/reference/http/) passes graphql-http's `parseRequestParams` through, and it puts the files back:
 
 ```ts
 fetchHandler(app, {
@@ -201,9 +201,11 @@ declare module "@nxara/olio-client" {
     DateTime: { input: Date | string; output: string };
   }
 }
+
+export {};
 ```
 
-Put it in a `.ts` file, or in a `.d.ts` file with an `import` or `export {}`.
+The file needs an `import` or `export {}`, so `declare module` adds to the package's types instead of replacing them.
 
 Enums arrive by name (`"CONFIRMED"`), not as the server's internal values.
 
@@ -302,7 +304,7 @@ expect((await client.query.me()).data).toEqual({ me: { name: "Mia" } });
 
 |  |  |
 | --- | --- |
-| `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: defaults to the global one; called with `(url, init, params)`, `params` being the request before JSON (see [Uploading files](#uploading-files)). `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
+| `createClient(operations, { url, headers?, fetch?, ws?, sse? })` | `headers`: an object, or a function for values that change. `fetch`: defaults to the global one, called with `(url, init, params)`, `params` being the request before JSON (see [Uploading files](#uploading-files)). `ws` / `sse`: your graphql-ws / graphql-sse client, required once an operation uses that transport |
 | `testClient(operations, handler \| { http, ws?, sse? }, { headers?, url? })` | From `@nxara/olio-client/test`: the same client, answered in-process |
 | `ClientScalars` | Augment it with how custom scalars arrive and are sent |
 | `TypedDocument`, `Result`, `Client`, `ClientOptions`, `Operations`, `SubscriptionClient` | The types behind the calls |
