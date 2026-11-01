@@ -101,6 +101,24 @@ describe("@implements", () => {
     expect(fieldsOf(schema, "User")).toEqual(["id", "at"]);
   });
 
+  test("copies once when several usages on a type share a source", () => {
+    const { schema } = run(`
+      interface T { at: String! }
+      type U { id: ID! }
+      extend type U @implements(from: ["T"])
+      extend type U @implements(from: ["T"])
+    `);
+    expect(interfacesOf(schema, "U")).toEqual(["T"]);
+    expect(fieldsOf(schema, "U")).toEqual(["id", "at"]);
+
+    const copied = run(`
+      type A { a: Int }
+      type U @copy(from: ["A"]) { id: ID! }
+      extend type U @copy(from: ["A"])
+    `);
+    expect(fieldsOf(copied.schema, "U")).toEqual(["a", "id"]);
+  });
+
   test("rejects an extension's own field the type already has", () => {
     expect(() =>
       run(`

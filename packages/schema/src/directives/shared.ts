@@ -321,16 +321,23 @@ export function fieldCopyDirective<Name extends string>(
             .filter((f) => !local.includes(f))
             .map((f) => f.name.value)
         );
+        const fields = mergeFields({
+          directive,
+          target,
+          sources: sources.map((s) => [s, analysis.fields.get(s) ?? []]),
+          local,
+          declaredElsewhere: elsewhere,
+          overrides: spec.overrides
+        });
+        // A later usage on this type, in this same pass, must see what this
+        // one added, or both would add it.
+        analysis.fields.set(target, [
+          ...(analysis.fields.get(target) ?? []),
+          ...fields.filter((f) => !local.includes(f))
+        ]);
         const next: TypeNode = {
           ...type,
-          fields: mergeFields({
-            directive,
-            target,
-            sources: sources.map((s) => [s, analysis.fields.get(s) ?? []]),
-            local,
-            declaredElsewhere: elsewhere,
-            overrides: spec.overrides
-          }),
+          fields,
           directives: type.directives?.filter((d) => d !== directive)
         };
         if (spec.addInterfaces) {
@@ -341,6 +348,7 @@ export function fieldCopyDirective<Name extends string>(
               kind: Kind.NAMED_TYPE,
               name: { kind: Kind.NAME, value: s }
             }));
+          for (const source of sources) declared.add(source);
           next.interfaces = [...(type.interfaces ?? []), ...added];
         }
         return next as unknown as DefinitionNode;
