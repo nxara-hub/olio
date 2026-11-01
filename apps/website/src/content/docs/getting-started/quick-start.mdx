@@ -1,0 +1,230 @@
+---
+title: Quick start
+description: Build a small typed GraphQL API with olio, from one module to a running server.
+sidebar:
+  order: 1
+---
+
+import { FileTree, Steps, TabItem, Tabs } from "@astrojs/starlight/components";
+
+This guide builds an API with one module and generated types, and serves it over HTTP. You need Bun, or Node 24+. On Node, the codegen script runs directly and the server runs through `tsx`.
+
+The finished project looks like this:
+
+<FileTree>
+
+- package.json
+- tsconfig.json
+- codegen.ts
+- src/
+  - olio.d.ts
+  - generated.ts (written by codegen)
+  - app.ts
+  - server.ts
+  - modules/
+    - users/
+      - index.ts
+      - query.ts
+      - typedefs/
+        - users.gql
+
+</FileTree>
+
+<Steps>
+
+1.  **Set up the project** in an empty folder. olio's packages are ESM only and the files below use top-level `await`, so the project is ESM too:
+
+    ```json title="package.json"
+    {
+      "type": "module"
+    }
+    ```
+
+    ```json title="tsconfig.json"
+    {
+      "compilerOptions": {
+        "module": "nodenext",
+        "strict": true,
+        "noEmit": true,
+        "types": ["bun"]
+      }
+    }
+    ```
+
+    On Node, use `"types": ["node"]`.
+
+2.  **Install the packages.** `graphql` 16 is a peer dependency.
+
+    <Tabs syncKey="pkg">
+      <TabItem label="bun">
+        ```sh
+        bun add @nxara/olio @nxara/olio-tools @nxara/olio-http graphql@16
+        bun add -d @nxara/olio-codegen typescript @types/bun
+        ```
+      </TabItem>
+      <TabItem label="npm">
+        ```sh
+        npm i @nxara/olio @nxara/olio-tools @nxara/olio-http graphql@16
+        npm i -D @nxara/olio-codegen typescript @types/node tsx
+        ```
+      </TabItem>
+      <TabItem label="pnpm">
+        ```sh
+        pnpm add @nxara/olio @nxara/olio-tools @nxara/olio-http graphql@16
+        pnpm add -D @nxara/olio-codegen typescript @types/node tsx
+        ```
+      </TabItem>
+    </Tabs>
+
+3.  **Write the module's SDL.** A module extends the root types, and olio adds `Query` itself.
+
+    ```graphql title="src/modules/users/typedefs/users.gql"
+    type User {
+      id: ID!
+      name: String!
+    }
+
+    extend type Query {
+      user(id: ID!): User
+    }
+    ```
+
+4.  **Generate the types.** There's no CLI: a short script drives codegen. Every direct child folder of `modules` is a module.
+
+    ```ts title="codegen.ts"
+    import { codegen } from "@nxara/olio-codegen";
+
+    await codegen({
+      root: import.meta.dirname,
+      modules: "src/modules",
+      typeDefs: "**/typedefs/**/*.gql",
+      output: "src/generated.ts"
+    });
+    ```
+
+    Run it with `bun codegen.ts`, or `node codegen.ts` on Node 24. It writes `src/generated.ts`. Rerun it whenever the SDL changes.
+
+5.  **Register the app.** The builders get their types from here: the generated `Application`, and your context type, `ctx`.
+
+    ```ts title="src/olio.d.ts"
+    import type { Application } from "./generated.js";
+
+    declare module "@nxara/olio" {
+      interface Olio {
+        application: Application;
+        ctx: { userId?: string };
+      }
+    }
+    ```
+
+6.  **Write the resolvers and the module.** `query.users` accepts only the fields the `users` module declares, with their argument and return types.
+
+    ```ts title="src/modules/users/query.ts"
+    import { query } from "@nxara/olio";
+
+    const users = new Map([["1", { id: "1", name: "Ada" }]]);
+
+    export const Query = query.users({
+      user: (_root, { id }) => users.get(id) ?? null
+    });
+    ```
+
+    ```ts title="src/modules/users/index.ts"
+    import { module } from "@nxara/olio";
+    import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+
+    export const usersModule = module.users({
+      typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+      // .js too, so the same code finds the file once compiled
+      resolvers: await loadResolvers(new URL("query.{js,ts}", import.meta.url))
+    });
+    ```
+
+7.  **Compose the app.** `olio()` merges the modules' SDL, checks ownership and every middleware key, and returns the app. `app.schema` is a plain `GraphQLSchema` that any GraphQL server can run.
+
+    ```ts title="src/app.ts"
+    import { olio } from "@nxara/olio";
+    import { loadModules } from "@nxara/olio-tools";
+
+    export const app = olio({
+      modules: await loadModules(
+        new URL("modules/*/index.{js,ts}", import.meta.url)
+      )
+    });
+    ```
+
+8.  **Serve it.** Because the app registers a `ctx`, the handler requires a `context` hook that builds it from each request.
+
+    <Tabs syncKey="runtime">
+      <TabItem label="Bun">
+        ```ts title="src/server.ts"
+        import { fetchHandler } from "@nxara/olio-http/fetch";
+
+        import { app } from "./app.js";
+
+        const graphql = fetchHandler(app, {
+          context: (request) => ({
+            userId: request.headers.get("x-user-id") ?? undefined
+          })
+        });
+
+        Bun.serve({ port: 4000, fetch: graphql });
+        ```
+      </TabItem>
+      <TabItem label="Node">
+        ```ts title="src/server.ts"
+        import { createServer } from "node:http";
+
+        import { nodeHandler } from "@nxara/olio-http/node";
+
+        import { app } from "./app.js";
+
+        const graphql = nodeHandler(app, {
+          context: (req) => ({ userId: req.headersDistinct["x-user-id"]?.[0] })
+        });
+
+        createServer(graphql).listen(4000);
+        ```
+
+        `nodeHandler` also plugs into Express or any framework built on `node:http`.
+      </TabItem>
+    </Tabs>
+
+9.  **Type-check and start it.**
+
+    <Tabs syncKey="runtime">
+      <TabItem label="Bun">
+        ```sh
+        bunx tsc
+        bun src/server.ts
+        ```
+      </TabItem>
+      <TabItem label="Node">
+        ```sh
+        npx tsc
+        npx tsx src/server.ts
+        ```
+      </TabItem>
+    </Tabs>
+
+10. **Query it** from another terminal.
+
+    ```sh
+    curl localhost:4000/graphql \
+      -H 'content-type: application/json' \
+      -d '{"query":"{ user(id: \"1\") { name } }"}'
+    ```
+
+    ```json
+    { "data": { "user": { "name": "Ada" } } }
+    ```
+
+</Steps>
+
+## Where to next
+
+- Add a second module: create another folder under `modules/`, then rerun codegen. The new module can `extend type User` to add fields of its own.
+- Add [middleware](/reference/olio/#middleware) for auth and logging, at the app, module or feature level, down to single fields.
+- See [how the pieces fit](/concepts/how-it-fits/) and [how to lay out a project](/concepts/project-structure/).
+- Split a growing module into [features](/reference/olio/#features-splitting-a-large-module).
+- Call the API from a typed client with [`@nxara/olio-client`](/reference/client/).

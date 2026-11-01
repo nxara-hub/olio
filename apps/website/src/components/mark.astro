@@ -1,0 +1,29 @@
+---
+interface Props {
+  class?: string;
+  label?: string;
+  // Skip the dark-mode tile when the parent already is one.
+  bare?: boolean;
+}
+
+// The lacquer is never recoloured: on dark pages the mark sits on a cream tile.
+const { class: className = "", label, bare = false } = Astro.props;
+---
+
+<span
+  class:list={[
+    "inline-flex shrink-0 items-center justify-center",
+    !bare && "dark:aspect-square dark:rounded-[28%] dark:bg-cream",
+    className
+  ]}
+>
+  <svg
+    viewBox="0 0 140 120"
+    class:list={["h-auto w-full", !bare && "dark:w-[74%]"]}
+    role={label ? "img" : undefined}
+    aria-label={label}
+    aria-hidden={label ? undefined : "true"}
+  >
+    <use href="#olio-mark"></use>
+  </svg>
+</span>

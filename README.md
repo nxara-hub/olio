@@ -2,56 +2,21 @@
 
 Modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. Each module owns its SDL, resolvers and middleware. Codegen turns the SDL into types, so every resolver, argument and middleware target is checked at compile time.
 
+**[Read the docs](https://olio.nxara.dev)**: [quick start](https://olio.nxara.dev/getting-started/quick-start/), [how it fits](https://olio.nxara.dev/concepts/how-it-fits/), and a page per package.
+
 ## Packages
 
 | Package | Description |
 | --- | --- |
-| [`@nxara/olio`](./packages/olio) | Runtime: modules, typed resolvers, layered middleware → schema |
-| [`@nxara/olio-codegen`](./packages/codegen) | SDL → TypeScript: schema types, per-module contracts, `Application` |
-| [`@nxara/olio-schema`](./packages/schema) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
-| [`@nxara/olio-di`](./packages/di) | Typed dependency injection on Awilix: singletons and per-operation instances |
-| [`@nxara/olio-http`](./packages/http) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
-| [`@nxara/olio-client`](./packages/client) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
-| [`@nxara/olio-tools`](./packages/tools) | Load SDL and resolver files for a module |
+| [`@nxara/olio`](https://olio.nxara.dev/reference/olio/) | Runtime: modules, typed resolvers, layered middleware → schema |
+| [`@nxara/olio-codegen`](https://olio.nxara.dev/reference/codegen/) | SDL → TypeScript: schema types, per-module contracts, `Application` |
+| [`@nxara/olio-schema`](https://olio.nxara.dev/reference/schema/) | Compose module SDL into one validated schema; `@implements` / `@copy` directives |
+| [`@nxara/olio-di`](https://olio.nxara.dev/reference/di/) | Typed dependency injection on Awilix: singletons and per-operation instances |
+| [`@nxara/olio-http`](https://olio.nxara.dev/reference/http/) | Serve an app over HTTP: Fetch and Node adapters with context, error masking and cleanup |
+| [`@nxara/olio-client`](https://olio.nxara.dev/reference/client/) | A typed client: operations in `.graphql` files, codegen types them, one call per operation; `testClient` for tests |
+| [`@nxara/olio-tools`](https://olio.nxara.dev/reference/tools/) | Load SDL and resolver files for a module |
 
-```
-modules/*/typedefs/*.gql ─→ @nxara/olio-schema ─→ @nxara/olio-codegen ─→ generated.ts (Application)
-                                    │                                      │ declare module "@nxara/olio"
-                                    └──────────→ @nxara/olio ←─────────────┘
-                                                     │
-                                               GraphQLSchema
-```
-
-## At a glance
-
-```ts
-// modules/inventory/query.ts: typed from the generated Application
-export const Query = query.inventory({
-  product: (root, { sku }, ctx, info) => products.get(sku) ?? null
-});
-
-// modules/inventory/index.ts
-export const inventoryModule = module.inventory({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("{query,mutation}.ts", import.meta.url)
-  ),
-  middleware: mw.inventory({
-    Mutation: { adjustStock: [requireRole("MANAGER")] }
-  })
-});
-
-// index.ts
-export const app = olio({
-  middleware: mw({
-    "*": { "*": [requestLogger()] },
-    Query: { "*": [requireAuth()] }
-  }),
-  modules: await loadModules(new URL("modules/*/index.ts", import.meta.url)),
-  directives
-});
-// app.schema → any GraphQL server
-```
+## Examples
 
 [`apps/example-server`](./apps/example-server) is a small ERP: auth with roles, inventory with a stock subscription, and sales split into features. It shows every feature, with a map of where each one lives. [`apps/example-client`](./apps/example-client) is a separate app that uses it over HTTP with `@nxara/olio-client`.
 
@@ -70,6 +35,7 @@ bun run --cwd apps/example-server codegen   # regenerate src/generated.ts
 bun run --cwd apps/example-server start     # run the example
 bun run --cwd apps/example-server serve     # serve it, then:
 bun run --cwd apps/example-client start     # the client walkthrough
+bun run --cwd apps/website dev              # the site and docs on http://localhost:4321
 ```
 
 ## Releasing

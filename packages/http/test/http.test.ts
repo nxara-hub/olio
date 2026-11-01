@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { createModule, olio } from "@nxara/olio";
@@ -144,6 +144,56 @@ test("node: serves node:http requests", async () => {
     body: JSON.stringify({ query: "{ whoami }" })
   });
   expect(await response.json()).toEqual({ data: { whoami: "alan" } });
+});
+
+describe("node: a body a framework already read", () => {
+  const readJson = async (req: IncomingMessage): Promise<unknown> => {
+    let text = "";
+    for await (const chunk of req) text += String(chunk);
+    return JSON.parse(text);
+  };
+  const post = (port: number) =>
+    fetch(`http://localhost:${port}/graphql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "{ hello }" }),
+      signal: AbortSignal.timeout(2000)
+    });
+
+  test("uses req.body, as Express's and Connect's parsers leave it", async () => {
+    const graphql = nodeHandler(app);
+    const port = await listen(
+      createServer(async (req, res) => {
+        Object.assign(req, { body: await readJson(req) });
+        // Express passes `next` third: it isn't a body.
+        await graphql(req, res, (() => {}) as never);
+      })
+    );
+    expect(await (await post(port)).json()).toEqual({ data: { hello: "hi" } });
+  });
+
+  test("takes the body as the third argument, as Fastify and Koa keep it", async () => {
+    const graphql = nodeHandler(app);
+    const port = await listen(
+      createServer(async (req, res) => graphql(req, res, await readJson(req)))
+    );
+    expect(await (await post(port)).json()).toEqual({ data: { hello: "hi" } });
+  });
+
+  test("fails at once, instead of waiting, when the body is gone", async () => {
+    const reported: unknown[] = [];
+    const graphql = nodeHandler(app, {
+      onUnexpectedError: (error) => void reported.push(error)
+    });
+    const port = await listen(
+      createServer(async (req, res) => {
+        await readJson(req);
+        await graphql(req, res);
+      })
+    );
+    expect((await post(port)).status).toBe(500);
+    expect(String(reported[0])).toContain("already read");
+  });
 });
 
 // Rejects any selection of `field`, before a resolver runs.

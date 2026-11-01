@@ -1,0 +1,44 @@
+---
+// Defines #olio-mark once per page; draw it with <svg><use href="#olio-mark" /></svg>.
+---
+
+<svg aria-hidden="true" class="absolute size-0">
+  <defs>
+    <radialGradient
+      id="olio-lacquer"
+      gradientUnits="userSpaceOnUse"
+      cx="30"
+      cy="40"
+      r="90"
+    >
+      <stop offset="0" stop-color="#4A4550"></stop>
+      <stop offset="0.4" stop-color="#1E1B22"></stop>
+      <stop offset="1" stop-color="#050406"></stop>
+    </radialGradient>
+  </defs>
+  <symbol id="olio-mark" viewBox="0 0 140 120">
+    <g fill="url(#olio-lacquer)">
+      <circle cx="38" cy="60" r="28"></circle>
+      <circle cx="86" cy="60" r="22"></circle>
+      <path d="M49.8 34.6 Q62 54 75 41 L75 79 Q62 66 49.8 85.4 Z"></path>
+    </g>
+    <ellipse
+      cx="28"
+      cy="45"
+      rx="10"
+      ry="5"
+      fill="#fff"
+      opacity="0.55"
+      transform="rotate(-30 28 45)"></ellipse>
+    <ellipse
+      cx="80"
+      cy="48"
+      rx="6"
+      ry="3.5"
+      fill="#fff"
+      opacity="0.4"
+      transform="rotate(-28 80 48)"></ellipse>
+    <circle cx="124" cy="60" r="10" fill="#8C2443"></circle>
+    <circle cx="121" cy="57" r="2.4" fill="#fff" opacity="0.8"></circle>
+  </symbol>
+</svg>

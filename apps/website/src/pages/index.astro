@@ -1,0 +1,834 @@
+---
+import { Code } from "astro:components";
+
+import "../styles/landing.css";
+import Hero3D from "../components/hero-3d.astro";
+import Mark from "../components/mark.astro";
+import MarkSprite from "../components/mark-sprite.astro";
+import { repoUrl } from "../../site.ts";
+
+const docs = "/getting-started/introduction/";
+const quickStart = "/getting-started/quick-start/";
+
+const why = [
+  {
+    title: "Modules own their fields",
+    body: "A module resolves what its SDL declares, and nothing else. Another module's field is a compile error, at the field.",
+    href: "/concepts/how-it-fits/",
+    link: "How ownership works",
+    icon: "M4 4h7v7H4zM13 13h7v7h-7zM13 4h7v7h-7z"
+  },
+  {
+    title: "Typed from your SDL",
+    body: "Codegen turns the schema into types. Every resolver, argument and middleware key is checked as you write it.",
+    href: "/reference/codegen/",
+    link: "Generate types",
+    icon: "M8 6l-5 6 5 6M16 6l5 6-5 6M13.5 4l-3 16"
+  },
+  {
+    title: "Middleware in layers",
+    body: "App, module and feature each add a layer. A field opts out with @bypass in its SDL, and each middleware decides.",
+    href: "/reference/olio/#middleware",
+    link: "Layered middleware",
+    icon: "M4 7h16M6 12h12M8 17h8"
+  },
+  {
+    title: "Features for big modules",
+    body: "Split a growing module into features: subfolders that own part of its schema, with builders of their own.",
+    href: "/reference/olio/#features-splitting-a-large-module",
+    link: "Split a module",
+    icon: "M4 5h16v14H4zM12 5v14M12 12h8"
+  },
+  {
+    title: "Test one module",
+    body: "Root types come for free, so a module composes on its own: olio({ modules: [users] }).",
+    href: "/concepts/project-structure/#testing-a-module",
+    link: "Testing modules",
+    icon: "M9 3h6M10 3v6L5 19a1.5 1.5 0 0 0 1.3 2h11.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7.5 15h9"
+  },
+  {
+    title: "Errors that point at files",
+    body: "SDL and schema errors come back as file:line:column, so the fix is one click away.",
+    href: "/reference/olio/#application",
+    link: "Composition checks",
+    icon: "M12 8v5M12 16.5v.5M10.3 3.9 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"
+  }
+];
+
+const steps = [
+  {
+    title: "Write SDL",
+    body: "Each module keeps its schema next to its code.",
+    code: "extend type Query { user(id: ID!): User }"
+  },
+  {
+    title: "Generate types",
+    body: "One script, one generated.ts for the whole app.",
+    code: 'codegen({ modules: "src/modules" })'
+  },
+  {
+    title: "Compose",
+    body: "olio merges the modules and checks every key.",
+    code: "olio({ modules, middleware })"
+  },
+  {
+    title: "Serve",
+    body: "Fetch or Node, on the framework you already use.",
+    code: "fetchHandler(app, { context })"
+  }
+];
+
+const packages = [
+  {
+    name: "olio",
+    tag: "Core",
+    body: "Modules, typed resolvers and layered middleware, composed into a schema."
+  },
+  {
+    name: "codegen",
+    tag: "Types",
+    body: "SDL to TypeScript: schema types, module contracts, the Application type."
+  },
+  {
+    name: "schema",
+    tag: "Schema",
+    body: "Compose module SDL into one validated schema, with @implements and @copy."
+  },
+  {
+    name: "tools",
+    tag: "Loading",
+    body: "Load modules, SDL and resolver files from globs."
+  },
+  {
+    name: "http",
+    tag: "Server",
+    body: "Serve over HTTP with Fetch and Node adapters, context and error masking."
+  },
+  {
+    name: "client",
+    tag: "Client",
+    body: "A typed client: operations in .graphql files, one call per operation."
+  },
+  {
+    name: "di",
+    tag: "DI",
+    body: "Typed dependency injection with per-operation instances."
+  }
+];
+
+const moduleCode = `// src/modules/users/index.ts
+import { module, mw } from "@nxara/olio";
+import { loadTypeDefs } from "@nxara/olio-tools";
+
+export const usersModule = module.users({
+  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+  resolvers: {
+    Query: { user: (root, { id }) => findUser(id) }, // id: string
+    User: { name: (user) => user.name } // user: what User maps to
+  },
+  middleware: mw.users({ Query: { user: [cache()] } })
+});`;
+
+const errorText = `Module "posts": "User.name" is declared by module "users";
+only that module can resolve it`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>olio · Modular, type-safe GraphQL</title>
+    <meta
+      name="description"
+      content="Modular, type-safe GraphQL for TypeScript. Many modules, one schema."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script is:inline>
+      // Shares Starlight's stored choice, so the docs and this page agree.
+      (() => {
+        let stored = null;
+        try {
+          stored = localStorage.getItem("starlight-theme");
+        } catch {
+          // Storage can be blocked (private mode): fall back to the system preference.
+        }
+        const theme =
+          stored === "light" || stored === "dark"
+            ? stored
+            : matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+        document.documentElement.dataset.theme = theme;
+      })();
+    </script>
+  </head>
+  <body
+    class="bg-cream font-sans text-ink antialiased dark:bg-night dark:text-cream"
+  >
+    <MarkSprite />
+
+    <header
+      class="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-4 px-6 py-[18px]"
+    >
+      <a href="/" class="flex min-h-11 items-center gap-2.5">
+        <Mark class="w-[47px] dark:w-11" label="olio" />
+        <span class="text-[26px] font-bold tracking-[-0.035em]">olio</span>
+      </a>
+      <nav aria-label="Main" class="flex flex-wrap items-center gap-1">
+        <a href={docs} class="px-3.5 py-3 text-[15px] font-medium">Docs</a>
+        <a
+          href="#packages"
+          class="px-3.5 py-3 text-[15px] font-medium max-sm:hidden"
+          >Packages</a
+        >
+        <a
+          href={`${repoUrl}/releases`}
+          class="px-3.5 py-3 text-[15px] font-medium max-sm:hidden"
+          >Changelog</a
+        >
+        <a href={repoUrl} aria-label="GitHub" class="flex p-3">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+            ><path
+              d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2z"
+            ></path></svg
+          >
+        </a>
+        <button
+          type="button"
+          data-theme-toggle
+          aria-label="Switch to dark theme"
+          class="flex size-11 cursor-pointer items-center justify-center rounded-xl"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+            class="dark:hidden"
+            ><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"
+            ></path></svg
+          >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+            class="hidden dark:block"
+            ><circle cx="12" cy="12" r="4"></circle><path
+              d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"
+            ></path></svg
+          >
+        </button>
+        <a
+          href={quickStart}
+          class="ml-2 rounded-xl bg-ink px-[18px] py-3 text-[15px] font-semibold text-cream max-sm:hidden dark:bg-cream dark:text-ink"
+          >Get started</a
+        >
+      </nav>
+    </header>
+
+    <main>
+      <!-- Hero -->
+      <section
+        class="mx-auto flex max-w-[1240px] flex-wrap items-center gap-10 px-6 pt-8 pb-20 sm:pt-12 sm:pb-[88px]"
+      >
+        <div class="flex min-w-0 flex-[1_1_500px] flex-col gap-[26px]">
+          <span
+            class="self-start rounded-full bg-[#EBDDDD] px-3.5 py-2 text-[13px] font-semibold tracking-[0.1em] text-burgundy uppercase dark:bg-[#3A1626] dark:text-blush"
+            >Open source · Type-safe GraphQL</span
+          >
+          <h1
+            class="text-[clamp(44px,6vw,84px)] leading-[1.02] font-bold tracking-[-0.04em]"
+          >
+            Many modules.<br />One schema.
+          </h1>
+          <p
+            class="max-w-[540px] text-[19px] leading-[1.65] text-gray-600 dark:text-gray-300"
+          >
+            olio builds GraphQL servers out of small, self-contained modules.
+            Each module owns its SDL, resolvers and middleware. olio composes
+            them into one schema, and codegen checks every resolver at compile
+            time.
+          </p>
+          <ul class="flex flex-col gap-3">
+            {
+              [
+                ["Modules own their fields.", "No one else can resolve them."],
+                [
+                  "Typed from your SDL.",
+                  "Resolvers, args and middleware keys."
+                ],
+                ["Runs anywhere.", "app.schema works with any GraphQL server."]
+              ].map(([strong, rest]) => (
+                <li class="flex items-start gap-3 text-base leading-normal">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    class="flex-none"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      class="fill-burgundy dark:fill-cream"
+                    />
+                    <path
+                      d="M7.5 12.5l3 3 6-6.5"
+                      fill="none"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="stroke-cream dark:stroke-burgundy"
+                    />
+                  </svg>
+                  <span>
+                    <strong>{strong}</strong>{" "}
+                    <span class="text-gray-600 dark:text-gray-300">{rest}</span>
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+          <div class="flex flex-wrap items-center gap-3">
+            <a
+              href={quickStart}
+              class="rounded-xl bg-ink px-6 py-[15px] text-base font-semibold text-cream dark:bg-cream dark:text-ink"
+              >Get started</a
+            >
+            <div
+              class="flex items-center gap-1.5 rounded-xl border border-gray-300 bg-paper py-1 pr-1 pl-4 dark:border-gray-700 dark:bg-gray-800"
+            >
+              <code class="font-mono text-sm whitespace-nowrap" data-install
+                >npm i @nxara/olio graphql</code
+              >
+              <button
+                type="button"
+                data-copy
+                aria-label="Copy install command"
+                class="flex size-11 cursor-pointer items-center justify-center rounded-[9px] text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  ><rect x="9" y="9" width="12" height="12" rx="2"></rect><path
+                    d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg
+                >
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="min-w-0 flex-[1_1_420px]">
+          <Hero3D />
+        </div>
+      </section>
+
+      <!-- Why -->
+      <section
+        class="border-y border-[#E8E1D8] bg-paper dark:border-gray-800 dark:bg-[#17151B]"
+      >
+        <div
+          class="mx-auto flex max-w-[1240px] flex-col gap-11 px-6 py-20 sm:py-24"
+        >
+          <div class="flex max-w-[720px] flex-col gap-3.5">
+            <span
+              class="text-[13px] font-semibold tracking-[0.12em] text-burgundy uppercase dark:text-raspberry"
+              >Why olio</span
+            >
+            <h2
+              class="text-[clamp(32px,4vw,48px)] leading-[1.1] font-bold tracking-[-0.03em]"
+            >
+              Built for APIs that keep growing
+            </h2>
+            <p
+              class="text-lg leading-relaxed text-gray-600 dark:text-gray-300"
+            >
+              One schema file works on day one. A few months later it's the file
+              everyone edits and nobody owns. olio gives every part of your API
+              a home from the start.
+            </p>
+          </div>
+          <div
+            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-[18px]"
+          >
+            {
+              why.map((card) => (
+                <a
+                  href={card.href}
+                  class="group flex flex-col gap-3.5 rounded-[22px] bg-cream p-7 transition-colors hover:bg-[#EFE8E0] dark:bg-gray-800 dark:hover:bg-[#232029]"
+                >
+                  <span class="flex size-12 items-center justify-center rounded-[14px] bg-ink dark:bg-cream">
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                      class="stroke-cream dark:stroke-ink"
+                    >
+                      <path d={card.icon} />
+                    </svg>
+                  </span>
+                  <h3 class="text-xl font-semibold tracking-[-0.02em]">
+                    {card.title}
+                  </h3>
+                  <p class="grow text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
+                    {card.body}
+                  </p>
+                  <span class="text-sm font-semibold text-burgundy dark:text-raspberry">
+                    {card.link}{" "}
+                    <span class="inline-block transition-transform group-hover:translate-x-0.5">
+                      →
+                    </span>
+                  </span>
+                </a>
+              ))
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Core idea -->
+      <section
+        class="mx-auto flex max-w-[1240px] flex-col gap-14 px-6 py-20 sm:py-[104px]"
+      >
+        <div class="flex flex-wrap items-center gap-12">
+          <div class="flex min-w-0 flex-[1_1_400px] flex-col gap-5">
+            <span
+              class="text-[13px] font-semibold tracking-[0.12em] text-burgundy uppercase dark:text-raspberry"
+              >The core idea</span
+            >
+            <h2
+              class="text-[clamp(32px,4vw,48px)] leading-[1.1] font-bold tracking-[-0.03em]"
+            >
+              A module is a slice of your schema
+            </h2>
+            <p
+              class="text-lg leading-[1.65] text-gray-600 dark:text-gray-300"
+            >
+              It holds the SDL it declares, the resolvers that answer it and the
+              middleware around them. It can extend other modules' types, so
+              each part of the API stays small and readable.
+            </p>
+            <div class="flex flex-col border-t border-gray-300 dark:border-gray-700">
+              {
+                [
+                  ["typeDefs", "the part of the schema this module owns"],
+                  ["resolvers", "typed from the SDL, for owned fields only"],
+                  ["middleware", "layers for its fields, under the app's"]
+                ].map(([name, text], index) => (
+                  <div class="flex gap-4 border-b border-gray-300 py-4 dark:border-gray-700">
+                    <span class="pt-[3px] font-mono text-[13px] text-burgundy dark:text-raspberry">
+                      0{index + 1}
+                    </span>
+                    <span class="text-base leading-normal">
+                      <strong class="font-mono text-[15px]">{name}</strong>
+                      <span class="text-gray-600 dark:text-gray-300">: {text}</span>
+                    </span>
+                  </div>
+                ))
+              }
+            </div>
+            <a
+              href="/reference/olio/#modules"
+              class="self-start py-2.5 text-[15px] font-semibold text-burgundy dark:text-raspberry"
+              >Read about modules →</a
+            >
+          </div>
+          <div class="flex min-w-0 flex-[1_1_560px] flex-col gap-4">
+            <div
+              class="overflow-hidden rounded-[22px] bg-ink shadow-[0_40px_80px_-40px_rgba(23,21,26,0.45)] ring-1 ring-transparent dark:bg-[#1A181E] dark:ring-gray-700"
+            >
+              <div
+                class="flex items-center gap-2 border-b border-[#2E2A34] px-5 py-3.5"
+              >
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="size-[11px] rounded-full bg-[#3A3640]"></span>
+                <span class="ml-2.5 font-mono text-[13px] text-gray-400"
+                  >modules/users/index.ts</span
+                >
+              </div>
+              <Code
+                code={moduleCode}
+                lang="ts"
+                theme="github-dark"
+                class="code-panel"
+              />
+            </div>
+            <div
+              class="flex gap-3 rounded-2xl border border-[#E3C9CF] bg-[#F6E9EB] px-5 py-4 font-mono text-[13px] leading-relaxed text-[#5E1630] dark:border-[#4A2232] dark:bg-[#22141B] dark:text-blush"
+            >
+              <span aria-hidden="true">✕</span>
+              <span class="min-w-0 whitespace-pre-wrap">{errorText}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Merge diagram -->
+        <div
+          class="flex flex-wrap items-center justify-center gap-x-7 gap-y-5 rounded-[26px] max-sm:flex-col max-sm:px-5 border border-[#E8E1D8] bg-paper p-9 dark:border-gray-800 dark:bg-gray-800"
+        >
+          <div class="flex flex-col gap-2.5">
+            <span
+              class="text-xs font-semibold tracking-[0.12em] text-gray-500 uppercase dark:text-gray-400"
+              >Modules</span
+            >
+            <span
+              class="rounded-[10px] bg-ink px-4 py-2.5 font-mono text-[15px] text-cream dark:bg-cream dark:text-ink"
+              >users</span
+            >
+            <span
+              class="rounded-[10px] bg-ink px-4 py-2.5 font-mono text-[15px] text-cream dark:bg-cream dark:text-ink"
+              >inventory</span
+            >
+            <span
+              class="rounded-[10px] bg-burgundy px-4 py-2.5 font-mono text-[15px] text-cream"
+              >sales <span class="opacity-80">· new</span></span
+            >
+          </div>
+          <svg
+            width="56"
+            height="24"
+            viewBox="0 0 56 24"
+            fill="none"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            class="stroke-burgundy max-sm:rotate-90 dark:stroke-raspberry"
+            ><path d="M2 12h50M44 5l8 7-8 7"></path></svg
+          >
+          <div class="flex flex-col items-center gap-2">
+            <span
+              class="text-xs font-semibold tracking-[0.12em] text-gray-500 uppercase dark:text-gray-400"
+              >olio</span
+            >
+            <span
+              class="rounded-xl border border-dashed border-burgundy bg-cream px-[18px] py-3.5 font-mono text-[15px] dark:border-raspberry dark:bg-night"
+              >olio(&#123; modules &#125;)</span
+            >
+          </div>
+          <svg
+            width="56"
+            height="24"
+            viewBox="0 0 56 24"
+            fill="none"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            class="stroke-burgundy max-sm:rotate-90 dark:stroke-raspberry"
+            ><path d="M2 12h50M44 5l8 7-8 7"></path></svg
+          >
+          <div class="flex max-w-full min-w-0 flex-col gap-2.5">
+            <span
+              class="text-xs font-semibold tracking-[0.12em] text-gray-500 uppercase dark:text-gray-400"
+              >One schema</span
+            >
+            <div
+              class="overflow-x-auto rounded-[14px] bg-cream px-[18px] py-3.5 font-mono text-[13px] leading-[1.8] whitespace-pre sm:text-sm dark:bg-night"
+            >
+              type User {"{ … }"}{"\n"}type Product {"{ … }"}{"\n"}type SalesOrder {
+                "{ … }"
+              }{"\n"}type Query {"{ user, products, orders }"}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Steps -->
+      <section class="bg-night text-cream dark:bg-[#0D0C10]">
+        <div
+          class="mx-auto flex max-w-[1240px] flex-col gap-12 px-6 py-20 sm:py-[104px]"
+        >
+          <div class="flex max-w-[720px] flex-col gap-3.5">
+            <span
+              class="text-[13px] font-semibold tracking-[0.12em] text-[#E07A98] uppercase"
+              >From SDL to a running API</span
+            >
+            <h2
+              class="text-[clamp(32px,4vw,48px)] leading-[1.1] font-bold tracking-[-0.03em]"
+            >
+              Four steps, each one line that matters
+            </h2>
+          </div>
+          <ol
+            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-[18px]"
+          >
+            {
+              steps.map((step, index) => (
+                <li class="flex flex-col gap-4 rounded-[22px] border border-[#2E2A34] bg-gray-800 p-7">
+                  <span class="flex size-9 items-center justify-center rounded-full bg-cream text-[15px] font-bold text-ink">
+                    {index + 1}
+                  </span>
+                  <h3 class="text-[21px] font-semibold">{step.title}</h3>
+                  <p class="grow text-[15px] leading-relaxed text-gray-300">
+                    {step.body}
+                  </p>
+                  <code class="rounded-xl border border-[#2E2A34] bg-night px-4 py-3.5 font-mono text-[13px] leading-relaxed break-words text-gray-200">
+                    {step.code}
+                  </code>
+                </li>
+              ))
+            }
+          </ol>
+          <a
+            href={quickStart}
+            class="self-start rounded-xl bg-cream px-6 py-[15px] text-base font-semibold text-ink"
+            >Follow the quick start</a
+          >
+        </div>
+      </section>
+
+      <!-- Packages -->
+      <section
+        id="packages"
+        class="mx-auto flex max-w-[1240px] scroll-mt-6 flex-col gap-9 px-6 py-20 sm:py-[104px]"
+      >
+        <div class="flex max-w-[720px] flex-col gap-3.5">
+          <span
+            class="text-[13px] font-semibold tracking-[0.12em] text-burgundy uppercase dark:text-raspberry"
+            >The olio family</span
+          >
+          <h2
+            class="text-[clamp(32px,4vw,48px)] leading-[1.1] font-bold tracking-[-0.03em]"
+          >
+            Add only what you need
+          </h2>
+          <p class="text-lg leading-relaxed text-gray-600 dark:text-gray-300">
+            Start with the core. Every other package is optional, and they all
+            share one version.
+          </p>
+        </div>
+        <div
+          class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-[18px]"
+        >
+          {
+            packages.map((pkg, index) => {
+              const name =
+                pkg.name === "olio" ? "@nxara/olio" : `@nxara/olio-${pkg.name}`;
+              const featured = index === 0;
+              return (
+                <a
+                  href={`/reference/${pkg.name}/`}
+                  class:list={[
+                    "flex flex-col gap-3 rounded-[22px] p-[26px] transition-transform hover:-translate-y-0.5",
+                    featured
+                      ? "bg-ink text-cream dark:bg-cream dark:text-ink"
+                      : "border border-[#E8E1D8] bg-paper dark:border-gray-800 dark:bg-gray-800"
+                  ]}
+                >
+                  <span
+                    class:list={[
+                      "self-start rounded-full px-2.5 py-1 text-xs font-semibold",
+                      featured
+                        ? "bg-burgundy text-cream"
+                        : "bg-gray-200 dark:bg-gray-700"
+                    ]}
+                  >
+                    {pkg.tag}
+                  </span>
+                  <span class="font-mono text-[17px] font-semibold break-all">
+                    {name}
+                  </span>
+                  <span
+                    class:list={[
+                      "grow text-[15px] leading-normal",
+                      featured
+                        ? "text-gray-300 dark:text-gray-600"
+                        : "text-gray-600 dark:text-gray-300"
+                    ]}
+                  >
+                    {pkg.body}
+                  </span>
+                </a>
+              );
+            })
+          }
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="mx-auto max-w-[1240px] px-6 pb-24">
+        <div
+          class="flex flex-wrap items-center justify-between gap-8 rounded-[32px] bg-night px-8 py-12 text-cream sm:px-12 sm:py-14 dark:bg-gray-800"
+        >
+          <div class="flex flex-wrap items-center gap-7">
+            <span
+              class="flex size-[104px] items-center justify-center rounded-[26px] bg-cream"
+            >
+              <svg viewBox="0 0 140 120" class="w-20" role="img" aria-label="olio"
+                ><use href="#olio-mark"></use></svg
+              >
+            </span>
+            <div class="flex flex-col gap-2">
+              <h2
+                class="text-[clamp(28px,3.4vw,42px)] leading-[1.1] font-bold tracking-[-0.03em]"
+              >
+                Start with one module.
+              </h2>
+              <p class="text-[17px] text-gray-300">
+                Add the next one when you need it.
+              </p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a
+              href={quickStart}
+              class="rounded-xl bg-cream px-6 py-[15px] text-base font-semibold text-ink"
+              >Get started</a
+            >
+            <a
+              href={repoUrl}
+              class="rounded-xl border border-[#3A3640] px-6 py-[15px] text-base font-semibold"
+              >Star on GitHub</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer
+      class="border-t border-[#E8E1D8] bg-paper dark:border-gray-800 dark:bg-[#17151B]"
+    >
+      <div
+        class="mx-auto flex max-w-[1240px] flex-col gap-10 px-6 pt-14 pb-9"
+      >
+        <div class="flex flex-wrap gap-x-16 gap-y-10">
+          <div class="flex flex-[1_1_240px] flex-col gap-3.5">
+            <div class="flex items-center gap-2.5">
+              <Mark class="w-10 dark:w-9" />
+              <span class="text-[22px] font-bold tracking-[-0.035em]">olio</span>
+            </div>
+            <p
+              class="max-w-[260px] text-sm leading-relaxed text-gray-500 dark:text-gray-400"
+            >
+              Many modules. One schema. Open source by nxara.
+            </p>
+          </div>
+          {
+            [
+              {
+                label: "Docs",
+                links: [
+                  ["Introduction", docs],
+                  ["Quick start", quickStart],
+                  ["How the pieces fit", "/concepts/how-it-fits/"],
+                  ["Project structure", "/concepts/project-structure/"]
+                ]
+              },
+              {
+                label: "Packages",
+                links: packages
+                  .slice(0, 5)
+                  .map((pkg) => [
+                    pkg.name === "olio" ? "olio" : `olio-${pkg.name}`,
+                    `/reference/${pkg.name}/`
+                  ])
+              },
+              {
+                label: "Community",
+                links: [
+                  ["GitHub", repoUrl],
+                  ["Issues", `${repoUrl}/issues`],
+                  ["Releases", `${repoUrl}/releases`],
+                  ["npm", "https://www.npmjs.com/package/@nxara/olio"]
+                ]
+              }
+            ].map((group) => (
+              <nav
+                aria-label={group.label}
+                class="flex flex-[0_1_170px] flex-col gap-1 text-sm"
+              >
+                <span class="pb-1.5 font-semibold">{group.label}</span>
+                {group.links.map(([label, href]) => (
+                  <a
+                    href={href}
+                    class="py-1.5 text-gray-600 hover:text-ink dark:text-gray-300 dark:hover:text-cream"
+                  >
+                    {label}
+                  </a>
+                ))}
+              </nav>
+            ))
+          }
+        </div>
+        <div
+          class="flex flex-wrap justify-between gap-3 border-t border-[#E8E1D8] pt-6 text-[13px] text-gray-500 dark:border-gray-800 dark:text-gray-400"
+        >
+          <span>© {new Date().getFullYear()} nxara · MIT License</span>
+          <a href="https://www.npmjs.com/package/@nxara/olio">@nxara/olio on npm</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const toggle = document.querySelector<HTMLButtonElement>(
+        "[data-theme-toggle]"
+      );
+      const label = (): void => {
+        const next =
+          document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        toggle?.setAttribute("aria-label", `Switch to ${next} theme`);
+      };
+      label();
+      toggle?.addEventListener("click", () => {
+        const next =
+          document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        try {
+          localStorage.setItem("starlight-theme", next);
+        } catch {
+          // Private windows can refuse storage; the theme still switches.
+        }
+        label();
+      });
+
+      const copy = document.querySelector<HTMLButtonElement>("[data-copy]");
+      copy?.addEventListener("click", async () => {
+        const text = document.querySelector("[data-install]")?.textContent;
+        if (text) {
+          await navigator.clipboard.writeText(text.trim());
+          copy.setAttribute("aria-label", "Copied");
+        }
+      });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  .code-panel {
+    margin: 0;
+    padding: 22px;
+    background-color: transparent !important;
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+</style>

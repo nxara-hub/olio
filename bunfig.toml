@@ -1,0 +1,4 @@
+[install]
+# Astro bundles satteri into its build output, which then looks for its
+# native binding from there; isolated installs keep it out of reach.
+publicHoistPattern = ["@bruits/*"]

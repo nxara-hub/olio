@@ -1,0 +1,65 @@
+@layer base, starlight, theme, components, utilities;
+
+@import "@fontsource-variable/sora";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@astrojs/starlight-tailwind";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme {
+  --font-sans: "Sora Variable", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  /* Brand */
+  --color-cream: #f4efea;
+  --color-paper: #fbf9f6;
+  --color-ink: #17151a;
+  --color-night: #121015;
+  --color-burgundy: #8c2443;
+  --color-raspberry: #c2456a;
+  --color-blush: #f2b8c8;
+
+  /* starlight-tailwind maps Starlight's theme onto white, gray and accent.
+     white is cream: the light page background and the dark page text. */
+  --color-white: #f4efea;
+  --color-gray-50: #fdfcfa;
+  --color-gray-100: #fbf9f6;
+  --color-gray-200: #ebe4dc;
+  --color-gray-300: #ddd6cc;
+  --color-gray-400: #a9a3ae;
+  --color-gray-500: #625c68;
+  --color-gray-600: #4a4650;
+  --color-gray-700: #3a3640;
+  --color-gray-800: #1c1a21;
+  --color-gray-900: #121015;
+  --color-gray-950: #0b0a0d;
+  --color-accent-200: #f2b8c8;
+  --color-accent-600: #8c2443;
+  --color-accent-900: #5e1630;
+  --color-accent-950: #3a1626;
+}
+
+/* Burgundy is too dark to read on night, so dark mode links use raspberry.
+   Unlayered, so these win over the plugin's mapping. */
+:root {
+  --sl-color-accent: var(--color-raspberry);
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent: var(--color-burgundy);
+}
+
+.site-title {
+  gap: 0.6rem;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.site-title img {
+  height: 2.1rem;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4),
+h1#_top {
+  letter-spacing: -0.03em;
+}

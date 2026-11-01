@@ -8,6 +8,7 @@ import {
   print,
   Source,
   validateSchema,
+  visit,
   type GraphQLSchema
 } from "graphql";
 
@@ -262,6 +263,33 @@ describe("applyDirectives", () => {
       run(`type A @copy(from: ["Nope"]) { a: Int }`, [spy, copyDirective()])
     ).toThrow("unknown type");
     expect(transformed).toBe(false);
+  });
+
+  test("runs a directive used only on fields, arguments or enum values", () => {
+    const removed: string[] = [];
+    const strip: SchemaDirective = {
+      name: "strip",
+      definition:
+        "directive @strip on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE",
+      transform: (document) =>
+        visit(document, {
+          Directive(node, _key, _parent, _path, ancestors) {
+            if (node.name.value !== "strip") return;
+            const owner = ancestors.at(-1) as { name?: { value: string } };
+            removed.push(owner.name?.value ?? "?");
+            return null;
+          }
+        })
+    };
+    const { printed } = run(
+      `
+        type Query { a(x: Int @strip): Int @strip }
+        enum Role { ADMIN @strip }
+      `,
+      [strip]
+    );
+    expect(printed).not.toContain("@strip");
+    expect(removed.sort()).toEqual(["ADMIN", "a", "x"]);
   });
 
   test("returns the document unchanged with no directives", () => {

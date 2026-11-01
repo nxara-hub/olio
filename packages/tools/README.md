@@ -1,63 +1,11 @@
 # @nxara/olio-tools
 
-Load modules, and a module's type definitions and resolvers, from files.
-
-## Install
+Load modules and features, and a module's type definitions, resolvers and enum values, from files.
 
 ```sh
 bun add @nxara/olio-tools graphql@16
 ```
 
-`graphql` 16 is a peer dependency.
+**[Read the docs](https://olio.nxara.dev/reference/tools/)**
 
-## Usage
-
-Patterns are globs, or `file:` URLs, so paths can be relative to the calling module:
-
-```ts
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
-
-const typeDefs = await loadTypeDefs(
-  new URL("**/typedefs/*.{gql,ts,js}", import.meta.url)
-);
-
-const resolvers = await loadResolvers(
-  new URL("**/{query,mutation,subscription}.{js,ts}", import.meta.url),
-  new URL("**/resolvers/*.{js,ts}", import.meta.url)
-);
-```
-
-**`loadModules(...patterns)`** imports each file (usually a module's `index.ts`) and collects every exported olio module, in file order. A file that exports no module throws.
-
-```ts
-export const app = olio({
-  modules: await loadModules(
-    new URL("modules/*/index.{js,ts}", import.meta.url)
-  )
-});
-```
-
-**`loadFeatures(...patterns)`** does the same for a module's features (`feature.sales.orders({...})`), usually `new URL("*/index.{js,ts}", import.meta.url)` from the module's `index.ts`.
-
-**`loadTypeDefs(...patterns)`** returns parsed documents from `.graphql`/`.gql` files and from `.ts`/`.js` modules (their default export: SDL or a `DocumentNode`). Each file is parsed with its path, so syntax, directive and schema errors point at `file:line:column`. Files that hold only comments are skipped.
-
-**`loadResolvers(...patterns)`** imports `.ts`/`.js` modules and treats every named object export as a type: `export const Query = …`, `export const User = …`. Exports for the same type from different files are merged, and a field defined twice throws, naming both files. A non-plain export, such as a `GraphQLScalarType`, is used as it is. When `olio()` rejects a loaded resolver (an unknown type, another module's field), its error ends with `(exported by <file>)`.
-
-**`loadEnums(...patterns)`** loads enum internal values for a module's `enums` the same way: every named export is one enum's map, written with olio's builder (`export const OrderStatus = resolvers.sales.orders.OrderStatus({ ... })`). The result satisfies a required `enums` unchecked, like `loadResolvers` does `resolvers`, so an enum missing from the files isn't a compile error; it fails per query, with an error naming the enum.
-
-Every pattern must match at least one file; a pattern that matches nothing throws, so a typo can't quietly load an empty module. String globs resolve from the working directory, so prefer `new URL(..., import.meta.url)` inside modules.
-
-## Cost
-
-The example server, loaded with these functions, against the same app wired by hand: the same resolver, middleware and SDL files, imported directly with the SDL inlined (`apps/example-server/bench`; rerun with `bun run --cwd apps/example-server bench`). Bun 1.4.4 on an Apple Silicon Mac, medians of 20 fresh processes:
-
-|                             | Loaded         | Wired by hand             |
-| --------------------------- | -------------- | ------------------------- |
-| Import + schema, at startup | 90 ms          | 64 ms                     |
-| Heap / RSS after GC         | 4.1 MB / 30 MB | 3.0 MB / 24 MB            |
-| Type-check (tsc 7)          | 0.11 s         | 0.11 s                    |
-| Single-file bundle for Node | doesn't run    | runs (581 KB, 91 KB gzip) |
-
-- **About 25 ms, once, at startup.** Globbing and reading files are synchronous, so most of it is finding files at runtime: modules with top-level `await` evaluate asynchronously, and a module's files are imported only once its `index.ts` has run, so the runtime can't load the whole graph up front. The package adds about 3 ms. Requests aren't affected; the schema is the same either way.
-- **Type-checking costs nothing extra.** Loaded maps aren't checked as a whole (`LoadedResolvers`), but each file is still typed where it's written.
-- **Bundles need the files.** The patterns resolve against `import.meta.url` when the app starts, so a bundled app looks for `modules/*/index.ts` next to the bundle and throws `No files match`. Deploy the sources (or the build output) as files, or wire modules by hand to ship one bundle.
+Part of [olio](https://olio.nxara.dev): modular, type-safe GraphQL for TypeScript. MIT licensed.
