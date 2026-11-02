@@ -820,9 +820,9 @@ function checkOwnerMiddleware(
   }
 }
 
-// A field a middleware names, or a `Type: { "*" }` it's under, runs it even
-// without a resolver: its default resolver gets wrapped. Only `*.*` skips those,
-// since it would add a call to every plain field of every list.
+// A field a middleware's key covers runs it even without a resolver: its default
+// resolver gets wrapped. Otherwise a parent let through would hand out the row's
+// plain fields without the middleware ever seeing them.
 function wrapDefaults(
   schema: GraphQLSchema,
   app: MiddlewareMap,
@@ -842,11 +842,16 @@ function wrapDefaults(
           if (type !== "*") targets.add(`${type}.${key}`);
           continue;
         }
-        const object = schema.getType(type);
-        if (!isObjectType(object)) continue;
-        for (const field of Object.keys(object.getFields())) {
-          const target = `${type}.${field}`;
-          if (canTarget(declared.get(target) ?? "")) targets.add(target);
+        const objects =
+          type === "*"
+            ? Object.values(schema.getTypeMap())
+            : [schema.getType(type)];
+        for (const object of objects) {
+          if (!isObjectType(object)) continue;
+          for (const field of Object.keys(object.getFields())) {
+            const target = `${object.name}.${field}`;
+            if (canTarget(declared.get(target) ?? "")) targets.add(target);
+          }
         }
       }
     }
@@ -868,7 +873,7 @@ function wrapDefaults(
   }
 }
 
-/** Middleware wraps the resolvers modules define, any field it names, and every field under a `Type: { "*" }`. */
+/** Middleware wraps every field its keys cover, with a resolver or without. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
   const { schema, ownership, bypass } = compose(all, config.directives);
