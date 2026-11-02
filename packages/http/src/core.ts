@@ -1,6 +1,7 @@
 import type { Context } from "@nxara/olio-core";
 import {
   GraphQLError,
+  NoSchemaIntrospectionCustomRule,
   parse,
   specifiedRules,
   validate,
@@ -36,6 +37,19 @@ export interface ErrorOptions<Request = undefined, Ctx = Context> {
    * Default: `console.error` of the error.
    */
   onUnexpectedError?: (error: unknown, info: ErrorInfo<Request, Ctx>) => void;
+  /**
+   * Keep graphql's "Did you mean" hints in errors, which name fields,
+   * arguments and enum values a client hasn't been told about. Default: true.
+   */
+  suggestions?: boolean;
+}
+
+/** What `validateOperation` should keep clients from learning about the schema. */
+export interface SchemaHiding {
+  /** Allow `__schema` and `__type`; `__typename` always works. Default: true. */
+  introspection?: boolean;
+  /** Keep graphql's "Did you mean" hints. Default: true. */
+  suggestions?: boolean;
 }
 
 type ContextHook<Request> = (request: Request) => MaybePromise<Context>;
@@ -77,6 +91,12 @@ export type HttpOptions<Request, Passed = unknown> = ErrorOptions<Request> &
      */
     validationRules?: ValidationRules;
     /**
+     * Allow `__schema` and `__type`; `__typename` always works. Tools that
+     * read the schema over HTTP, such as `codegenClient` with a URL, need it.
+     * Default: true.
+     */
+    introspection?: boolean;
+    /**
      * Called once an operation has finished, after the response is built.
      * Dispose per-operation resources here, such as `ctx.di.dispose()`.
      */
@@ -114,16 +134,32 @@ export interface Masking<Info> {
   report: (error: unknown, info: Info) => void;
 }
 
+// A hint always ends the message. Errors with a path were thrown while
+// resolving, so their words are the app's own, not graphql's.
+function withoutSuggestion(error: GraphQLError): GraphQLError {
+  if (error.path) return error;
+  const message = error.message.replace(/ ?Did you mean [^?]*\?$/, "");
+  if (message === error.message) return error;
+  return new GraphQLError(message, {
+    nodes: error.nodes,
+    source: error.source,
+    positions: error.positions,
+    extensions: error.extensions
+  });
+}
+
 export function masking<Info>(options: {
   maskErrors?: boolean;
   onUnexpectedError?: (error: unknown, info: Info) => void;
+  suggestions?: boolean;
 }): Masking<Info> {
   const {
     maskErrors = true,
     // Just the error: the info holds whole contexts (DI scopes and all).
-    onUnexpectedError = (error: unknown): void => console.error(error)
+    onUnexpectedError = (error: unknown): void => console.error(error),
+    suggestions = true
   } = options;
-  const error = (thrown: unknown, info: Info): GraphQLError => {
+  const masked = (thrown: unknown, info: Info): GraphQLError => {
     if (!(thrown instanceof GraphQLError)) {
       onUnexpectedError(thrown, info);
       return new GraphQLError(
@@ -141,6 +177,10 @@ export function masking<Info>(options: {
           path: thrown.path
         })
       : thrown;
+  };
+  const error = (thrown: unknown, info: Info): GraphQLError => {
+    const result = masked(thrown, info);
+    return suggestions ? result : withoutSuggestion(result);
   };
   return {
     error,
@@ -203,7 +243,8 @@ interface Operation {
 // and a rule set shouldn't be able to drop them by accident.
 function ruleSet(
   rules: ValidationRules,
-  operation: Operation
+  operation: Operation,
+  introspection: boolean
 ): readonly ValidationRule[] {
   const custom =
     typeof rules === "function"
@@ -212,7 +253,11 @@ function ruleSet(
           operationName: operation.operationName
         })
       : rules;
-  return [...specifiedRules, ...custom];
+  return [
+    ...specifiedRules,
+    ...custom,
+    ...(introspection ? [] : [NoSchemaIntrospectionCustomRule])
+  ];
 }
 
 /**
@@ -222,7 +267,8 @@ function ruleSet(
 export function validateOperation(
   schema: GraphQLSchema,
   operation: Operation & { readonly query: string },
-  rules: ValidationRules
+  rules: ValidationRules,
+  { introspection = true, suggestions = true }: SchemaHiding = {}
 ): readonly GraphQLError[] {
   let document: ReturnType<typeof parse>;
   try {
@@ -230,12 +276,18 @@ export function validateOperation(
   } catch (error) {
     return [error as GraphQLError];
   }
-  return validate(schema, document, ruleSet(rules, operation));
+  const errors = validate(
+    schema,
+    document,
+    ruleSet(rules, operation, introspection)
+  );
+  return suggestions ? errors : errors.map(withoutSuggestion);
 }
 
 /** `validationRules` for graphql-http. */
 export const handlerRules = (
-  rules: ValidationRules | undefined
+  rules: ValidationRules | undefined,
+  introspection = true
 ):
   | ((
       req: unknown,
@@ -245,12 +297,36 @@ export const handlerRules = (
       }
     ) => readonly ValidationRule[])
   | undefined =>
-  rules &&
-  ((_req, args) =>
-    ruleSet(rules, {
-      variables: args.variableValues,
-      operationName: args.operationName
-    }));
+  rules || !introspection
+    ? (_req, args) =>
+        ruleSet(
+          rules ?? [],
+          {
+            variables: args.variableValues,
+            operationName: args.operationName
+          },
+          introspection
+        )
+    : undefined;
+
+/**
+ * `formatError` for graphql-http: validation errors never reach `onOperation`,
+ * so this is the only hook that sees them. The app's own runs last.
+ */
+export const handlerFormatError =
+  (
+    suggestions: boolean | undefined,
+    formatError:
+      | ((error: Readonly<GraphQLError | Error>) => GraphQLError | Error)
+      | undefined
+  ) =>
+  (error: Readonly<GraphQLError | Error>): GraphQLError | Error => {
+    const hidden =
+      suggestions === false && error instanceof GraphQLError
+        ? withoutSuggestion(error)
+        : (error as GraphQLError | Error);
+    return formatError ? formatError(hidden) : hidden;
+  };
 
 // Once per context, and a failure in it is reported rather than thrown.
 export function operationEnd<Request>(

@@ -206,6 +206,25 @@ onSubscribe: (_req, params) => {
 };
 ```
 
+## Hiding the schema
+
+Two options keep clients from learning your schema. Both are on by default, so turn them off where you don't want the schema public, usually in production:
+
+```ts
+fetchHandler(app, {
+  context,
+  introspection: process.env.NODE_ENV !== "production",
+  suggestions: process.env.NODE_ENV !== "production"
+});
+```
+
+- **`introspection: false`** refuses `__schema` and `__type`, before any resolver. `__typename` keeps working, since clients need it. `codegenClient` with a URL needs introspection, so point it at a schema file instead, or at a server that allows it.
+- **`suggestions: false`** removes graphql's "Did you mean" hints, which otherwise let a client discover fields, arguments and enum values by guessing. Errors you throw from resolvers keep their words.
+
+Subscription servers take the same: pass `{ introspection, suggestions }` as the last argument of `validateOperation`, and `suggestions` to `errorMasker`.
+
+Neither one is access control. A client can still call a field it guesses correctly, so protect fields with [middleware](/reference/olio/#middleware).
+
 ## Errors
 
 Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost.
@@ -242,6 +261,8 @@ fetchHandler(app, {
 | `context` | none | Builds `ctx` from the request. Required once the app registers a `ctx` type |
 | `validationRules` | none | Rules run with graphql's own before execution: a list, or `({ variables, operationName }) => rules`. See [Validation rules](#validation-rules) |
 | `onOperationEnd` | none | Called once per operation, after the response is built. Release per-operation resources here, e.g. `(ctx) => ctx.di.dispose()`. A failure in it goes to `onUnexpectedError` |
+| `introspection` | `true` | Allow `__schema` and `__type`. See [Hiding the schema](#hiding-the-schema) |
+| `suggestions` | `true` | Keep graphql's "Did you mean" hints in errors. See [Hiding the schema](#hiding-the-schema) |
 | `maskErrors` | `true` | Hide errors that aren't `GraphQLError`s. Turn off only while developing |
 | `onUnexpectedError` | `console.error` of the error | `(error, { ctx, request }) => void`: receives each hidden error, with the context and request it happened in (`ctx` is `undefined` when the `context` hook failed) |
 | graphql-http's own | its defaults | `execute`, `parse`, `validate`, `getOperationAST`, `rootValue`, `formatError` (runs after masking) and `parseRequestParams` (e.g. persisted queries: map an id to its stored query) go to [graphql-http](https://github.com/graphql/graphql-http) as they are. Not `onSubscribe`: operation args returned from it would skip `context` and every validation rule |

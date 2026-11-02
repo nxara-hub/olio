@@ -6,6 +6,7 @@ export type {
   HttpOptions,
   OperationInfo,
   OptionsArgs,
+  SchemaHiding,
   Servable,
   ValidationRules
 } from "./core.js";

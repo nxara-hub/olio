@@ -451,3 +451,144 @@ describe("graphql-http's own options", () => {
     ]);
   });
 });
+
+describe("hiding the schema", () => {
+  const hidden = olio({
+    modules: [
+      createModule("demo", {
+        typeDefs: /* GraphQL */ `
+          enum Role {
+            ADMIN
+          }
+          type Query {
+            secretField(role: Role): String
+            oops: String
+          }
+        `,
+        resolvers: {
+          Query: {
+            secretField: () => "x",
+            oops: () => {
+              throw new GraphQLError("Did you mean the other one?");
+            }
+          }
+        }
+      })
+    ]
+  });
+  const post = async (
+    handler: (request: Request) => Promise<Response>,
+    query: string,
+    variables?: Record<string, unknown>
+  ) => {
+    const response = await handler(
+      new Request("http://test/graphql", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query, variables })
+      })
+    );
+    return (await response.json()) as {
+      data?: unknown;
+      errors?: { message: string }[];
+    };
+  };
+  const messages = (result: { errors?: { message: string }[] }) =>
+    result.errors?.map((e) => e.message);
+  const INTROSPECTION = "{ __schema { types { name } } }";
+  const TYPO = "{ secretFiel }";
+  const VARIABLE = "query($r: Role) { secretField(role: $r) }";
+
+  test("both stay on by default", async () => {
+    const handler = fetchHandler(hidden);
+    expect((await post(handler, INTROSPECTION)).data).toBeDefined();
+    expect(messages(await post(handler, TYPO))?.[0]).toContain("Did you mean");
+  });
+
+  test("introspection: false refuses it, and keeps __typename", async () => {
+    const handler = fetchHandler(hidden, { introspection: false });
+    for (const query of [INTROSPECTION, '{ __type(name: "Role") { name } }']) {
+      const result = await post(handler, query);
+      expect(result.data).toBeUndefined();
+      expect(messages(result)?.[0]).toContain(
+        "introspection has been disabled"
+      );
+    }
+    expect((await post(handler, "{ __typename }")).data).toEqual({
+      __typename: "Query"
+    });
+    expect((await post(handler, TYPO)).errors).toBeDefined();
+  });
+
+  test("suggestions: false leaves no field, argument or enum names", async () => {
+    const handler = fetchHandler(hidden, { suggestions: false });
+    expect(messages(await post(handler, TYPO))).toEqual([
+      'Cannot query field "secretFiel" on type "Query".'
+    ]);
+    expect(
+      messages(await post(handler, "{ secretField(rol: ADMIN) }"))
+    ).toEqual(['Unknown argument "rol" on field "Query.secretField".']);
+    const literal = messages(
+      await post(handler, "{ secretField(role: ADMN) }")
+    );
+    expect(JSON.stringify(literal)).not.toContain("ADMIN");
+    const variable = messages(await post(handler, VARIABLE, { r: "ADMN" }));
+    expect(variable?.[0]).toContain("ADMN");
+    expect(JSON.stringify(variable)).not.toContain("ADMIN");
+  });
+
+  test("suggestions: false leaves your own errors alone", async () => {
+    const handler = fetchHandler(hidden, { suggestions: false });
+    expect(messages(await post(handler, "{ oops }"))).toEqual([
+      "Did you mean the other one?"
+    ]);
+  });
+
+  test("formatError still runs, after the hiding", async () => {
+    const handler = fetchHandler(hidden, {
+      suggestions: false,
+      formatError: (error) => new GraphQLError(`[${error.message}]`)
+    });
+    expect(messages(await post(handler, TYPO))).toEqual([
+      '[Cannot query field "secretFiel" on type "Query".]'
+    ]);
+  });
+
+  test("the node adapter hides them too", async () => {
+    const server = createServer(
+      nodeHandler(hidden, { introspection: false, suggestions: false })
+    ).listen(0);
+    const { port } = server.address() as AddressInfo;
+    const send = async (query: string) =>
+      (await (
+        await fetch(`http://localhost:${port}/graphql`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ query })
+        })
+      ).json()) as { errors?: { message: string }[] };
+    expect(messages(await send(TYPO))).toEqual([
+      'Cannot query field "secretFiel" on type "Query".'
+    ]);
+    expect(messages(await send(INTROSPECTION))?.[0]).toContain(
+      "introspection has been disabled"
+    );
+    server.close();
+  });
+
+  test("validateOperation and errorMasker hide them for subscription servers", () => {
+    const hide = { introspection: false, suggestions: false };
+    expect(
+      validateOperation(hidden.schema, { query: TYPO }, [], hide)[0]?.message
+    ).toBe('Cannot query field "secretFiel" on type "Query".');
+    expect(
+      validateOperation(hidden.schema, { query: INTROSPECTION }, [], hide)[0]
+        ?.message
+    ).toContain("introspection has been disabled");
+    const mask = errorMasker({ suggestions: false });
+    expect(
+      mask.error(new GraphQLError('Value "ADMN". Did you mean "ADMIN"?'))
+        .message
+    ).toBe('Value "ADMN".');
+  });
+});

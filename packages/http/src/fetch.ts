@@ -6,6 +6,7 @@ import {
   contextFailure,
   masking,
   operationEnd,
+  handlerFormatError,
   handlerRules,
   type ErrorInfo,
   type GraphQLHttpOptions,
@@ -43,7 +44,11 @@ export function fetchHandler(
           }
         }
       : undefined,
-    validationRules: handlerRules(options.validationRules),
+    validationRules: handlerRules(
+      options.validationRules,
+      options.introspection
+    ),
+    formatError: handlerFormatError(options.suggestions, options.formatError),
     onOperation: (req, _args, result) =>
       mask.result(result, { ctx: contexts.get(req.raw), request: req.raw })
   });
