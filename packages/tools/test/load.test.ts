@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { createModule, olio } from "@nxara/olio";
 import { graphql, print } from "graphql";
 
 import {
+  loaders,
   loadEnums,
   loadFeatures,
   loadModules,
@@ -257,6 +259,77 @@ describe("errors", () => {
       );
       await expect(loadModules(`${dir}/orders.ts`)).rejects.toThrow(
         /exports no module/
+      );
+    } finally {
+      await clean();
+    }
+  });
+});
+
+describe("loaders", () => {
+  test("every loader resolves its patterns from the root", async () => {
+    const { dir, clean } = await withDir({
+      "schema.graphql": "type Query { viewer: String }",
+      "query.ts": "export const Query = { viewer: () => 'Ada' };",
+      "role.ts": "export const Role = { ADMIN: 1 };",
+      "module.ts":
+        "export const m = { id: 'm', typeDefs: [], resolvers: [], middleware: {}, features: [] };",
+      "feature.ts":
+        "export const f = { id: 'f', module: 'm', typeDefs: [], resolvers: [], middleware: {} };"
+    });
+    try {
+      const load = loaders(dir);
+      expect(sdl(await load.typeDefs("*.graphql"))).toEqual([
+        "type Query {\n  viewer: String\n}"
+      ]);
+      expect(Object.keys(await load.resolvers("query.ts"))).toEqual(["Query"]);
+      expect(Object.keys(await load.enums("role.ts"))).toEqual(["Role"]);
+      expect((await load.modules("module.ts")).map((m) => m.id)).toEqual(["m"]);
+      expect((await load.features("feature.ts")).map((f) => f.id)).toEqual([
+        "f"
+      ]);
+    } finally {
+      await clean();
+    }
+  });
+
+  test("it takes several patterns, and ../ leaves the root", async () => {
+    const { dir, clean } = await withDir({
+      "a.graphql": "type A { a: Int }",
+      "b.graphql": "type B { b: Int }"
+    });
+    try {
+      const defs = await loaders(join(dir, "nested")).typeDefs(
+        "../a.graphql",
+        "../b.graphql"
+      );
+      expect(defs).toHaveLength(2);
+    } finally {
+      await clean();
+    }
+  });
+
+  test("absolute paths and URLs are left alone", async () => {
+    const { dir, clean } = await withDir({
+      "a.graphql": "type A { a: Int }",
+      "b.graphql": "type B { b: Int }"
+    });
+    try {
+      const defs = await loaders("/nowhere").typeDefs(
+        join(dir, "a.graphql"),
+        pathToFileURL(join(dir, "b.graphql"))
+      );
+      expect(defs).toHaveLength(2);
+    } finally {
+      await clean();
+    }
+  });
+
+  test("a pattern matching nothing names the full path it tried", async () => {
+    const { dir, clean } = await withDir({});
+    try {
+      await expect(loaders(dir).typeDefs("typedefs/*.gql")).rejects.toThrow(
+        `No files match "${dir}/typedefs/*.gql"`
       );
     } finally {
       await clean();
