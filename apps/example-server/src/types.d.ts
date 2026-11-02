@@ -11,23 +11,23 @@ import type {
 } from "./modules/sales/store.js";
 import type { PubSub } from "./pubsub.js";
 
-interface Viewer {
+type Viewer = {
   id: string;
   role: Role;
   token: string;
-}
+};
 
 /** What a request carries; providers (see src/di.ts) see this. */
-interface RequestInfo {
+type RequestInfo = {
   requestId: string;
   viewer?: Viewer;
   pubsub: PubSub;
-}
+};
 
-interface GQLCtx extends RequestInfo {
+type GQLCtx = RequestInfo & {
   /** Named in src/di.ts. */
   di: ScopeOf<typeof container>;
-}
+};
 
 /** Subscriptions live on a connection, so they also know which one. */
 type SubGQLCtx = GQLCtx & { connectionId: string };

@@ -18,22 +18,21 @@ let connections = 0;
 const connectionId = (kind: string): string => `${kind}-${++connections}`;
 
 /** Server-sent events on the same URL: requests with `Accept: text/event-stream`. */
-export const sseHandler = createHandler({
+export const sseHandler = createHandler<SubscriptionContext>({
   schema: app.schema,
   context: (req) =>
     createSubscriptionContext(
       connectionId("sse"),
       bearer(req.raw.headers.get("authorization"))
-    ) as never,
+    ),
   // The HTTP handler's rules, so a subscription can't cost more than a query.
   onSubscribe: (_req, params) => {
     const errors = validateOperation(app.schema, params, validationRules);
     // graphql-sse reads it as a result only with `data`.
     return errors.length ? { data: null, errors: [...errors] } : undefined;
   },
-  onNext: (ctx, _req, result) =>
-    mask.result(result, ctx as unknown as SubscriptionContext),
-  onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
+  onNext: (ctx, _req, result) => mask.result(result, ctx),
+  onComplete: (ctx) => ctx.di.dispose()
 });
 
 const live = new WeakMap<object, Map<string, SubscriptionContext>>();
@@ -60,7 +59,7 @@ export const wsOptions: ServerOptions<Record<string, unknown> | undefined> = {
     const contexts = live.get(ctx) ?? new Map<string, SubscriptionContext>();
     contexts.set(id, value);
     live.set(ctx, contexts);
-    return value as never;
+    return value;
   },
   onSubscribe: (_ctx, _id, payload) => {
     const errors = validateOperation(app.schema, payload, validationRules);

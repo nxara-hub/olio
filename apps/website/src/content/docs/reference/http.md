@@ -83,17 +83,15 @@ const mask = errorMasker<SubscriptionContext>();
 
 // graphql-sse: route requests with `Accept: text/event-stream` here, GET and
 // POST (what @nxara/olio-client sends; single-connection mode also needs PUT and DELETE).
-export const sseHandler = createHandler({
+export const sseHandler = createHandler<SubscriptionContext>({
   schema: app.schema,
-  context: (req) =>
-    createContext(req.raw.headers.get("authorization")) as never,
+  context: (req) => createContext(req.raw.headers.get("authorization")),
   onSubscribe: (_req, params) => {
     const errors = validateOperation(app.schema, params, validationRules);
     return errors.length ? { data: null, errors: [...errors] } : undefined; // needs `data`
   },
-  onNext: (ctx, _req, result) =>
-    mask.result(result, ctx as unknown as SubscriptionContext),
-  onComplete: (ctx) => (ctx as unknown as SubscriptionContext).di.dispose()
+  onNext: (ctx, _req, result) => mask.result(result, ctx),
+  onComplete: (ctx) => ctx.di.dispose()
 });
 
 // graphql-ws, on a `ws` server: `context` runs once per subscription, so the
@@ -109,7 +107,7 @@ export const wsOptions: ServerOptions = {
       | undefined;
     const value = createContext(headers?.authorization);
     live.set(ctx, (live.get(ctx) ?? new Map()).set(id, value));
-    return value as never;
+    return value;
   },
   onSubscribe: (_ctx, _id, payload) => {
     const errors = validateOperation(app.schema, payload, validationRules);
