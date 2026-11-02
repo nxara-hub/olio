@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The release notes read the commits since the previous tag.
+          fetch-depth: 0
       # No tool cache: a restored cache is trusted as is, and this job publishes.
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
@@ -60,4 +62,6 @@ jobs:
         run: |
           prerelease=""
           [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease=--prerelease
-          gh release create "$GITHUB_REF_NAME" --generate-notes $prerelease
+          notes=$(mktemp)
+          bun scripts/release-notes.ts "$GITHUB_REF_NAME" > "$notes"
+          gh release create "$GITHUB_REF_NAME" --notes-file "$notes" $prerelease
