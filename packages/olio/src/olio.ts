@@ -801,8 +801,9 @@ function checkOwnerMiddleware(
   }
 }
 
-// A field named explicitly in middleware runs it even without a resolver: its
-// default resolver gets wrapped. `*` doesn't reach those.
+// A field a middleware names, or a `Type: { "*" }` it's under, runs it even
+// without a resolver: its default resolver gets wrapped. Only `*.*` skips those,
+// since it would add a call to every plain field of every list.
 function wrapDefaults(
   schema: GraphQLSchema,
   app: MiddlewareMap,
@@ -812,13 +813,27 @@ function wrapDefaults(
 ): void {
   const byId = new Map(all.map((o) => [o.id, o]));
   const targets = new Set<string>();
-  for (const map of [app, ...all.map((o) => o.middleware)]) {
+  const collect = (
+    map: MiddlewareMap,
+    canTarget: (owner: string) => boolean
+  ): void => {
     for (const [type, fields] of Object.entries(map)) {
       for (const key of Object.keys(fields ?? {})) {
-        if (type !== "*" && key !== "*") targets.add(`${type}.${key}`);
+        if (key !== "*") {
+          if (type !== "*") targets.add(`${type}.${key}`);
+          continue;
+        }
+        const object = schema.getType(type);
+        if (!isObjectType(object)) continue;
+        for (const field of Object.keys(object.getFields())) {
+          const target = `${type}.${field}`;
+          if (canTarget(declared.get(target) ?? "")) targets.add(target);
+        }
       }
     }
-  }
+  };
+  collect(app, () => true);
+  for (const owner of all) collect(owner.middleware, owner.canTarget);
   for (const target of targets) {
     const [typeName = "", fieldName = ""] = target.split(".");
     const type = schema.getType(typeName);
@@ -834,7 +849,7 @@ function wrapDefaults(
   }
 }
 
-/** Middleware wraps the resolvers modules define, plus any field it names explicitly. */
+/** Middleware wraps the resolvers modules define, any field it names, and every field under a `Type: { "*" }`. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
   const { schema, ownership, bypass } = compose(all, config.directives);
