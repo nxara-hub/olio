@@ -232,6 +232,46 @@ How a middleware is typed depends on where it's written:
 - **On its own**, like `requireAuth`, it's typed `MiddlewareFn`: `root: unknown` and `args: Record<string, unknown>`, so it fits any query or mutation key.
 - **With a separate `sub_ctx`**, `"*"` and `Subscription` keys need `MiddlewareFn<Context | SubscriptionContext>` or `MiddlewareFn<SubscriptionContext>` (see [Subscriptions](#subscriptions)).
 
+### Passing a value to nested fields
+
+Replacing `params.ctx` only reaches that field's own resolver. Nested fields get the request's original `ctx` from graphql, so they can quietly run with the wrong value. Nothing errors. The same goes for graphql-modules, since this is how graphql-js passes context.
+
+**Bad:** `invoices` still sees the tenant the request started with.
+
+```ts
+mw.orgs({
+  Query: {
+    org: [
+      (params, next) => {
+        params.ctx = { ...params.ctx, tenantId: params.args.id };
+        return next();
+      }
+    ]
+  }
+});
+
+resolvers.orgs.Org({
+  // ctx.tenantId is the original, so this returns another tenant's invoices.
+  invoices: (_org, _args, ctx) => findInvoices(ctx.tenantId)
+});
+```
+
+**Also bad:** changing `params.ctx.tenantId` in place does reach nested fields, but it changes the one `ctx` the whole request shares. In `{ a: org(id: "1") { … } b: org(id: "2") { … } }` the two fields overwrite each other's value while they run.
+
+**Good:** let the parent pass it down. What a resolver returns is its children's `root`, and [mappers](#mappers) type it.
+
+```ts
+export const Query = query.orgs({
+  org: (_root, { id }) => findOrg(id)
+});
+
+export const Org = resolvers.orgs.Org({
+  invoices: (org) => findInvoices(org.id)
+});
+```
+
+**Good:** for a value that applies to the whole request, such as the signed-in user, build it in your server's `context` hook, so every field sees the same one.
+
 ### Skipping middleware: `@bypass`
 
 A field tells its middleware what to skip with `@bypass` in the SDL. Each middleware then decides for itself:
