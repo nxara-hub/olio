@@ -22,7 +22,7 @@ test("groups what reaches npm, with behaviour changes first", () => {
 
 ## Fixes
 
-- olio: *.* covers plain fields
+- olio: \`*.*\` covers plain fields
 - a bug with no scope
 
 ## Features
@@ -56,4 +56,22 @@ test("a directive name can't read as a GitHub mention", () => {
 ## Features
 
 - http: works with \`@nxara\`/olio-core`);
+});
+
+test("release scope commits aren't listed, and wildcards read as code", () => {
+  expect(
+    renderNotes([
+      { subject: "feat(release): notes from commits", body: "" },
+      {
+        subject: "fix(olio): *.* and User.* cover plain fields",
+        body: "Behaviour: `*.*` stays quoted, and so does *.*."
+      }
+    ])
+  ).toBe(`## Behaviour changes
+
+- olio: \`*.*\` stays quoted, and so does \`*.*\`.
+
+## Fixes
+
+- olio: \`*.*\` and \`User.*\` cover plain fields`);
 });

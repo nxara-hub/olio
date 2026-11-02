@@ -5,8 +5,8 @@
 import { $ } from "bun";
 
 const REPO = "https://github.com/nxara-hub/olio";
-// Only what reaches npm: the site, the example apps and docs don't.
-const INTERNAL_SCOPES = new Set(["website", "example"]);
+// Only what reaches npm: the site, the example apps, this script and docs don't.
+const INTERNAL_SCOPES = new Set(["website", "example", "release"]);
 
 export interface Commit {
   subject: string;
@@ -14,14 +14,16 @@ export interface Commit {
 }
 
 // GitHub reads a bare @name as a mention: it notifies whoever owns that login and
-// lists them as a contributor. Directive names read as code; code spans stay as
-// they are, since a mention can't start inside one.
-const withoutMentions = (text: string): string =>
+// lists them as a contributor. Markdown reads the asterisks in `*.*` as emphasis.
+// Both are code. Code spans stay as they are, since neither can start inside one.
+const quoteCode = (text: string): string =>
   text
     .split("`")
     .map((part, index) =>
       index % 2 === 0
-        ? part.replaceAll(/(^|[^\w/])@([\w-]+)/g, "$1`@$2`")
+        ? part
+            .replaceAll(/(^|[^\w/])@([\w-]+)/g, "$1`@$2`")
+            .replaceAll(/(^|\s)(\w*\*?\.\*)(?=[\s.,:;]|$)/gm, "$1`$2`")
         : part
     )
     .join("`");
@@ -59,7 +61,7 @@ export function renderNotes(commits: readonly Commit[]): string {
     ...section("Features", features)
   ];
   return sections.length > 0
-    ? withoutMentions(sections.join("\n\n"))
+    ? quoteCode(sections.join("\n\n"))
     : "No `feat` or `fix` commits in this release.";
 }
 
