@@ -70,9 +70,9 @@ Tell DI what an operation's context looks like, the same way you register olio's
 import type { Viewer } from "./auth.js";
 
 // Yours: what your context has, apart from `di` itself. `Orders` above reads its `viewer`.
-interface RequestInfo {
+type RequestInfo = {
   viewer?: Viewer;
-}
+};
 
 declare module "@nxara/olio-di" {
   interface Register {
