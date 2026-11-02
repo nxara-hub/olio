@@ -184,7 +184,7 @@ You can also list modules yourself: `modules: [usersModule, authModule]`.
   });
   ```
 
-  With codegen, that's a compile error on the field: `Type '() => string' is not assignable to type '"User.name is declared by module users; only that module can resolve it"'`. If `posts` declared nothing on `User`, `User` wouldn't be a key of its map at all, so TypeScript's message is `Object literal may only specify known properties, and 'User' does not exist in type …`. At runtime, either way, `olio()` throws: `Module "posts": "User.name" is declared by module "users"; only that module can resolve it`.
+  With codegen, that's a compile error on the field: `Type '() => string' is not assignable to type '(() => string) & "'User.name' is not declared by posts module"'`. Your editor doesn't suggest `name` there either, only what `posts` declares. If `posts` declared nothing on `User`, TypeScript's message is `Object literal may only specify known properties, and 'User' does not exist in type …`. At runtime, either way, `olio()` throws: `'User.name' is not declared by posts module`.
 
 - **Errors point at files.** SDL and schema errors are reported as `file:line:column: message`.
 

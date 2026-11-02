@@ -276,16 +276,12 @@ describe("olio", () => {
           ])
         ]
       })
-    ).toThrow(
-      'Feature "sales/orders": "Query.customer" is declared by feature "sales/customers"; only that feature can resolve it'
-    );
+    ).toThrow("'Query.customer' is not declared by sales/orders feature");
     expect(() =>
       olio({
         modules: [sales([], { resolvers: { Query: { customer: () => null } } })]
       })
-    ).toThrow(
-      'Module "sales": "Query.customer" is declared by feature "sales/customers"'
-    );
+    ).toThrow("'Query.customer' is not declared by sales module");
     expect(() =>
       olio({
         modules: [
@@ -373,7 +369,7 @@ describe("olio", () => {
       resolvers: { User: { name: () => "x" } }
     });
     expect(() => olio({ modules: [root, users(), thief] })).toThrow(
-      'Module "thief": "User.name" is declared by module "users"; only that module can resolve it'
+      "'User.name' is not declared by thief module"
     );
   });
 
@@ -804,7 +800,7 @@ describe("olio", () => {
       'Module "other": unknown enum value "Role.NOPE"'
     );
     expect(build({ Role: { ADMIN: 1 } })).toThrow(
-      'Module "other": "Role.ADMIN" is declared by module "roles"; only that module can resolve it'
+      "'Role.ADMIN' is not declared by other module"
     );
     expect(() =>
       olio({
@@ -963,9 +959,7 @@ describe("olio", () => {
           createModule("other", { resolvers: { Query: { user: () => null } } })
         ]
       })
-    ).toThrow(
-      'Module "other": "Query.user" is declared by module "users"; only that module can resolve it'
-    );
+    ).toThrow("'Query.user' is not declared by other module");
     const resolveNode = (id: string) =>
       createModule(id, {
         resolvers: { Node: { __resolveType: () => "X" } }
@@ -982,9 +976,7 @@ describe("olio", () => {
           resolveNode("b")
         ]
       })
-    ).toThrow(
-      'Module "a": "Node.__resolveType" is declared by module "node"; only that module can resolve it'
-    );
+    ).toThrow("'Node.__resolveType' is not declared by a module");
     expect(() =>
       olio({ modules: [root, createModule("x", { resolvers: { Nope: {} } })] })
     ).toThrow('Module "x": unknown type "Nope"');

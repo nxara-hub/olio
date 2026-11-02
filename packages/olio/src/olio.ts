@@ -331,14 +331,8 @@ interface Attach {
 }
 
 function claim({ owner: self, declared }: Attach, key: string): void {
-  const where = self.label;
-  const owner = declared.get(key);
-  if (owner !== self.id) {
-    throw new Error(
-      owner
-        ? `${where}: "${key}" is declared by ${owner.includes("/") ? "feature" : "module"} "${owner}"; only that ${owner.includes("/") ? "feature" : "module"} can resolve it`
-        : `${where}: "${key}" can't be resolved here`
-    );
+  if (declared.get(key) !== self.id) {
+    throw new Error(`'${key}' is not declared by ${self.id} ${self.kind}`);
   }
 }
 

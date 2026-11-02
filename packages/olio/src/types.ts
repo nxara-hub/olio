@@ -73,7 +73,7 @@ interface DefaultRoots {
   subscription: "Subscription";
 }
 
-type RootName<Op extends Operation> = Untyped extends true
+export type RootName<Op extends Operation> = Untyped extends true
   ? DefaultRoots[Op]
   : {
       [O in Owner]: {
@@ -271,7 +271,7 @@ type MiddlewareFor<Os extends Owner> = {
       MiddlewareRoot<Os, T>,
       MiddlewareArgs<Os, T, K>
     >;
-  } & DeclaredElsewhere<Os, T>;
+  };
 };
 
 /** Reaches the module's features too. */
@@ -328,27 +328,9 @@ export type FieldResolver<Fn, Source, Args> =
   | Fn
   | { resolve?: Fn; extensions?: Extensions<Source, Args> };
 
-type OwnerOf<T, F> = {
-  [O in Owner]: F extends Owned<Entry<O, T>> ? O : never;
-}[Owner];
-
 type OwnerKind<O> = O extends `${string}/${string}` ? "feature" : "module";
 
-// Another owner's field reads as olio's runtime error, so the compile error
-// names the owner instead of saying the field doesn't exist.
-type DeclaredElsewhere<Os extends string, T> = {
-  [
-    F in Exclude<
-      { [O in Owner]: Owned<Entry<O, T>> }[Owner],
-      { [O in Os & Owner]: Owned<Entry<O, T>> }[Os & Owner]
-    >
-  ]?: `${T & string}.${F} is declared by ${OwnerKind<OwnerOf<T, F>>} ${OwnerOf<T, F>}; only that ${OwnerKind<OwnerOf<T, F>>} can resolve it`;
-};
-
-type RootResolvers<M extends string, R extends RootType> = DeclaredElsewhere<
-  M,
-  R
-> & {
+type RootResolvers<M extends string, R extends RootType> = {
   [F in Owned<Entry<M, R>>]?: FieldResolver<
     (
       root: undefined,
@@ -371,10 +353,7 @@ export type MutationResolvers<M extends string> = RootResolvers<
 >;
 
 /** Middleware runs once, when a client subscribes, not per event. */
-export type SubscriptionResolvers<M extends string> = DeclaredElsewhere<
-  M,
-  RootName<"subscription">
-> & {
+export type SubscriptionResolvers<M extends string> = {
   [F in Owned<Entry<M, RootName<"subscription">>>]?: FieldResolver<
     (
       root: undefined,
@@ -409,7 +388,7 @@ export type TypeResolvers<M extends string, T extends ModuleTypeName<M>> =
     ? GraphQLScalarType
     : Entry<M, T> extends { enum: infer V extends string }
       ? { [K in V]: Parent<Entry<M, T>> }
-      : DeclaredElsewhere<M, T> & {
+      : {
           [F in Owned<Entry<M, T>>]?: F extends TypeHook
             ? TypeHookResolver<Entry<M, T>, F>
             : FieldResolver<
@@ -551,3 +530,40 @@ export type FeatureConfig<M extends ModuleId, F extends string> = {
   resolvers?: OwnerResolvers<`${M}/${F}`>;
   middleware?: FeatureMiddleware<M, F>;
 } & EnumsOption<`${M}/${F}`>;
+
+type NotDeclared<
+  O extends string,
+  Key extends string
+> = `'${Key}' is not declared by ${O} ${OwnerKind<O>}`;
+
+// The builders check what was written rather than listing other owners' fields
+// in the type: a listed key would show up in editors' suggestions. `R` is only
+// inferred from the keys, so resolvers still get their types from `S`.
+export type StrictFields<O extends string, T extends string, S, R> = S & {
+  [F in keyof R]: F extends keyof S
+    ? S[F]
+    : NotDeclared<O, `${T}.${F & string}`>;
+};
+
+// A map is two levels deep, too deep for `R` to be inferred from keys alone, so
+// it's inferred from the value. The index signature lets a key the owner doesn't
+// declare get as far as `StrictMap`, which words the error.
+export type LooseMap<S> = {
+  [T in keyof S]?: T extends string
+    ? NonNullable<S[T]> extends GraphQLScalarType
+      ? S[T]
+      : NonNullable<S[T]> & { [key: string]: unknown }
+    : S[T];
+};
+
+export type StrictMap<O extends string, S, R> = R extends LoadedResolvers
+  ? unknown
+  : {
+      [T in keyof R]: T extends keyof S
+        ? {
+            [F in keyof R[T]]: F extends keyof NonNullable<S[T]>
+              ? unknown
+              : NotDeclared<O, `${T & string}.${F & string}`>;
+          }
+        : NotDeclared<O, T & string>;
+    };

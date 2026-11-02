@@ -142,7 +142,7 @@ export const postsModule = module.posts({
 });`;
 
 const errorText = `Type '() => string' is not assignable to type
-'"User.name is declared by module users; only that module can resolve it"'.`;
+'(() => string) & "'User.name' is not declared by posts module"'.`;
 ---
 
 <!doctype html>

@@ -157,15 +157,10 @@ feature.content.blog({
     User: { articleCount: (row) => row.name.length }
   }
 });
-// Another owner's field carries olio's runtime message as its type, so the
-// compile error names the owner.
-const message: NonNullable<TypeResolvers<"content/blog", "User">["role"]> =
-  "User.role is declared by module content; only that module can resolve it";
-const fromFeature: NonNullable<
-  TypeResolvers<"content", "User">["articleCount"]
-> =
-  "User.articleCount is declared by feature content/blog; only that feature can resolve it";
-void [message, fromFeature];
+// @ts-expect-error role belongs to the module, not the feature
+feature.content.blog({ resolvers: { User: { role: () => "x" } } });
+// @ts-expect-error articleCount belongs to the feature, not the module
+module.content({ enums, resolvers: { User: { articleCount: () => 1 } } });
 // @ts-expect-error node belongs to the module, not the feature
 feature.content.blog({ resolvers: { Query: { node: () => null } } });
 
@@ -178,6 +173,12 @@ module.content({
       // @ts-expect-error node returns a Node or null, not a number
       node: () => 42
     },
+    User: { name: (row) => row.name }
+  }
+});
+module.content({
+  enums,
+  resolvers: {
     User: {
       name: (row) => row.name,
       // @ts-expect-error nme is a typo for name
