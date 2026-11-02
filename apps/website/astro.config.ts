@@ -36,6 +36,10 @@ export default defineConfig({
           items: [{ autogenerate: { directory: "concepts" } }]
         },
         {
+          label: "Examples",
+          items: [{ autogenerate: { directory: "examples" } }]
+        },
+        {
           label: "Packages",
           items: [{ autogenerate: { directory: "reference" } }]
         }

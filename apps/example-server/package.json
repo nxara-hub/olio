@@ -8,10 +8,14 @@
     "start": "bun run ./src/main.ts",
     "check-types": "tsc --noEmit",
     "serve": "tsx src/server.ts",
+    "serve:yoga": "tsx src/server-yoga.ts",
+    "serve:apollo": "tsx src/server-apollo.ts",
     "test": "bun test",
     "bench": "bun bench/run.ts"
   },
   "dependencies": {
+    "@apollo/server": "^5",
+    "@as-integrations/express5": "^1.1.2",
     "@hono/node-server": "^2.1.5",
     "@nxara/olio": "workspace:*",
     "@nxara/olio-client": "workspace:*",
@@ -20,16 +24,20 @@
     "@nxara/olio-http": "workspace:*",
     "@nxara/olio-schema": "workspace:*",
     "@nxara/olio-tools": "workspace:*",
+    "@whatwg-node/server": "^0.13.2",
     "dataloader": "^2.2.3",
+    "express": "^5.3.0",
     "graphql": "^16.14.2",
     "graphql-query-complexity": "^2.0.0",
     "graphql-scalars": "^2.0.1",
     "graphql-sse": "2.6.3",
     "graphql-ws": "^6.4.1",
+    "graphql-yoga": "^6",
     "hono": "^4.13.14",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/ws": "^8.18.2",
     "tsx": "^4.23.15"
   }

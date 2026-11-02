@@ -16,6 +16,8 @@ bun add @nxara/olio-http graphql@16
 
 `graphql` 16 is a peer dependency. graphql-http is its only third-party dependency.
 
+This package is optional. `app.schema` also runs on other GraphQL servers: see [GraphQL Yoga](/examples/yoga/) and [Apollo Server](/examples/apollo-server/).
+
 ## Adapters
 
 | Import | For |
