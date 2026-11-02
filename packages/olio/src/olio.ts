@@ -244,6 +244,19 @@ function owners(modules: readonly OlioModule[]): Owner[] {
   return result;
 }
 
+// Own keys only: a field named `constructor` would otherwise find Object on the
+// map and run it as middleware, ending the chain and handing out its params.
+function fnsAt(
+  map: MiddlewareMap,
+  type: string,
+  key: string
+): MiddlewareFn | readonly MiddlewareFn[] | undefined {
+  const fields = Object.hasOwn(map, type) ? map[type] : undefined;
+  return fields && Object.hasOwn(fields, key)
+    ? (fields[key] as MiddlewareFn | readonly MiddlewareFn[] | undefined)
+    : undefined;
+}
+
 function chainFor(
   app: MiddlewareMap,
   owner: Owner,
@@ -251,12 +264,12 @@ function chainFor(
   field: string
 ): MiddlewareFn[] {
   return [
-    app["*"]?.["*"],
-    app[type]?.["*"],
-    app[type]?.[field],
+    fnsAt(app, "*", "*"),
+    fnsAt(app, type, "*"),
+    fnsAt(app, type, field),
     ...[...owner.upperMiddleware, owner.middleware].flatMap((map) => [
-      map[type]?.["*"],
-      map[type]?.[field]
+      fnsAt(map, type, "*"),
+      fnsAt(map, type, field)
     ])
   ].flatMap((fns) => fns ?? []);
 }
