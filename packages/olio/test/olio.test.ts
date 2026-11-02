@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 
 import { copyDirective } from "@nxara/olio-schema";
 import {
@@ -1016,5 +1016,114 @@ describe("olio", () => {
         ]
       })
     ).toThrow('Module "x": unknown field "Query.nope"');
+  });
+});
+
+describe("next()", () => {
+  const paying = (middleware: MiddlewareFn) => {
+    let payments = 0;
+    const schema = olio({
+      modules: [
+        createModule("pay", {
+          typeDefs: `
+            type Query { a: Int }
+            type Mutation { pay: Int }
+          `,
+          resolvers: { Mutation: { pay: () => ++payments } },
+          middleware: { Mutation: { pay: [middleware] } }
+        })
+      ]
+    }).schema;
+    return {
+      pay: () => graphql({ schema, source: "mutation { pay }" }),
+      payments: () => payments
+    };
+  };
+
+  test("a second call doesn't run the resolver again, and warns once", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+    const { pay, payments } = paying(async (_params, proceed) => {
+      await proceed();
+      return proceed();
+    });
+    const result = await pay();
+    await pay();
+    const warnings = warn.mock.calls.map(([message]) => message);
+    warn.mockRestore();
+    expect(result.data).toEqual({ pay: 1 });
+    expect(payments()).toBe(2);
+    expect(warnings).toEqual([
+      'Middleware on "Mutation.pay" called next() more than once. The later calls returned the first result and did not run the resolver again.'
+    ]);
+  });
+
+  test("a second call after a failure gets the same failure", async () => {
+    const warn = spyOn(console, "warn").mockImplementation(() => undefined);
+    let runs = 0;
+    const schema = olio({
+      modules: [
+        createModule("pay", {
+          typeDefs: "type Query { boom: Int }",
+          resolvers: {
+            Query: {
+              boom: () => {
+                runs += 1;
+                throw new Error("declined");
+              }
+            }
+          },
+          middleware: {
+            Query: {
+              boom: [
+                (_params, next) => {
+                  try {
+                    return next();
+                  } catch {
+                    return next();
+                  }
+                }
+              ]
+            }
+          }
+        })
+      ]
+    }).schema;
+    const { errors } = await graphql({ schema, source: "{ boom }" });
+    warn.mockRestore();
+    expect(errors?.[0]?.message).toBe("declined");
+    expect(runs).toBe(1);
+  });
+});
+
+describe("@copy", () => {
+  test("doesn't copy a field's middleware", async () => {
+    const schema = olio({
+      directives: [copyDirective()],
+      modules: [
+        createModule("users", {
+          typeDefs: `
+            type User { email: String }
+            type Pub @copy(from: ["User"]) { x: Int }
+            type Query { pub: Pub }
+          `,
+          resolvers: { Query: { pub: () => ({ email: "a@x" }) } },
+          middleware: {
+            User: {
+              email: [
+                () => {
+                  throw new Error("denied");
+                }
+              ]
+            }
+          }
+        })
+      ]
+    }).schema;
+    const { data, errors } = await graphql({
+      schema,
+      source: "{ pub { email } }"
+    });
+    expect(errors).toBeUndefined();
+    expect(data).toEqual({ pub: { email: "a@x" } });
   });
 });

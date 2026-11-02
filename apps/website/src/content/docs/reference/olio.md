@@ -219,6 +219,8 @@ Each layer targets different fields:
 - **A module** addresses the fields it and its features declare, including fields they add to other modules' types with `extend`.
 - **A feature** addresses only its own fields.
 
+The resolver runs once per field, however many times a middleware calls `next()`. Later calls return the first result, or throw the first error, and olio warns once per field in the console. So a retry can't be written as a second `next()`.
+
 Middleware wraps the resolvers modules define, and any field it names explicitly. `"*"` keys only reach fields with a resolver, but naming a field (`User: { email: [redact()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs.
 
 Every key is checked when `olio()` builds the schema, even without codegen. A key that matches no field, or an application key on a non-root type, throws.

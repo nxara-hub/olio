@@ -264,12 +264,33 @@ function chainFor(
 // One shared empty set for every field without a @bypass.
 const NO_BYPASS: ReadonlySet<string> = new Set();
 
+// A second next() would run the resolver again, so a payment could go through
+// twice. Later calls get the first call's outcome, and the first one warns.
+function once(call: () => unknown, warn: () => void): () => unknown {
+  let outcome: { value: unknown } | { error: unknown } | undefined;
+  return () => {
+    if (outcome) {
+      warn();
+      if ("error" in outcome) throw outcome.error;
+      return outcome.value;
+    }
+    try {
+      outcome = { value: call() };
+      return outcome.value;
+    } catch (error) {
+      outcome = { error };
+      throw error;
+    }
+  };
+}
+
 function wrap(
   resolve: Resolve,
   chain: readonly MiddlewareFn[],
   bypass: ReadonlySet<string>
 ): Resolve {
   if (chain.length === 0) return resolve;
+  let warned = false;
   return (root, args, ctx, info) => {
     // The keys come from the same SDL BypassKey is generated from.
     const params: MiddlewareParams = {
@@ -279,11 +300,21 @@ function wrap(
       info,
       bypass: bypass as MiddlewareParams["bypass"]
     };
+    const warn = (): void => {
+      if (warned) return;
+      warned = true;
+      console.warn(
+        `Middleware on "${info.parentType.name}.${info.fieldName}" called next() more than once. The later calls returned the first result and did not run the resolver again.`
+      );
+    };
     const run = (index: number): unknown => {
       const fn = chain[index];
       // Middleware may replace root/args/ctx on `params` before calling next.
       return fn
-        ? fn(params, () => run(index + 1))
+        ? fn(
+            params,
+            once(() => run(index + 1), warn)
+          )
         : resolve(params.root, params.args, params.ctx, info);
     };
     return run(0);
