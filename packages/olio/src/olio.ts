@@ -274,8 +274,26 @@ function chainFor(
   ].flatMap((fns) => fns ?? []);
 }
 
-// One shared empty set for every field without a @bypass.
 const NO_BYPASS: ReadonlySet<string> = new Set();
+
+const WRITES: ReadonlySet<string | symbol> = new Set([
+  "add",
+  "delete",
+  "clear"
+]);
+
+// `ReadonlySet` is only a type, and these keys decide whether auth runs: a cast
+// or plain JavaScript could add one and open the field for every request. Each
+// field gets its own copy, behind a Proxy so Set.prototype.add.call can't reach it.
+function readOnly(keys: ReadonlySet<string>): ReadonlySet<string> {
+  return new Proxy(Object.freeze(new Set(keys)), {
+    get(target, key) {
+      if (WRITES.has(key)) return undefined;
+      const value: unknown = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
 
 // A second next() would run the resolver again, so a payment could go through
 // twice. Later calls get the first call's outcome, and the first one warns.
@@ -303,6 +321,7 @@ function wrap(
   bypass: ReadonlySet<string>
 ): Resolve {
   if (chain.length === 0) return resolve;
+  const keys = readOnly(bypass);
   let warned = false;
   return (root, args, ctx, info) => {
     // The keys come from the same SDL BypassKey is generated from.
@@ -311,7 +330,7 @@ function wrap(
       args,
       ctx,
       info,
-      bypass: bypass as MiddlewareParams["bypass"]
+      bypass: keys as MiddlewareParams["bypass"]
     };
     const warn = (): void => {
       if (warned) return;
