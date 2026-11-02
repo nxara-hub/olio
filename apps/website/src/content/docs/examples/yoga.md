@@ -90,6 +90,21 @@ const yoga = createYoga<object, Context>({
 createServer(yoga).listen(4000);
 ```
 
+## Hiding the schema
+
+Pass the options as the last argument of `validateOperation` in that plugin:
+
+```ts
+validateOperation(
+  app.schema,
+  { query, variables, operationName },
+  validationRules,
+  { introspection: false, suggestions: false }
+);
+```
+
+One hint still gets through, because it comes from running the operation rather than validating it: a wrong enum value sent as a variable answers `Did you mean the enum value "ADMIN"?`.
+
 ## A separate `sub_ctx`
 
 Yoga's server-sent events run subscriptions with what `context` returns. An app that registers a separate `sub_ctx` can send those requests to its own [graphql-sse handler](/reference/http/#subscriptions) instead, with this in the plugin:

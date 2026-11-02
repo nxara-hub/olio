@@ -507,8 +507,12 @@ describe("hiding the schema", () => {
 
   test("introspection: false refuses it, and keeps __typename", async () => {
     const handler = fetchHandler(hidden, { introspection: false });
-    for (const query of [INTROSPECTION, '{ __type(name: "Role") { name } }']) {
-      const result = await post(handler, query);
+    const results = await Promise.all(
+      [INTROSPECTION, '{ __type(name: "Role") { name } }'].map((query) =>
+        post(handler, query)
+      )
+    );
+    for (const result of results) {
       expect(result.data).toBeUndefined();
       expect(messages(result)?.[0]).toContain(
         "introspection has been disabled"

@@ -50,6 +50,20 @@ curl localhost:4000/graphql \
 
 Don't skip `includeStacktraceInErrorResponses` and `formatError`. Apollo Server sends thrown errors to the client as they are, so without them a failing database's message reaches your users.
 
+## Hiding the schema
+
+Apollo Server has its own options, and they replace `introspection` and `suggestions` from `@nxara/olio-http`:
+
+```ts
+new ApolloServer<Context>({
+  schema: app.schema,
+  introspection: false,
+  hideSchemaDetailsFromClientErrors: true
+});
+```
+
+One hint still gets through: a wrong enum value sent as a variable answers `Did you mean the enum value "ADMIN"?`. Remove it in `formatError` if your enum values are private.
+
 ## Cleanup and validation rules
 
 `onOperationEnd` and `validationRules` belong to `@nxara/olio-http`, so with Apollo Server they're a plugin. You only need this if your app uses them. `createContext` and `validationRules` are your own, as on the [olio-http page](/reference/http/#validation-rules).
