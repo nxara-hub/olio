@@ -131,12 +131,14 @@ The finished project looks like this:
 
     ```ts title="src/modules/users/index.ts"
     import { module } from "@nxara/olio";
-    import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+    import { loaders } from "@nxara/olio-tools";
+
+    const load = loaders(import.meta.dirname);
 
     export const usersModule = module.users({
-      typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+      typeDefs: await load.typeDefs("typedefs/*.gql"),
       // .js too, so the same code finds the file once compiled
-      resolvers: await loadResolvers(new URL("query.{js,ts}", import.meta.url))
+      resolvers: await load.resolvers("query.{js,ts}")
     });
     ```
 
@@ -144,12 +146,12 @@ The finished project looks like this:
 
     ```ts title="src/app.ts"
     import { olio } from "@nxara/olio";
-    import { loadModules } from "@nxara/olio-tools";
+    import { loaders } from "@nxara/olio-tools";
+
+    const load = loaders(import.meta.dirname);
 
     export const app = olio({
-      modules: await loadModules(
-        new URL("modules/*/index.{js,ts}", import.meta.url)
-      )
+      modules: await load.modules("modules/*/index.{js,ts}")
     });
     ```
 

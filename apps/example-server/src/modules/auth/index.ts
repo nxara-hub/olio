@@ -1,7 +1,9 @@
 import { module, mw, type MiddlewareFn } from "@nxara/olio";
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
 
 import { clientError } from "../../errors.js";
+
+const load = loaders(import.meta.dirname);
 
 /** At most `max` login attempts per email per process; enough for a demo. */
 const rateLimit = (max: number): MiddlewareFn => {
@@ -18,10 +20,10 @@ const rateLimit = (max: number): MiddlewareFn => {
 };
 
 export const authModule = module.auth({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("{query,mutation}.{js,ts}", import.meta.url),
-    new URL("resolvers/*.{js,ts}", import.meta.url)
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  resolvers: await load.resolvers(
+    "{query,mutation}.{js,ts}",
+    "resolvers/*.{js,ts}"
   ),
   // me and login are public through @bypass in auth.gql; login gets a limit.
   middleware: mw.auth({ Mutation: { login: [rateLimit(5)] } })

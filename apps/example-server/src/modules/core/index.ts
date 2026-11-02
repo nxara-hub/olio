@@ -1,9 +1,9 @@
 import { module } from "@nxara/olio";
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 export const coreModule = module.core({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("resolvers/*.{js,ts}", import.meta.url)
-  )
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  resolvers: await load.resolvers("resolvers/*.{js,ts}")
 });

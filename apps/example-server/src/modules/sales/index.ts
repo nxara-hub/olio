@@ -1,5 +1,7 @@
 import { module, mw, type MiddlewareFn } from "@nxara/olio";
-import { loadFeatures } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 const journal =
   (): MiddlewareFn =>
@@ -12,5 +14,5 @@ const journal =
 // the feature's own.
 export const salesModule = module.sales({
   middleware: mw.sales({ Mutation: { "*": [journal()] } }),
-  features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
+  features: await load.features("*/index.{js,ts}")
 });

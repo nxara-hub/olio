@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type {
@@ -141,3 +142,29 @@ export const loadModules = (...patterns: Pattern[]): Promise<OlioModule[]> =>
 /** Every exported feature, in file order. A file that exports none throws. */
 export const loadFeatures = (...patterns: Pattern[]): Promise<OlioFeature[]> =>
   collect(patterns, isFeature, "feature");
+
+export interface Loaders {
+  typeDefs: (...patterns: Pattern[]) => Promise<DocumentNode[]>;
+  resolvers: (...patterns: Pattern[]) => Promise<LoadedResolvers>;
+  enums: (...patterns: Pattern[]) => Promise<LoadedEnums>;
+  modules: (...patterns: Pattern[]) => Promise<OlioModule[]>;
+  features: (...patterns: Pattern[]) => Promise<OlioFeature[]>;
+}
+
+/**
+ * The load functions with their patterns relative to `root`, usually
+ * `import.meta.dirname`. Absolute paths and `file:` URLs are left alone.
+ */
+export function loaders(root: string): Loaders {
+  const from = (patterns: readonly Pattern[]): Pattern[] =>
+    patterns.map((pattern) =>
+      typeof pattern === "string" ? resolve(root, pattern) : pattern
+    );
+  return {
+    typeDefs: (...patterns) => loadTypeDefs(...from(patterns)),
+    resolvers: (...patterns) => loadResolvers(...from(patterns)),
+    enums: (...patterns) => loadEnums(...from(patterns)),
+    modules: (...patterns) => loadModules(...from(patterns)),
+    features: (...patterns) => loadFeatures(...from(patterns))
+  };
+}

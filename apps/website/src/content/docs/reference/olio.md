@@ -46,13 +46,15 @@ A module is built with `module.<id>`, where `<id>` is its folder name under `mod
 ```ts
 // src/modules/users/index.ts
 import { module, mw } from "@nxara/olio";
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 export const usersModule = module.users({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("{query,mutation,subscription}.{js,ts}", import.meta.url),
-    new URL("resolvers/*.{js,ts}", import.meta.url)
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  resolvers: await load.resolvers(
+    "{query,mutation,subscription}.{js,ts}",
+    "resolvers/*.{js,ts}"
   ),
   middleware: mw.users({ Query: { user: [cache()] } })
 });
@@ -118,13 +120,13 @@ src/modules/sales/
 ```ts
 // sales/orders/index.ts
 import { feature, mw } from "@nxara/olio";
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 export const orders = feature.sales.orders({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("{query,mutation}.{js,ts}", import.meta.url)
-  ),
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  resolvers: await load.resolvers("{query,mutation}.{js,ts}"),
   middleware: mw.sales.orders({
     Mutation: { cancelOrder: [requireRole("MANAGER")] }
   })
@@ -132,11 +134,13 @@ export const orders = feature.sales.orders({
 
 // sales/index.ts
 import { module, mw } from "@nxara/olio";
-import { loadFeatures } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 export const salesModule = module.sales({
   middleware: mw.sales({ Mutation: { "*": [journal()] } }), // every feature's Mutation fields too
-  features: await loadFeatures(new URL("*/index.{js,ts}", import.meta.url))
+  features: await load.features("*/index.{js,ts}")
 });
 ```
 
@@ -152,9 +156,11 @@ export const salesModule = module.sales({
 
 ```ts
 import { mw, olio } from "@nxara/olio";
-import { loadModules } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
 
 import { directives } from "./directives.js"; // the list codegen uses
+
+const load = loaders(import.meta.dirname);
 
 const middleware = mw({
   "*": { "*": [requestLogger()] },
@@ -163,9 +169,7 @@ const middleware = mw({
 
 export const app = olio({
   middleware,
-  modules: await loadModules(
-    new URL("modules/*/index.{js,ts}", import.meta.url)
-  ),
+  modules: await load.modules("modules/*/index.{js,ts}"),
   directives // required once codegen had some
 });
 // app.schema → any GraphQL server (graphql-http, Yoga, Apollo, …)

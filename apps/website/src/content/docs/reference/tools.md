@@ -20,20 +20,24 @@ Instead of importing every file by hand, a module's `index.ts` points at its fol
 
 ## Usage
 
-Every function takes one or more patterns: globs, or `file:` URLs, so paths can be relative to the calling module. String globs resolve from the working directory, so prefer `new URL(..., import.meta.url)` inside modules:
+`loaders(root)` gives you the load functions with their patterns relative to `root`. Pass `import.meta.dirname`, the same way as codegen's `root`, so a module finds the files next to it wherever the app runs from:
 
 ```ts
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
 
-const typeDefs = await loadTypeDefs(
-  new URL("**/typedefs/*.{gql,ts,js}", import.meta.url)
-);
+const load = loaders(import.meta.dirname);
 
-const resolvers = await loadResolvers(
-  new URL("**/{query,mutation,subscription}.{js,ts}", import.meta.url),
-  new URL("**/resolvers/*.{js,ts}", import.meta.url)
+const typeDefs = await load.typeDefs("**/typedefs/*.{gql,ts,js}");
+
+const resolvers = await load.resolvers(
+  "**/{query,mutation,subscription}.{js,ts}",
+  "**/resolvers/*.{js,ts}"
 );
 ```
+
+Absolute paths and `file:` URLs are left alone. The same functions are also exported on their own (`loadTypeDefs`, `loadResolvers`, `loadEnums`, `loadModules`, `loadFeatures`). Those take `new URL("typedefs/*.gql", import.meta.url)`, and resolve a plain string from the working directory.
+
+The sections below name them by those functions, since `load.typeDefs` is `loadTypeDefs` with a root.
 
 Every pattern must match at least one file. A pattern that matches nothing throws `No files match "<pattern>"`, so a typo can't quietly load an empty module.
 
@@ -43,15 +47,13 @@ Every pattern must match at least one file. A pattern that matches nothing throw
 
 ```ts
 export const app = olio({
-  modules: await loadModules(
-    new URL("modules/*/index.{js,ts}", import.meta.url)
-  )
+  modules: await load.modules("modules/*/index.{js,ts}")
 });
 ```
 
 ### loadFeatures
 
-`loadFeatures(...patterns)` does the same for a module's `features` (`feature.sales.orders({...})`), usually with `new URL("*/index.{js,ts}", import.meta.url)` from the module's `index.ts`. The module's own patterns must then stay out of its feature folders (`typedefs/*.gql`, not `**/typedefs/*.gql`), or the feature's SDL loads twice and fails as duplicate types.
+`loadFeatures(...patterns)` does the same for a module's `features` (`feature.sales.orders({...})`), usually with `load.features("*/index.{js,ts}")` from the module's `index.ts`. The module's own patterns must then stay out of its feature folders (`typedefs/*.gql`, not `**/typedefs/*.gql`), or the feature's SDL loads twice and fails as duplicate types.
 
 ### loadTypeDefs
 

@@ -1,13 +1,15 @@
 import { module, mw } from "@nxara/olio";
-import { loadResolvers, loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
 
 import { requireRole } from "../../middleware.js";
 
+const load = loaders(import.meta.dirname);
+
 export const inventoryModule = module.inventory({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
-  resolvers: await loadResolvers(
-    new URL("{query,mutation,subscription}.{js,ts}", import.meta.url),
-    new URL("resolvers/*.{js,ts}", import.meta.url)
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  resolvers: await load.resolvers(
+    "{query,mutation,subscription}.{js,ts}",
+    "resolvers/*.{js,ts}"
   ),
   // Runs after the app's requireAuth and auditLog.
   middleware: mw.inventory({

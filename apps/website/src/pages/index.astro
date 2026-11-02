@@ -118,10 +118,12 @@ const packages = [
 
 const moduleCode = `// src/modules/users/index.ts
 import { module, mw } from "@nxara/olio";
-import { loadTypeDefs } from "@nxara/olio-tools";
+import { loaders } from "@nxara/olio-tools";
+
+const load = loaders(import.meta.dirname);
 
 export const usersModule = module.users({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
   resolvers: {
     Query: { user: (root, { id }) => findUser(id) }, // id: string
     User: { name: (user) => user.name } // user: what User maps to
@@ -132,7 +134,7 @@ export const usersModule = module.users({
 // src/modules/posts/typedefs/posts.gql only adds User.posts.
 const failingCode = `// src/modules/posts/index.ts
 export const postsModule = module.posts({
-  typeDefs: await loadTypeDefs(new URL("typedefs/*.gql", import.meta.url)),
+  typeDefs: await load.typeDefs("typedefs/*.gql"),
   resolvers: {
     User: {
       posts: (user) => findPosts(user.id), // posts declares this one
