@@ -221,7 +221,7 @@ Each layer targets different fields:
 
 The resolver runs once per field, however many times a middleware calls `next()`. Later calls return the first result, or throw the first error, and olio warns once per field in the console. So a retry can't be written as a second `next()`.
 
-Middleware wraps the resolvers modules define, and any field it names explicitly. `"*"` keys only reach fields with a resolver, but naming a field (`User: { email: [redact()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs.
+Middleware wraps the resolvers modules define, and every field a key covers, even one with no resolver of its own: naming a field (`User: { email: [redact()] }`) or using a type's `"*"` (`User: { "*": [requireAdmin()] }`) wraps GraphQL's default resolver when the field has none, so the middleware always runs. A module's `"*"` covers the fields it and its features declare, not ones another module adds to the type. The exception is the application's `"*": { "*": … }`, which only reaches fields with a resolver, so it doesn't add a call to every plain field of every list.
 
 Every key is checked when `olio()` builds the schema, even without codegen. A key that matches no field, or an application key on a non-root type, throws.
 

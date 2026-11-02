@@ -244,6 +244,19 @@ function owners(modules: readonly OlioModule[]): Owner[] {
   return result;
 }
 
+// Own keys only: a field named `constructor` would otherwise find Object on the
+// map and run it as middleware, ending the chain and handing out its params.
+function fnsAt(
+  map: MiddlewareMap,
+  type: string,
+  key: string
+): MiddlewareFn | readonly MiddlewareFn[] | undefined {
+  const fields = Object.hasOwn(map, type) ? map[type] : undefined;
+  return fields && Object.hasOwn(fields, key)
+    ? (fields[key] as MiddlewareFn | readonly MiddlewareFn[] | undefined)
+    : undefined;
+}
+
 function chainFor(
   app: MiddlewareMap,
   owner: Owner,
@@ -251,18 +264,36 @@ function chainFor(
   field: string
 ): MiddlewareFn[] {
   return [
-    app["*"]?.["*"],
-    app[type]?.["*"],
-    app[type]?.[field],
+    fnsAt(app, "*", "*"),
+    fnsAt(app, type, "*"),
+    fnsAt(app, type, field),
     ...[...owner.upperMiddleware, owner.middleware].flatMap((map) => [
-      map[type]?.["*"],
-      map[type]?.[field]
+      fnsAt(map, type, "*"),
+      fnsAt(map, type, field)
     ])
   ].flatMap((fns) => fns ?? []);
 }
 
-// One shared empty set for every field without a @bypass.
 const NO_BYPASS: ReadonlySet<string> = new Set();
+
+const WRITES: ReadonlySet<string | symbol> = new Set([
+  "add",
+  "delete",
+  "clear"
+]);
+
+// `ReadonlySet` is only a type, and these keys decide whether auth runs: a cast
+// or plain JavaScript could add one and open the field for every request. Each
+// field gets its own copy, behind a Proxy so Set.prototype.add.call can't reach it.
+function readOnly(keys: ReadonlySet<string>): ReadonlySet<string> {
+  return new Proxy(Object.freeze(new Set(keys)), {
+    get(target, key) {
+      if (WRITES.has(key)) return undefined;
+      const value: unknown = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
 
 // A second next() would run the resolver again, so a payment could go through
 // twice. Later calls get the first call's outcome, and the first one warns.
@@ -290,6 +321,7 @@ function wrap(
   bypass: ReadonlySet<string>
 ): Resolve {
   if (chain.length === 0) return resolve;
+  const keys = readOnly(bypass);
   let warned = false;
   return (root, args, ctx, info) => {
     // The keys come from the same SDL BypassKey is generated from.
@@ -298,7 +330,7 @@ function wrap(
       args,
       ctx,
       info,
-      bypass: bypass as MiddlewareParams["bypass"]
+      bypass: keys as MiddlewareParams["bypass"]
     };
     const warn = (): void => {
       if (warned) return;
@@ -788,8 +820,9 @@ function checkOwnerMiddleware(
   }
 }
 
-// A field named explicitly in middleware runs it even without a resolver: its
-// default resolver gets wrapped. `*` doesn't reach those.
+// A field a middleware names, or a `Type: { "*" }` it's under, runs it even
+// without a resolver: its default resolver gets wrapped. Only `*.*` skips those,
+// since it would add a call to every plain field of every list.
 function wrapDefaults(
   schema: GraphQLSchema,
   app: MiddlewareMap,
@@ -799,13 +832,27 @@ function wrapDefaults(
 ): void {
   const byId = new Map(all.map((o) => [o.id, o]));
   const targets = new Set<string>();
-  for (const map of [app, ...all.map((o) => o.middleware)]) {
+  const collect = (
+    map: MiddlewareMap,
+    canTarget: (owner: string) => boolean
+  ): void => {
     for (const [type, fields] of Object.entries(map)) {
       for (const key of Object.keys(fields ?? {})) {
-        if (type !== "*" && key !== "*") targets.add(`${type}.${key}`);
+        if (key !== "*") {
+          if (type !== "*") targets.add(`${type}.${key}`);
+          continue;
+        }
+        const object = schema.getType(type);
+        if (!isObjectType(object)) continue;
+        for (const field of Object.keys(object.getFields())) {
+          const target = `${type}.${field}`;
+          if (canTarget(declared.get(target) ?? "")) targets.add(target);
+        }
       }
     }
-  }
+  };
+  collect(app, () => true);
+  for (const owner of all) collect(owner.middleware, owner.canTarget);
   for (const target of targets) {
     const [typeName = "", fieldName = ""] = target.split(".");
     const type = schema.getType(typeName);
@@ -821,7 +868,7 @@ function wrapDefaults(
   }
 }
 
-/** Middleware wraps the resolvers modules define, plus any field it names explicitly. */
+/** Middleware wraps the resolvers modules define, any field it names, and every field under a `Type: { "*" }`. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
   const { schema, ownership, bypass } = compose(all, config.directives);

@@ -3,6 +3,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { copyDirective } from "@nxara/olio-schema";
 import {
   graphql,
+  GraphQLError,
   GraphQLScalarType,
   parse,
   subscribe,
@@ -1117,5 +1118,265 @@ describe("@copy", () => {
     });
     expect(errors).toBeUndefined();
     expect(data).toEqual({ pub: { email: "a@x" } });
+  });
+});
+
+describe("middleware can't be got around", () => {
+  const deny: MiddlewareFn = () => {
+    throw new GraphQLError("DENIED");
+  };
+  const run = async (
+    schema: Parameters<typeof graphql>[0]["schema"],
+    source: string,
+    contextValue: unknown = {}
+  ) => {
+    const { data, errors } = await graphql({ schema, source, contextValue });
+    return { data, errors: errors?.map((e) => e.message) };
+  };
+
+  test.each(["constructor", "toString", "valueOf", "hasOwnProperty"])(
+    "a field named %s runs its middleware and resolver, not Object's",
+    async (name) => {
+      const appMap = { Query: { ok: [] } };
+      const guarded = olio({
+        middleware: appMap,
+        modules: [
+          createModule("p", {
+            typeDefs: `type Query { ${name}: String ok: String }`,
+            resolvers: { Query: { [name]: () => "SECRET", ok: () => "ok" } },
+            middleware: { Query: { "*": [deny] } }
+          })
+        ]
+      }).schema;
+      expect(await run(guarded, `{ ${name} }`)).toEqual({
+        data: { [name]: null },
+        errors: ["DENIED"]
+      });
+      const open = olio({
+        middleware: appMap,
+        modules: [
+          createModule("p", {
+            typeDefs: `type Query { ${name}: String ok: String }`,
+            resolvers: { Query: { [name]: () => "value", ok: () => "ok" } }
+          })
+        ]
+      }).schema;
+      expect(await run(open, `{ ${name} }`)).toEqual({
+        data: { [name]: "value" },
+        errors: undefined
+      });
+    }
+  );
+
+  test("the context can't be selected through a field named constructor", async () => {
+    const schema = olio({
+      middleware: { Query: { ok: [] } },
+      modules: [
+        createModule("p", {
+          typeDefs: `
+            type Ctx { sessionToken: String }
+            type Leak { ctx: Ctx }
+            type Query { constructor: Leak ok: String }
+          `,
+          resolvers: { Query: { constructor: () => ({}) } }
+        })
+      ]
+    }).schema;
+    const result = await run(
+      schema,
+      "{ constructor { ctx { sessionToken } } }",
+      {
+        sessionToken: "abc123"
+      }
+    );
+    expect(JSON.stringify(result)).not.toContain("abc123");
+  });
+
+  test("a middleware can't change the bypass keys", async () => {
+    const auth: MiddlewareFn = ({ ctx, bypass }, next) => {
+      if (!(ctx as { user?: string }).user && !bypass.has("auth" as never)) {
+        throw new GraphQLError("DENIED");
+      }
+      return next();
+    };
+    const tries: string[] = [];
+    const schema = olio({
+      middleware: { "*": { "*": [auth] } },
+      modules: [
+        createModule("s", {
+          typeDefs: `type Query {
+            evil: String
+            secret: String
+            open: String @bypass(keys: "other")
+          }`,
+          resolvers: {
+            Query: {
+              evil: () => "e",
+              secret: () => "SECRET",
+              open: () => "o"
+            }
+          },
+          middleware: {
+            Query: {
+              "*": [
+                ({ bypass }, next) => {
+                  const set = bypass as unknown as Set<string>;
+                  for (const write of [
+                    () => set.add("auth"),
+                    () => Set.prototype.add.call(set, "auth"),
+                    () => set.clear()
+                  ]) {
+                    try {
+                      write();
+                      tries.push("wrote");
+                    } catch {
+                      tries.push("refused");
+                    }
+                  }
+                  return next();
+                }
+              ]
+            }
+          }
+        })
+      ]
+    }).schema;
+    await run(schema, "{ evil open }", { user: "a" });
+    expect(tries).not.toContain("wrote");
+    expect(await run(schema, "{ secret }")).toEqual({
+      data: { secret: null },
+      errors: ["DENIED"]
+    });
+  });
+
+  test("bypass still reads as a set", async () => {
+    const seen: unknown[] = [];
+    const schema = olio({
+      modules: [
+        createModule("s", {
+          typeDefs: `type Query { a: Int @bypass(keys: ["x", "y"]) }`,
+          resolvers: { Query: { a: () => 1 } },
+          middleware: {
+            Query: {
+              a: [
+                ({ bypass }, next) => {
+                  seen.push(
+                    bypass.has("x" as never),
+                    bypass.has("z" as never),
+                    bypass.size,
+                    [...bypass]
+                  );
+                  return next();
+                }
+              ]
+            }
+          }
+        })
+      ]
+    }).schema;
+    await run(schema, "{ a }");
+    expect(seen).toEqual([true, false, 2, ["x", "y"]]);
+  });
+
+  const usersWith = (middleware: ModuleConfig<string>["middleware"]) =>
+    createModule("users", {
+      typeDefs: `
+        type User { id: ID email: String }
+        type Query { me: User }
+      `,
+      resolvers: { Query: { me: () => ({ id: "1", email: "a@x" }) } },
+      middleware
+    });
+
+  test("a module's User.* covers its fields with no resolver", async () => {
+    const schema = olio({
+      modules: [usersWith({ User: { "*": [deny] } })]
+    }).schema;
+    expect(await run(schema, "{ me { email } }")).toEqual({
+      data: { me: { email: null } },
+      errors: ["DENIED"]
+    });
+  });
+
+  test("User.* covers them when another field has a resolver too", async () => {
+    const schema = olio({
+      modules: [
+        createModule("users", {
+          typeDefs: `
+            type User { id: ID email: String }
+            type Query { me: User }
+          `,
+          resolvers: {
+            Query: { me: () => ({ id: "1", email: "a@x" }) },
+            User: { id: (row: { id: string }) => row.id }
+          },
+          middleware: { User: { "*": [deny] } }
+        })
+      ]
+    }).schema;
+    expect((await run(schema, "{ me { email } }")).errors).toEqual(["DENIED"]);
+  });
+
+  test("a module's User.* reaches its features' plain fields, not other modules'", async () => {
+    const schema = olio({
+      modules: [
+        createModule("users", {
+          typeDefs: `
+            type User { id: ID }
+            type Query { me: User }
+          `,
+          resolvers: {
+            Query: { me: () => ({ id: "1", draft: "d", salary: 9 }) }
+          },
+          middleware: { User: { "*": [deny] } },
+          features: [
+            createFeature("users", "drafts", {
+              typeDefs: "extend type User { draft: String }"
+            })
+          ]
+        }),
+        createModule("pay", { typeDefs: "extend type User { salary: Int }" })
+      ]
+    }).schema;
+    expect((await run(schema, "{ me { draft } }")).errors).toEqual(["DENIED"]);
+    expect(await run(schema, "{ me { salary } }")).toEqual({
+      data: { me: { salary: 9 } },
+      errors: undefined
+    });
+  });
+
+  test("the app's Query.* covers a root field with no resolver", async () => {
+    const schema = olio({
+      middleware: { Query: { "*": [deny] } },
+      modules: [createModule("s", { typeDefs: "type Query { a: Int }" })]
+    }).schema;
+    const { data, errors } = await graphql({
+      schema,
+      source: "{ a }",
+      rootValue: { a: 1 }
+    });
+    expect(data).toEqual({ a: null });
+    expect(errors?.[0]?.message).toBe("DENIED");
+  });
+
+  test("*.* still leaves fields with no resolver alone", async () => {
+    let calls = 0;
+    const schema = olio({
+      middleware: {
+        "*": {
+          "*": [
+            (_params, proceed) => {
+              calls += 1;
+              return proceed();
+            }
+          ]
+        }
+      },
+      modules: [usersWith({})]
+    }).schema;
+    expect((await run(schema, "{ me { email } }")).data).toEqual({
+      me: { email: "a@x" }
+    });
+    expect(calls).toBe(1);
   });
 });
