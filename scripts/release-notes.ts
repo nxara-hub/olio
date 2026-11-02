@@ -13,6 +13,19 @@ export interface Commit {
   body: string;
 }
 
+// GitHub reads a bare @name as a mention: it notifies whoever owns that login and
+// lists them as a contributor. Directive names read as code; code spans stay as
+// they are, since a mention can't start inside one.
+const withoutMentions = (text: string): string =>
+  text
+    .split("`")
+    .map((part, index) =>
+      index % 2 === 0
+        ? part.replaceAll(/(^|[^\w/])@([\w-]+)/g, "$1`@$2`")
+        : part
+    )
+    .join("`");
+
 function behaviourLines(body: string): string[] {
   return body
     .split(/\n\s*\n/)
@@ -46,7 +59,7 @@ export function renderNotes(commits: readonly Commit[]): string {
     ...section("Features", features)
   ];
   return sections.length > 0
-    ? sections.join("\n\n")
+    ? withoutMentions(sections.join("\n\n"))
     : "No `feat` or `fix` commits in this release.";
 }
 

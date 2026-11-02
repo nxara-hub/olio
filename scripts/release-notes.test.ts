@@ -35,3 +35,25 @@ test("says so when nothing reached the packages", () => {
     "No `feat` or `fix` commits in this release."
   );
 });
+
+test("a directive name can't read as a GitHub mention", () => {
+  expect(
+    renderNotes([
+      {
+        subject: "fix(schema): report @copy and @implements used on a field",
+        body: 'Behaviour: mark it: `type S @bypass(keys: "a")`, or use @bypass.'
+      },
+      { subject: "feat(http): works with @nxara/olio-core", body: "" }
+    ])
+  ).toBe(`## Behaviour changes
+
+- schema: mark it: \`type S @bypass(keys: "a")\`, or use \`@bypass\`.
+
+## Fixes
+
+- schema: report \`@copy\` and \`@implements\` used on a field
+
+## Features
+
+- http: works with \`@nxara\`/olio-core`);
+});
