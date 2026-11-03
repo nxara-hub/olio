@@ -5,7 +5,7 @@ sidebar:
   order: 0
 ---
 
-olio is modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. This page explains what it does and which packages you need.
+olio is modular, type-safe GraphQL for TypeScript. This page explains what it does and which packages you need.
 
 You write the schema first, in SDL, and split the API into **modules**. Each module owns its SDL, its resolvers and its middleware. olio composes the modules into one `GraphQLSchema` that any GraphQL server can run.
 

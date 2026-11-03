@@ -1,6 +1,6 @@
-# Nxara
+# olio
 
-Modular, type-safe GraphQL for TypeScript, in the spirit of `graphql-modules`. Each module owns its SDL, resolvers and middleware. Codegen turns the SDL into types, so resolvers, arguments and middleware targets are checked at compile time.
+Modular, type-safe GraphQL for TypeScript. Each module owns its SDL, resolvers and middleware. Codegen turns the SDL into types, so resolvers, arguments and middleware targets are checked at compile time.
 
 **[Read the docs](https://olio.nxara.dev)**: [quick start](https://olio.nxara.dev/getting-started/quick-start/), [how it fits](https://olio.nxara.dev/concepts/how-it-fits/), and a page per package.
 

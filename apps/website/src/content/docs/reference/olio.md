@@ -238,7 +238,7 @@ How a middleware is typed depends on where it's written:
 
 ### Passing a value to nested fields
 
-Replacing `params.ctx` only reaches that field's own resolver. Nested fields get the request's original `ctx` from graphql, so they can quietly run with the wrong value. Nothing errors. The same goes for graphql-modules, since this is how graphql-js passes context.
+Replacing `params.ctx` only reaches that field's own resolver. Nested fields get the request's original `ctx` from graphql, so they can quietly run with the wrong value. Nothing errors. This is how graphql-js passes context, so any server running the schema behaves the same.
 
 **Bad:** `invoices` still sees the tenant the request started with.
 
