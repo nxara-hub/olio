@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "schedule": ["* 0-5 * * 1"],
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 1 * *"]
+  },
+  "packageRules": [
+    {
+      "description": "One PR a week for everything that isn't a major update.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "non-major"
+    },
+    {
+      "description": "bun is pinned in mise.toml and in package.json's devEngines; npm refuses to run if they disagree.",
+      "matchPackageNames": ["bun", "oven-sh/bun"],
+      "groupName": "bun"
+    },
+    {
+      "description": "graphql is a peer dependency on 16: a 17 would be a breaking change for olio's users, not a routine update.",
+      "matchPackageNames": ["graphql"],
+      "allowedVersions": "<17"
+    }
+  ]
+}
