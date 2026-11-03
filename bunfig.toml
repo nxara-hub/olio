@@ -2,3 +2,6 @@
 # Astro bundles satteri into its build output, which then looks for its
 # native binding from there; isolated installs keep it out of reach.
 publicHoistPattern = ["@bruits/*"]
+# Renovate's 3-day wait covers only the packages it updates; this applies the
+# same wait to everything Bun resolves, including transitive dependencies.
+minimumReleaseAge = 259200
