@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://www.coderabbit.ai/integrations/schema.v2.json
+# CLAUDE.md is read as the review guidelines by default.
+language: en-US
+tone_instructions: "Be brief and plain. Name the file and line, say what breaks and how. Skip praise and style nits the linters already catch."
+reviews:
+  profile: chill
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/generated.ts"
+    - "!**/dist/**"
+    - "!bun.lock"
+    - "!mise.lock"
+  path_instructions:
+    - path: "apps/website/src/content/docs/**"
+      instructions: "Docs prose uses separate sentences, not semicolons joining clauses. Code samples must compile against the current packages and show real output."
+  tools:
+    # The repo lints with oxlint and formats with oxfmt (Ultracite), so Biome's
+    # opinions would only disagree with them.
+    biome:
+      enabled: false
+chat:
+  auto_reply: true
