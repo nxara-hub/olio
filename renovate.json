@@ -18,11 +18,6 @@
       "groupName": "non-major"
     },
     {
-      "description": "bun is pinned in mise.toml and in package.json's devEngines; npm refuses to run if they disagree.",
-      "matchPackageNames": ["bun", "oven-sh/bun"],
-      "groupName": "bun"
-    },
-    {
       "description": "graphql is a peer dependency on 16: a 17 would be a breaking change for olio's users, not a routine update.",
       "matchPackageNames": ["graphql"],
       "allowedVersions": "<17"
