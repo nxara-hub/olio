@@ -10,6 +10,7 @@ reviews:
     drafts: false
   path_filters:
     - "!**/generated.ts"
+    - "!apps/example-server/src/schema.gql"
     - "!**/dist/**"
     - "!bun.lock"
     - "!mise.lock"
