@@ -5,6 +5,9 @@ tone_instructions: "Be brief and plain. Name the file and line, say what breaks 
 reviews:
   profile: chill
   poem: false
+  # The website preview deploys once CodeRabbit approves (.github/workflows/website.yml).
+  auto_approvals:
+    enabled: true
   auto_review:
     enabled: true
     drafts: false

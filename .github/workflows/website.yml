@@ -10,14 +10,9 @@ on:
       - mise.toml
       - mise.lock
       - .github/workflows/website.yml
-  pull_request:
-    paths:
-      - apps/website/**
-      - bun.lock
-      - bunfig.toml
-      - mise.toml
-      - mise.lock
-      - .github/workflows/website.yml
+  # A preview deploys once CodeRabbit approves the PR, not on every push to it.
+  pull_request_review:
+    types: [submitted]
 
 permissions: {}
 
@@ -29,7 +24,11 @@ jobs:
   deploy:
     # main deploys to production, a PR to its own preview URL. Pull requests
     # from forks get no secrets, so they're skipped.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.review.state == 'approved' &&
+      github.event.review.user.login == 'coderabbitai[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,5 +48,5 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: bun run --cwd apps/website deploy --branch="$BRANCH"
