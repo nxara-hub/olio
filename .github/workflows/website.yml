@@ -25,10 +25,7 @@ jobs:
     # main deploys to production, a PR to its own preview URL. Pull requests
     # from forks get no secrets, so they're skipped.
     if: >-
-      github.event_name == 'push' ||
-      (github.event.review.state == 'approved' &&
-      github.event.review.user.login == 'coderabbitai[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'push' || (github.event.review.state == 'approved' && github.event.review.user.login == 'coderabbitai[bot]' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
