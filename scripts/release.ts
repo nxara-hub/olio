@@ -24,6 +24,12 @@ if ((await $`git rev-list --count HEAD...origin/main`.text()).trim() !== "0") {
   throw new Error("main isn't the same as origin/main: pull or push first");
 }
 
+const tag = `v${version}`;
+const remoteTag = await $`git ls-remote --tags origin refs/tags/${tag}`.text();
+if (remoteTag.trim() || (await $`git tag --list ${tag}`.text()).trim()) {
+  throw new Error(`${tag} already exists: pick a newer version`);
+}
+
 const branch = `release/v${version}`;
 await $`git switch --quiet -c ${branch}`;
 for (const file of globSync("packages/*/package.json")) {
