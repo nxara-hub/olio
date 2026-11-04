@@ -155,7 +155,7 @@ On Node, use `nodeHandler` from `@nxara/olio-http/node` with `createServer`. `ap
 
 ## Middleware
 
-Middleware maps are nested, `{ Type: { field | "*": [fns] } }`:
+Middleware maps are nested, `{ Type: { field | "*": [fns] } }`. In a typed app, `bypass.has("auth")` only compiles once some SDL uses `@bypass(keys: "auth")` and codegen has run: see Skipping middleware below.
 
 ```ts
 import { mw, type MiddlewareFn } from "@nxara/olio";
@@ -172,7 +172,12 @@ const requireAuth =
     return next();
   };
 
-export const middleware = mw({ Query: { "*": [requireAuth()] } }); // pass to olio({ middleware })
+// Pass to olio({ middleware }). Each root type is listed: Query.* doesn't
+// cover mutations.
+export const middleware = mw({
+  Query: { "*": [requireAuth()] },
+  Mutation: { "*": [requireAuth()] }
+});
 ```
 
 - `mw({...})` is for the application (`"*"` and root types). `mw.<id>({...})`, or a module's `middleware` option, covers that module and its features. `mw.<id>.<feature>({...})`, or a feature's `middleware` option, covers only that feature.

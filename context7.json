@@ -10,7 +10,7 @@
     "Write resolvers with the builders (query.<id>, mutation.<id>, resolvers.<id>.<Type>) or inline in module.<id>({ resolvers }), so they are type-checked.",
     "Rerun codegen after every SDL change and never edit generated.ts by hand.",
     "Load files with loaders(import.meta.dirname) from @nxara/olio-tools, with patterns like \"typedefs/*.gql\" and \"query.{js,ts}\".",
-    "Throw a GraphQLError for errors clients should see; anything else reaches them as \"Unexpected error.\".",
+    "With @nxara/olio-http, throw a GraphQLError for errors clients should see: anything else reaches them as \"Unexpected error.\" (its default maskErrors: true). Other servers, such as Apollo Server, need their own error masking.",
     "Declare the registered ctx with type or inline, not interface."
   ]
 }
