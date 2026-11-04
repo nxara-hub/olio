@@ -1,5 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/nxara-hub/olio",
+  "public_key": "pk_2RRVHCAKBvS0j2VoBCvDo",
   "projectTitle": "olio",
   "description": "Modular, type-safe GraphQL for TypeScript. Each module owns its SDL, resolvers and middleware, olio() composes them into one graphql 16 schema, and codegen types every builder.",
   "folders": ["apps/website/src/content/docs", "skills"],
