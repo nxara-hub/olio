@@ -21,11 +21,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    # main deploys to production, a PR to its own preview URL. Pull requests
-    # from forks get no secrets, so they're skipped.
+  # Review events can't filter by path, so a preview checks the PR's files
+  # itself: the same paths as push, above.
+  changes:
     if: >-
-      github.event_name == 'push' || (github.event.review.state == 'approved' && github.event.review.user.login == 'coderabbitai[bot]' && github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'pull_request_review' && github.event.review.state == 'approved' && github.event.review.user.login == 'coderabbitai[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read # the PR's changed files
+    outputs:
+      website: ${{ steps.files.outputs.website }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          count=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' |
+            grep -cE '^(apps/website/|bun\.lock$|bunfig\.toml$|mise\.(toml|lock)$|\.github/workflows/website\.yml$)' || true)
+          echo "website=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: changes
+    # main deploys to production; a PR deploys a preview once CodeRabbit approves
+    # it, if it touched the website.
+    if: ${{ !cancelled() && (github.event_name == 'push' || needs.changes.outputs.website == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
