@@ -37,10 +37,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+        # A failed request must fail the job, not read as "no website changes".
+        # A move counts by its old path too, so moving files out of the site
+        # still previews.
         run: |
-          count=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' |
-            grep -cE '^(apps/website/|bun\.lock$|bunfig\.toml$|mise\.(toml|lock)$|\.github/workflows/website\.yml$)' || true)
-          echo "website=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[] | .filename, (.previous_filename // empty)')
+          if grep -qE '^(apps/website/|bun\.lock$|bunfig\.toml$|mise\.(toml|lock)$|\.github/workflows/website\.yml$)' <<< "$files"; then
+            echo "website=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "website=false" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     needs: changes
