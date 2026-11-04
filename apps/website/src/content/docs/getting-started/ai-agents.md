@@ -27,4 +27,4 @@ Or copy [`skills/olio/SKILL.md`](https://github.com/nxara-hub/olio/blob/main/ski
 
 ## The types
 
-The packages ship their doc comments, so an agent reading `node_modules/@nxara/*/dist/*.d.ts` sees the same notes your editor shows on hover. Error messages name the problem and where it is, such as `'User.name' is not declared by posts module` or `No files match "<path>"`, so an agent can usually fix them from the message alone.
+From the release after 0.1.6, the packages ship their doc comments, so an agent reading `node_modules/@nxara/*/dist/*.d.ts` sees the same notes your editor shows on hover. Error messages name the problem and where it is, such as `'User.name' is not declared by posts module` or `No files match "<path>"`, so an agent can usually fix them from the message alone.

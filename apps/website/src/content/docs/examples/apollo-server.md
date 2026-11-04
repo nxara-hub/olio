@@ -32,6 +32,7 @@ const server = new ApolloServer<Context>({
 
 await startStandaloneServer(server, {
   listen: { port: 4000 },
+  // A demo: any client can set x-user-id. A real app verifies a token.
   context: async ({ req }) => ({
     userId: req.headers["x-user-id"]?.toString()
   })

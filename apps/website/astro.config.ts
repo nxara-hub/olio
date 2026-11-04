@@ -24,7 +24,14 @@ export default defineConfig({
       lastUpdated: true,
       customCss: ["./src/styles/global.css"],
       // llms.txt and llms-full.txt, for AI agents reading the docs.
-      plugins: [starlightLlmsTxt({ projectName: "olio" })],
+      plugins: [
+        starlightLlmsTxt({
+          projectName: "olio",
+          // Collapsing whitespace would flatten headings, lists and tables in
+          // llms-small.txt into one line.
+          minify: { whitespace: false }
+        })
+      ],
       expressiveCode: {
         themes: ["github-light", "github-dark"],
         styleOverrides: { borderRadius: "14px" }

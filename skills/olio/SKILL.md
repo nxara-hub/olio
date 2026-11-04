@@ -106,8 +106,10 @@ const load = loaders(import.meta.dirname);
 
 export const usersModule = module.users({
   typeDefs: await load.typeDefs("typedefs/*.gql"),
-  // .js too, so the same pattern finds the files once compiled
-  resolvers: await load.resolvers("query.{js,ts}", "resolvers/*.{js,ts}")
+  // .js too, so the same pattern finds the files once compiled. Add
+  // "resolvers/*.{js,ts}" once that folder has files: a pattern matching
+  // nothing throws.
+  resolvers: await load.resolvers("query.{js,ts}")
 });
 ```
 
@@ -128,15 +130,18 @@ export const app = olio({
 import { fetchHandler } from "@nxara/olio-http/fetch";
 
 import { app } from "./app.js";
+import { verifyToken } from "./auth.js";
 
 const graphql = fetchHandler(app, {
   context: (request) => ({
-    userId: request.headers.get("x-user-id") ?? undefined
+    userId: verifyToken(request.headers.get("authorization"))
   })
 });
 
 Bun.serve({ port: 4000, fetch: graphql });
 ```
+
+`verifyToken` is the app's own: it returns the user id for a valid, signed token and `undefined` otherwise. Never take the user from a header the client sets, such as `x-user-id`. Middleware like `requireAuth` below trusts whatever `ctx.userId` holds. An invalid token gives `undefined`, not an error, so public fields still work.
 
 On Node, use `nodeHandler` from `@nxara/olio-http/node` with `createServer`. `app.schema` also runs on GraphQL Yoga, Apollo Server or any server that takes a `GraphQLSchema`.
 

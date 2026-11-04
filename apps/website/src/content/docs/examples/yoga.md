@@ -18,6 +18,7 @@ import { createYoga } from "graphql-yoga";
 
 import { app } from "./app.js";
 
+// A demo: any client can set x-user-id. A real app verifies a token.
 const yoga = createYoga({
   schema: app.schema,
   context: ({ request }) => ({
