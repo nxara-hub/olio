@@ -52,14 +52,15 @@ bun run --cwd apps/example-server serve:apollo  # the same app on Apollo Server
 bun run --cwd apps/example-server bench     # olio-tools' load functions vs the same app wired by hand (bench/wired.ts)
 bun run --cwd apps/example-client codegen   # client types from the server's schema.gql
 bun run --cwd apps/example-client start     # the client walkthrough, against a running `serve`
-bun run release 0.3.0                       # every package to 0.3.0, committed and tagged; pushing the tag publishes (.github/workflows/release.yml)
+bun run release 0.3.0                       # every package to 0.3.0 on a release/v0.3.0 branch, and opens its PR
+bun run release:tag                         # after that PR is merged: tags main and pushes the tag, which publishes (.github/workflows/release.yml)
 ```
 
 ## Gotchas
 
 - Workspace packages resolve to `dist/`. After changing a package, run `bun run build` before type-checking or running the example.
 - Release notes come from commit messages (`scripts/release-notes.ts`, run by the release workflow; no changelog file): `feat` and `fix` outside the `website`, `example` and `release` scopes. A change existing apps must act on gets a `Behaviour: ...` paragraph in its commit body, or it won't be in the notes.
-- Publish only through a pushed tag (`bun run release`, then `.github/workflows/release.yml`). bun packs, since it rewrites `workspace:*`; npm publishes, since only npm signs in with trusted publishing (OIDC, no token). npm runs outside the repo: the root's `devEngines` makes it refuse to run inside.
+- `main` takes changes only through PRs, with `check` and `zizmor` passing (a GitHub ruleset, no bypass), so releases go through a PR too. Publish only through a pushed tag (`bun run release`, merge, `bun run release:tag`, then `.github/workflows/release.yml`). bun packs, since it rewrites `workspace:*`; npm publishes, since only npm signs in with trusted publishing (OIDC, no token). npm runs outside the repo: the root's `devEngines` makes it refuse to run inside.
 - Tool versions live in `mise.toml` / `mise.lock` (bun, node, zizmor); change them with `mise use`, then `mise lock --platform linux-x64,linux-arm64,macos-arm64`. Workflows pin actions to commit SHAs and pass zizmor (`zizmor .github/workflows`).
 - `generated.ts` is generated (and lint/format ignored). Never hand-edit it; rerun codegen. `.gql` files are not formatted by oxfmt.
 - Relative imports use `.js` specifiers (`nodenext`). `noUncheckedIndexedAccess` is on.
