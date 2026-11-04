@@ -1,6 +1,7 @@
 import starlight from "@astrojs/starlight";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
+import starlightLlmsTxt from "starlight-llms-txt";
 
 import { repoUrl } from "./site.ts";
 
@@ -22,6 +23,8 @@ export default defineConfig({
       editLink: { baseUrl: `${repoUrl}/edit/main/apps/website/` },
       lastUpdated: true,
       customCss: ["./src/styles/global.css"],
+      // llms.txt and llms-full.txt, for AI agents reading the docs.
+      plugins: [starlightLlmsTxt({ projectName: "olio" })],
       expressiveCode: {
         themes: ["github-light", "github-dark"],
         styleOverrides: { borderRadius: "14px" }
@@ -29,7 +32,11 @@ export default defineConfig({
       sidebar: [
         {
           label: "Start here",
-          items: ["getting-started/introduction", "getting-started/quick-start"]
+          items: [
+            "getting-started/introduction",
+            "getting-started/quick-start",
+            "getting-started/ai-agents"
+          ]
         },
         {
           label: "Concepts",
