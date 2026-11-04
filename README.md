@@ -43,8 +43,9 @@ bun run --cwd apps/website dev              # the site and docs on http://localh
 All packages share one version. On a clean `main`:
 
 ```sh
-bun run release 0.3.0         # bumps every package, commits and tags v0.3.0
-git push origin main v0.3.0   # CI checks, publishes to npm, creates the GitHub release
+bun run release 0.3.0   # bumps every package on a release/v0.3.0 branch and opens its PR
+# merge the PR once CI passes
+bun run release:tag     # tags main v0.3.0 and pushes the tag: publishes to npm, creates the GitHub release
 ```
 
 A version with a suffix (`0.3.0-rc.1`) publishes under npm's `next` tag and as a GitHub prerelease. npm trusts the release workflow itself ([trusted publishing](https://docs.npmjs.com/trusted-publishers), with provenance), so there's no npm token to keep. A failed run can be rerun: versions already on npm are skipped.
