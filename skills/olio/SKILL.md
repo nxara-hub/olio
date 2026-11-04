@@ -180,7 +180,7 @@ export const middleware = mw({ Query: { "*": [requireAuth()] } }); // pass to ol
 - `"*"` covers every field of that type, including fields with no resolver of their own. A module's or feature's `"*"` covers only the fields it declares, not ones another module adds to the type. `"*": { "*": [...] }` covers every field of every type, so a logger there should skip nested fields: `if (info.path.prev) return next()`.
 - Always `return next()`. Calling it twice doesn't run the resolver twice: later calls get the first result, with a warning.
 - Changing `params.ctx` reaches only that field's resolver, not nested fields. Pass values down by returning them from the parent (`root`), or set them in the server's `context` hook.
-- Throw a `GraphQLError` for errors clients should see. With `@nxara/olio-http`, anything else reaches them as "Unexpected error." and goes to `onUnexpectedError`. Other servers differ: Apollo Server sends the real message unless its `formatError` hides it.
+- Throw a `GraphQLError` for errors clients should see. With `@nxara/olio-http`, anything else reaches them as "Unexpected error." and goes to `onUnexpectedError`, unless you set `maskErrors: false`, which is meant only for development. Other servers differ: Apollo Server sends the real message unless its `formatError` hides it.
 
 ## Skipping middleware: `@bypass`
 
