@@ -38,6 +38,10 @@ bun run --cwd apps/example-client start     # the client walkthrough
 bun run --cwd apps/website dev              # the site and docs on http://localhost:4321
 ```
 
+## AI agents
+
+Agents get the docs as one file at https://olio.nxara.dev/llms-full.txt, and an [Agent Skill](skills/olio/SKILL.md) with `npx skills add nxara-hub/olio`. See [AI agents](https://olio.nxara.dev/getting-started/ai-agents/).
+
 ## Releasing
 
 All packages share one version. On a clean `main`:

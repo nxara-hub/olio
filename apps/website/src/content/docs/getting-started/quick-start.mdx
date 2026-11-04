@@ -164,6 +164,7 @@ The finished project looks like this:
 
         import { app } from "./app.js";
 
+        // A demo: any client can set x-user-id. A real app verifies a token.
         const graphql = fetchHandler(app, {
           context: (request) => ({
             userId: request.headers.get("x-user-id") ?? undefined
@@ -181,6 +182,7 @@ The finished project looks like this:
 
         import { app } from "./app.js";
 
+        // A demo: any client can set x-user-id. A real app verifies a token.
         const graphql = nodeHandler(app, {
           context: (req) => ({ userId: req.headersDistinct["x-user-id"]?.[0] })
         });

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "olio",
+  "description": "Modular, type-safe GraphQL for TypeScript. Each module owns its SDL, resolvers and middleware, olio() composes them into one graphql 16 schema, and codegen types every builder.",
+  "folders": ["apps/website/src/content/docs", "skills"],
+  "excludeFiles": ["CLAUDE.md", "TODO.md"],
+  "rules": [
+    "Use graphql 16, never 17: it is a peer dependency.",
+    "A module resolves only the fields its own SDL declares; extend another module's type in your module's SDL to add fields to it.",
+    "Write resolvers with the builders (query.<id>, mutation.<id>, resolvers.<id>.<Type>) or inline in module.<id>({ resolvers }), so they are type-checked.",
+    "Rerun codegen after every SDL change and never edit generated.ts by hand.",
+    "Load files with loaders(import.meta.dirname) from @nxara/olio-tools, with patterns like \"typedefs/*.gql\" and \"query.{js,ts}\".",
+    "With @nxara/olio-http, throw a GraphQLError for errors clients should see: anything else reaches them as \"Unexpected error.\" (its default maskErrors: true). Other servers, such as Apollo Server, need their own error masking.",
+    "Declare the registered ctx with type or inline, not interface."
+  ]
+}

@@ -15,6 +15,7 @@ Modular, type-safe GraphQL for TypeScript. Bun workspaces + Turborepo, TypeScrip
 - `apps/example-server`: the reference app (a small ERP) and the integration test for the whole pipeline. Its tests live in `test/`, outside `src`: `api.test.ts` drives it through `testClient` with the server's own `graphqlHandler`, `wsOptions` and `sseHandler`, `type-checks.ts` holds compile-time checks.
 - `apps/example-client`: a separate client app on `@nxara/olio-client`, talking to the running server over HTTP. Its operations are `src/operations/*.graphql`; its types come from the server's `src/schema.gql` (or `SCHEMA_URL`) through `codegenClient`, never from server code.
 - `apps/website`: the site and docs (Astro, Starlight, Tailwind CSS v4), deployed to Cloudflare Pages at https://olio.nxara.dev. **The docs live only here**, as Markdown in `src/content/docs/` (`reference/<pkg>.md` is each package's page). Package READMEs are short cards linking to their page; don't grow them back into docs. A change to a package's behaviour updates its page.
+- For AI agents: the site publishes `/llms.txt`, `/llms-full.txt` and `/llms-small.txt` (the `starlight-llms-txt` plugin), `skills/olio/SKILL.md` is the Agent Skill users install with `npx skills add nxara-hub/olio`, and `context7.json` tells Context7 what to index. The skill's code must compile against the published packages: a change to the API updates it too.
 - `TODO.md`: open work. Check it before starting something new.
 
 ## How the pieces connect
