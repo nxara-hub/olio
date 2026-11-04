@@ -59,6 +59,10 @@ type ConfigBuilder<O extends string, Config, Resolvers, Mw, Built> = <
   }
 ) => Built;
 
+/**
+ * `module.<id>({ typeDefs, resolvers, middleware, features })`: a module, by its
+ * folder name under `modules/`. It resolves only the fields its SDL declares.
+ */
 export const module = perModule(
   (id) => (config: ModuleConfig<ModuleId>) =>
     createModule(id as ModuleId, config)
@@ -72,6 +76,7 @@ export const module = perModule(
   >;
 };
 
+/** `feature.<module>.<name>({ ... })`: a feature of a module, by its subfolder. Resolves only its own fields. */
 export const feature = perModule((m) =>
   perModule(
     (f) => (config: FeatureConfig<ModuleId, string>) =>
@@ -89,6 +94,11 @@ export const feature = perModule((m) =>
   };
 };
 
+/**
+ * Middleware maps, `{ Type: { field | "*": [fns] } }`: `mw({...})` for the
+ * application (`"*"` and root types), `mw.<id>({...})` for a module and its
+ * features, `mw.<id>.<feature>({...})` for one feature.
+ */
 export const mw = new Proxy(identity, {
   get: () => nested
 }) as unknown as Builder<Middleware> & {
@@ -97,6 +107,7 @@ export const mw = new Proxy(identity, {
   };
 };
 
+/** `query.<id>({ field: resolver })`: the Query fields a module (or `query.<id>.<feature>`) declares, typed from its SDL. */
 export const query = perModule(() => nested) as unknown as {
   [M in ModuleId]: FieldsBuilder<M, RootName<"query">, QueryResolvers<M>> & {
     [F in FeatureId<M>]: FieldsBuilder<
@@ -107,6 +118,7 @@ export const query = perModule(() => nested) as unknown as {
   };
 };
 
+/** `mutation.<id>({ field: resolver })`: the Mutation fields a module (or feature) declares. */
 export const mutation = perModule(() => nested) as unknown as {
   [M in ModuleId]: FieldsBuilder<
     M,
@@ -121,6 +133,7 @@ export const mutation = perModule(() => nested) as unknown as {
   };
 };
 
+/** `subscription.<id>({ field: () => asyncIterable })`: each field returns an AsyncIterable of its values. */
 export const subscription = perModule(() => nested) as unknown as {
   [M in ModuleId]: FieldsBuilder<
     M,
@@ -139,6 +152,7 @@ type TypeBuilders<O extends string> = {
   [T in ModuleTypeName<O>]: FieldsBuilder<O, T, TypeResolvers<O, T>>;
 };
 
+/** `resolvers.<id>.<Type>({ field: resolver })`: one type's fields a module (or `resolvers.<id>.<feature>.<Type>`) declares. */
 export const resolvers = perModule(() =>
   perModule(() => nested)
 ) as unknown as {
