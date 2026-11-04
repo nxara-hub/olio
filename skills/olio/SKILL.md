@@ -175,12 +175,12 @@ const requireAuth =
 export const middleware = mw({ Query: { "*": [requireAuth()] } }); // pass to olio({ middleware })
 ```
 
-- `mw({...})` is for the application (`"*"` and root types), `mw.<id>({...})` for a module and its features, `mw.<id>.<feature>({...})`, or a module's `middleware` option, for one owner.
+- `mw({...})` is for the application (`"*"` and root types). `mw.<id>({...})`, or a module's `middleware` option, covers that module and its features. `mw.<id>.<feature>({...})`, or a feature's `middleware` option, covers only that feature.
 - The chain runs app `*.*`, app `Type.*`, app `Type.field`, then the module's, then the feature's.
-- `"*"` covers every field of that type, including fields with no resolver of their own. `"*": { "*": [...] }` covers every field of every type, so a logger there should skip nested fields: `if (info.path.prev) return next()`.
+- `"*"` covers every field of that type, including fields with no resolver of their own. A module's or feature's `"*"` covers only the fields it declares, not ones another module adds to the type. `"*": { "*": [...] }` covers every field of every type, so a logger there should skip nested fields: `if (info.path.prev) return next()`.
 - Always `return next()`. Calling it twice doesn't run the resolver twice: later calls get the first result, with a warning.
 - Changing `params.ctx` reaches only that field's resolver, not nested fields. Pass values down by returning them from the parent (`root`), or set them in the server's `context` hook.
-- Throw a `GraphQLError` for errors clients should see. Anything else reaches them as "Unexpected error.".
+- Throw a `GraphQLError` for errors clients should see. With `@nxara/olio-http`, anything else reaches them as "Unexpected error." and goes to `onUnexpectedError`. Other servers differ: Apollo Server sends the real message unless its `formatError` hides it.
 
 ## Skipping middleware: `@bypass`
 
@@ -200,7 +200,8 @@ The middleware decides (`bypass.has("auth")`). `@bypass` applies only to the fie
 
 | Error | Meaning |
 | --- | --- |
-| `'User.name' is not declared by posts module` | That field belongs to another module, or isn't in the SDL at all |
+| `'User.name' is not declared by posts module` | That field belongs to another module. At compile time it also means a typo or a field the SDL doesn't have |
+| `Module "users": unknown field "Query.usr". Did you mean "user"?` | At startup: no type in the SDL has that field. Fix the name, or add the field to the module's SDL and rerun codegen |
 | `No files match "<path>"` | A loader pattern found nothing: check the path, relative to the `loaders` root |
 | `Unknown directive "@copy"` | Pass `directives: [copyDirective(), implementsDirective()]` from `@nxara/olio-schema` to both `codegen()` and `olio()` |
 | `Field "User.x" can only be defined once` | Two modules declare the same field: only one may |
