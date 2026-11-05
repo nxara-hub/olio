@@ -44,7 +44,7 @@ await codegen({
 - **`clear`** (default `false`): delete an output file before writing its new content.
 - **`logs`** (default `true`): `false` prints nothing, except an error in a `watch` rerun. Errors still reject.
 
-[`directives`](#directives) and [`schemaOutput`](#schema-file) have their own sections below.
+[`directives`](#directives), [`schemaOutput`](#schema-file) and [`typeDefsOutput`](#sdl-for-a-tsc-build) have their own sections below.
 
 ### SDL files
 
@@ -95,6 +95,40 @@ Their names land in `Application` as `"~directives"`, and olio's types then requ
 ### Schema file
 
 Set `schemaOutput` to also write the final schema to a file, as in the example above. It's printed from the built schema: each type once with its extensions merged in and the directives applied, ready for schema registries, linters and diff tools. Omit it to generate only TypeScript. The schema is validated before anything is written, so an invalid one fails codegen rather than the server.
+
+### SDL for a tsc build
+
+`tsc` compiles TypeScript only, so a build doesn't get your `.gql` files, and `load.typeDefs("typedefs/*.gql")` then finds nothing in `dist`. Set `typeDefsOutput` to a file name, and codegen also writes that file in each module's and feature's folder, holding its own SDL:
+
+```ts title="codegen.ts"
+await codegen({
+  root: import.meta.dirname,
+  modules: "src/modules",
+  typeDefs: "**/typedefs/**/*.gql",
+  output: "src/generated.ts",
+  typeDefsOutput: "typedefs.generated.ts"
+});
+```
+
+```ts title="src/modules/users/index.ts"
+import { module } from "@nxara/olio";
+import { loaders } from "@nxara/olio-tools";
+
+import typeDefs from "./typedefs.generated.js";
+
+const load = loaders(import.meta.dirname);
+
+export const usersModule = module.users({
+  typeDefs,
+  resolvers: await load.resolvers("query.{js,ts}")
+});
+```
+
+- **It's TypeScript, so `tsc` compiles it into `dist`** like any other file, and the `.gql` files aren't needed at runtime.
+- **Errors still point at your `.gql` files.** Each file's SDL is parsed under its own path, such as `src/modules/users/typedefs/users.gql:7:21`.
+- **Rerun codegen after changing SDL.** The app now serves the generated SDL, not the `.gql` files, so a stale file serves the old schema.
+- **Commit it or generate it in your build**, as you do with `output`. Keep it out of your formatter and linter like `generated.ts`.
+- **A module with SDL only in its features** gets a file with an empty list, which it can pass or leave out.
 
 ## Client types
 
