@@ -8,6 +8,8 @@ await codegen({
   typeDefs: "**/typedefs/**/*.gql",
   output: "src/generated.ts",
   schemaOutput: "src/schema.gql",
+  // Each module's SDL as TypeScript, so a tsc build needs no .gql files.
+  typeDefsOutput: "typedefs.generated.ts",
   directives,
   clear: true
 });
