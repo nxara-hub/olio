@@ -11,6 +11,12 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+  pre_merge_checks:
+    # The repo keeps doc comments to what a signature can't say (CLAUDE.md),
+    # so a coverage threshold would ask for the comments it rules out, and its
+    # failure withholds the automatic approval.
+    docstrings:
+      mode: "off"
   path_filters:
     - "!**/generated.ts"
     - "!apps/example-server/src/schema.gql"
