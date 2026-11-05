@@ -341,7 +341,11 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       );
     }
     if (typeDefsOutput) {
-      const parts = modules.flatMap((m) => m.parts);
+      // An owner with no SDL of its own gets no file: there's nothing to import.
+      const parts = modules
+        .flatMap((m) => m.parts)
+        .filter((part) => part.files.length > 0);
+      const current = new Set<string>();
       let changed = 0;
       for (const part of parts) {
         const file = join(part.directory, typeDefsOutput);
@@ -350,14 +354,35 @@ export async function codegen(options: CodegenOptions): Promise<void> {
             `${relative(at(""), file)} is not a file codegen wrote; pick another typeDefsOutput name`
           );
         }
+        current.add(file);
         ownWrites.add(file);
         const code = await typeDefsModule(part, at(""));
         if (await writeOutput(file, code, clear)) changed += 1;
       }
+      // A folder that lost its last SDL file would otherwise keep serving its
+      // old SDL to a module that still imports it.
+      let removed = 0;
+      for (const m of modules) {
+        const directory = m.parts[0]?.directory;
+        if (!directory) continue;
+        const subdirs = (await readdir(directory, { withFileTypes: true }))
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => join(directory, entry.name));
+        for (const dir of [directory, ...subdirs]) {
+          const file = join(dir, typeDefsOutput);
+          if (current.has(file) || !(await isOwnOutput(file))) continue;
+          ownWrites.add(file);
+          await rm(file);
+          removed += 1;
+        }
+      }
+      const detail = [
+        count(parts.length, "folder"),
+        ...(removed > 0 ? [`${removed} removed`] : []),
+        ...(changed + removed === 0 ? ["unchanged"] : [])
+      ].join(", ");
       log(
-        `  ${changed > 0 ? green("✓") : dim("·")} ${typeDefsOutput}  ${dim(
-          `${count(parts.length, "folder")}${changed > 0 ? "" : ", unchanged"}`
-        )}`
+        `  ${changed + removed > 0 ? green("✓") : dim("·")} ${typeDefsOutput}  ${dim(detail)}`
       );
     }
     log(dim(`  done in ${Math.round(performance.now() - started)}ms`));

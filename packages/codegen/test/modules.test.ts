@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
@@ -8,7 +9,7 @@ import {
   writeFile
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { compose } from "@nxara/olio-schema";
 import { parse, print, type DocumentNode } from "graphql";
@@ -277,7 +278,6 @@ describe("typeDefsOutput", () => {
 
       const users = await load(join(modules, "users", OUT));
       const admin = await load(join(modules, "users/admin", OUT));
-      const sales = await load(join(modules, "sales", OUT));
       const orders = await load(join(modules, "sales/orders", OUT));
       expect(users.map((d) => print(d))).toEqual([
         print(
@@ -288,13 +288,12 @@ describe("typeDefsOutput", () => {
       ]);
       expect(print(admin[0] as DocumentNode)).toContain("ban(id: ID!)");
       expect(users.map((d) => print(d)).join()).not.toContain("ban");
-      expect(sales).toEqual([]);
+      expect(existsSync(join(modules, "sales", OUT))).toBe(false);
       expect(orders).toHaveLength(1);
 
       const { schema } = compose([
         { id: "users", typeDefs: users },
         { id: "users/admin", typeDefs: admin },
-        { id: "sales", typeDefs: sales },
         { id: "sales/orders", typeDefs: orders }
       ]);
       expect(Object.keys(schema.getMutationType()?.getFields() ?? {})).toEqual([
@@ -371,13 +370,47 @@ describe("typeDefsOutput", () => {
           logs: false
         })
       ).rejects.toThrow(
-        "src/modules/users/schema.ts is not a file codegen wrote; pick another typeDefsOutput name"
+        `${relative(dir, join(modules, "users/schema.ts"))} is not a file codegen wrote; pick another typeDefsOutput name`
       );
       expect(await readFile(join(modules, "users/schema.ts"), "utf8")).toBe(
         mine
       );
       expect(await readFile(join(dir, "src/generated.ts"), "utf8")).toContain(
         "mine"
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("removes its file from a folder that no longer has SDL", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      const options = {
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      };
+      await codegen(options);
+      const orders = join(modules, "sales/orders");
+      expect(existsSync(join(orders, OUT))).toBe(true);
+      // Not codegen's: a file of the user's with the same name stays.
+      await writeModule(modules, "sales", { [`notes/${OUT}`]: "// mine\n" });
+
+      await rm(join(orders, "typedefs/orders.gql"));
+      await writeModule(modules, "sales", {
+        "typedefs/sales.gql": "extend type Query { total: Int }"
+      });
+      await codegen(options);
+
+      expect(existsSync(join(orders, OUT))).toBe(false);
+      expect(existsSync(join(modules, "sales", OUT))).toBe(true);
+      expect(await readFile(join(modules, "sales/notes", OUT), "utf8")).toBe(
+        "// mine\n"
       );
     } finally {
       await rm(dir, { recursive: true, force: true });

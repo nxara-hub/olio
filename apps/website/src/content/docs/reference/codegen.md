@@ -130,7 +130,7 @@ export const usersModule = module.users({
 - **Errors still point at your `.gql` files.** Each file's SDL is parsed under its own path, such as `src/modules/users/typedefs/users.gql:7:21`.
 - **Rerun codegen after changing SDL.** The app now serves the generated SDL, not the `.gql` files, so a stale file serves the old schema.
 - **Commit it or generate it in your build**, as you do with `output`. Keep it out of your formatter and linter like `generated.ts`.
-- **A module with SDL only in its features** gets a file with an empty list, which it can pass or leave out.
+- **Only folders with SDL of their own get one.** A module whose SDL is all in its features gets none, and doesn't pass `typeDefs`. When a folder loses its last SDL file, codegen removes its old file too, so nothing serves stale SDL. It only ever overwrites or removes files that start with its own header.
 
 ## Client types
 
