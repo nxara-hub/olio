@@ -7,7 +7,7 @@ import {
   rm,
   writeFile
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 import { loadGraphQLFile, matchFiles } from "@nxara/olio-core/files";
 import {
@@ -15,6 +15,7 @@ import {
   buildClientSchema,
   getIntrospectionQuery,
   printSchema,
+  print,
   type DocumentNode,
   type GraphQLSchema,
   type IntrospectionQuery
@@ -25,6 +26,7 @@ import { emitClient } from "./emit-client.js";
 import { bold, count, cyan, dim, green, red, row, shortPath } from "./log.js";
 import {
   BUILTIN_SCALARS,
+  HEADER,
   type ClientCodegenOptions,
   type CodegenModule,
   type CodegenOptions
@@ -32,6 +34,7 @@ import {
 
 interface Part {
   id: string;
+  directory: string;
   files: string[];
   typeDefs: DocumentNode[];
 }
@@ -64,7 +67,9 @@ async function filesIn(
 async function discoverModules(
   modulesDir: string,
   typeDefs: string | string[],
-  onSkip: (file: string) => void
+  onSkip: (file: string) => void,
+  // codegen's own typeDefsOutput files, which a broad pattern would match.
+  generated: string | undefined
 ): Promise<ModuleDefinition[]> {
   const root = resolve(modulesDir);
   if (!existsSync(root)) {
@@ -84,8 +89,12 @@ async function discoverModules(
   const patterns = Array.isArray(typeDefs) ? typeDefs : [typeDefs];
   const modules: ModuleDefinition[] = [];
 
-  const load = async (id: string, files: readonly string[]): Promise<Part> => {
-    const part: Part = { id, files: [], typeDefs: [] };
+  const load = async (
+    id: string,
+    directory: string,
+    files: readonly string[]
+  ): Promise<Part> => {
+    const part: Part = { id, directory, files: [], typeDefs: [] };
     for (const file of files) {
       const document = await loadGraphQLFile(file);
       if (!document) {
@@ -100,7 +109,9 @@ async function discoverModules(
 
   for (const id of childDirs) {
     const directory = join(root, id);
-    const files = await filesIn(directory, patterns);
+    const files = (await filesIn(directory, patterns)).filter(
+      (file) => basename(file) !== generated
+    );
     if (files.length === 0) {
       throw new Error(
         `Module "${id}" contains no matching typeDefs for "${patterns.join('", "')}"`
@@ -115,7 +126,9 @@ async function discoverModules(
       .sort();
     const features: { name: string; files: string[] }[] = [];
     for (const name of subdirs) {
-      const own = await filesIn(join(directory, name), patterns);
+      const own = (await filesIn(join(directory, name), patterns)).filter(
+        (file) => basename(file) !== generated
+      );
       if (own.length > 0) features.push({ name, files: own });
     }
     const inFeature = new Set(
@@ -126,9 +139,11 @@ async function discoverModules(
     modules.push({
       id,
       parts: [
-        await load(id, rootFiles),
+        await load(id, directory, rootFiles),
         ...(await Promise.all(
-          features.map((f) => load(`${id}/${f.name}`, f.files))
+          features.map((f) =>
+            load(`${id}/${f.name}`, join(directory, f.name), f.files)
+          )
         ))
       ],
       features: features.map((f) => f.name)
@@ -136,6 +151,29 @@ async function discoverModules(
   }
 
   return modules;
+}
+
+// Parsed with each file's path as its source name, so olio's errors point at
+// the .gql file rather than at this one. A .gql file keeps its own text, so
+// line and column match it; SDL from a .ts file is printed.
+async function typeDefsModule(part: Part, root: string): Promise<string> {
+  const documents = await Promise.all(
+    part.files.map(async (file, i) => {
+      const text = /\.(gql|graphql)$/.test(file)
+        ? await readFile(file, "utf8")
+        : print(part.typeDefs[i] as DocumentNode);
+      const name = relative(root, file);
+      return `  parse(new Source(${JSON.stringify(text)}, ${JSON.stringify(name)}))`;
+    })
+  );
+  return (
+    [
+      HEADER,
+      'import { parse, Source, type DocumentNode } from "graphql";',
+      `const typeDefs: DocumentNode[] = [${documents.length > 0 ? `\n${documents.join(",\n")}\n` : ""}];`,
+      "export default typeDefs;"
+    ].join("\n\n") + "\n"
+  );
 }
 
 // Unchanged content isn't rewritten, so watchers and builds see no change.
@@ -213,6 +251,10 @@ export async function codegen(options: CodegenOptions): Promise<void> {
   const modulesDir = at(options.modules);
   const output = at(options.output);
   const schemaOutput = options.schemaOutput && at(options.schemaOutput);
+  const { typeDefsOutput } = options;
+  // typeDefsOutput files join as they're written, so the watcher ignores every
+  // write codegen makes.
+  const ownWrites = new Set([output, ...(schemaOutput ? [schemaOutput] : [])]);
 
   const log = logs
     ? (message: string): void => {
@@ -229,8 +271,11 @@ export async function codegen(options: CodegenOptions): Promise<void> {
 
   const run = async (): Promise<void> => {
     const started = performance.now();
-    const modules = await discoverModules(modulesDir, typeDefs, (file) =>
-      log(row("skipped", dim(`${shortPath(file)} (empty)`)))
+    const modules = await discoverModules(
+      modulesDir,
+      typeDefs,
+      (file) => log(row("skipped", dim(`${shortPath(file)} (empty)`))),
+      typeDefsOutput
     );
     log(
       row(
@@ -274,6 +319,21 @@ export async function codegen(options: CodegenOptions): Promise<void> {
         )
       );
     }
+    if (typeDefsOutput) {
+      const parts = modules.flatMap((m) => m.parts);
+      let changed = 0;
+      for (const part of parts) {
+        const file = join(part.directory, typeDefsOutput);
+        ownWrites.add(file);
+        const code = await typeDefsModule(part, at(""));
+        if (await writeOutput(file, code, clear)) changed += 1;
+      }
+      log(
+        `  ${changed > 0 ? green("✓") : dim("·")} ${typeDefsOutput}  ${dim(
+          `${count(parts.length, "folder")}${changed > 0 ? "" : ", unchanged"}`
+        )}`
+      );
+    }
     log(dim(`  done in ${Math.round(performance.now() - started)}ms`));
   };
 
@@ -282,7 +342,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
   if (!watch) return;
   await rerunOnChange(
     [{ dir: modulesDir, recursive: true }],
-    new Set([output, ...(schemaOutput ? [schemaOutput] : [])]),
+    ownWrites,
     run,
     log
   );

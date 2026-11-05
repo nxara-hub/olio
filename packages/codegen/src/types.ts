@@ -25,6 +25,13 @@ export interface CodegenOptions {
   output: string;
   /** Where to write the printed schema, e.g. for clients and schema tools. */
   schemaOutput?: string;
+  /**
+   * A file name, such as `typedefs.generated.ts`, written in each module's and
+   * feature's folder: its own SDL as a default export, for
+   * `module.<id>({ typeDefs })`. A build then needs no `.gql` files, and errors
+   * still point at them. Off by default.
+   */
+  typeDefsOutput?: string;
   watch?: boolean;
   clear?: boolean;
   directives?: readonly SchemaDirective[];
