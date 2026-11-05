@@ -2,11 +2,12 @@ import { module, mw } from "@nxara/olio";
 import { loaders } from "@nxara/olio-tools";
 
 import { requireRole } from "../../middleware.js";
+import typeDefs from "./typedefs.generated.js";
 
 const load = loaders(import.meta.dirname);
 
 export const inventoryModule = module.inventory({
-  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  typeDefs,
   resolvers: await load.resolvers(
     "{query,mutation,subscription}.{js,ts}",
     "resolvers/*.{js,ts}"

@@ -17,6 +17,7 @@ export default defineConfig({
   endOfLine: "lf",
   ignorePatterns: [
     "**/generated.ts",
+    "**/typedefs.generated.ts",
     // GraphQL SDL is codegen input, not hand-formatted source; empty files are
     // valid and oxfmt's GraphQL parser rejects them.
     "**/*.gql",

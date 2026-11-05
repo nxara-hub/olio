@@ -1,7 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+
+import { compose } from "@nxara/olio-schema";
+import { parse, print, type DocumentNode } from "graphql";
 
 import { codegen } from "../src/index.js";
 
@@ -224,5 +235,296 @@ describe("module discovery", () => {
       await rm(dir, { recursive: true, force: true });
     }
     expect(warnings.some((w) => w.includes("empty.gql"))).toBe(true);
+  });
+});
+
+describe("typeDefsOutput", () => {
+  const OUT = "typedefs.generated.ts";
+  // Inside the package, so the generated files' `graphql` import resolves, as
+  // it does in an app.
+  const makeDir = (): Promise<string> =>
+    mkdtemp(join(import.meta.dirname, "tmp-"));
+
+  async function project(dir: string): Promise<string> {
+    const modules = join(dir, "src/modules");
+    await writeModule(modules, "users", {
+      "typedefs/users.gql":
+        'type User {\n  id: ID!\n  "Shown as `name`, never ${interpolated}"\n  name: String!\n}\n\nextend type Query { user: User }',
+      "admin/typedefs/admin.gql":
+        "extend type Mutation { ban(id: ID!): Boolean! }"
+    });
+    await writeModule(modules, "sales", {
+      "orders/typedefs/orders.gql": "extend type Query { orders: [String!]! }"
+    });
+    return modules;
+  }
+
+  const load = async (file: string): Promise<DocumentNode[]> =>
+    ((await import(`${file}?${Math.random()}`)) as { default: DocumentNode[] })
+      .default;
+
+  test("writes each module's and feature's own SDL next to it", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      });
+
+      const users = await load(join(modules, "users", OUT));
+      const admin = await load(join(modules, "users/admin", OUT));
+      const orders = await load(join(modules, "sales/orders", OUT));
+      expect(users.map((d) => print(d))).toEqual([
+        print(
+          parse(
+            await readFile(join(modules, "users/typedefs/users.gql"), "utf8")
+          )
+        )
+      ]);
+      expect(print(admin[0] as DocumentNode)).toContain("ban(id: ID!)");
+      expect(users.map((d) => print(d)).join()).not.toContain("ban");
+      expect(existsSync(join(modules, "sales", OUT))).toBe(false);
+      expect(orders).toHaveLength(1);
+
+      const { schema } = compose([
+        { id: "users", typeDefs: users },
+        { id: "users/admin", typeDefs: admin },
+        { id: "sales/orders", typeDefs: orders }
+      ]);
+      expect(Object.keys(schema.getMutationType()?.getFields() ?? {})).toEqual([
+        "ban"
+      ]);
+      expect(schema.getType("User")?.description ?? "").toBe("");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("errors still point at the .gql file", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      });
+      const users = await load(join(modules, "users", OUT));
+      expect(() =>
+        compose([
+          { id: "users", typeDefs: users },
+          {
+            id: "other",
+            typeDefs: [parse("extend type Query { user: String }")]
+          }
+        ])
+      ).toThrow("src/modules/users/typedefs/users.gql:7:21");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("isn't read back as SDL when typeDefs also matches .ts files", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      const run = () =>
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          // "*.ts" also matches the generated file at each folder's root.
+          typeDefs: ["**/typedefs/**/*.gql", "*.ts"],
+          output: "src/generated.ts",
+          typeDefsOutput: OUT,
+          logs: false
+        });
+      await run();
+      await run();
+      expect(await load(join(modules, "users", OUT))).toHaveLength(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("refuses to overwrite a file it didn't write, and reads it as SDL", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = join(dir, "src/modules");
+      const mine = 'export default "type Query { mine: Int }";\n';
+      await writeModule(modules, "users", { "schema.ts": mine });
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "*.ts",
+          output: "src/generated.ts",
+          typeDefsOutput: "schema.ts",
+          logs: false
+        })
+      ).rejects.toThrow(
+        `${relative(dir, join(modules, "users/schema.ts"))} is not a file codegen wrote; pick another typeDefsOutput name`
+      );
+      expect(await readFile(join(modules, "users/schema.ts"), "utf8")).toBe(
+        mine
+      );
+      expect(await readFile(join(dir, "src/generated.ts"), "utf8")).toContain(
+        "mine"
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("removes its file from a folder that no longer has SDL", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      const options = {
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      };
+      await codegen(options);
+      const orders = join(modules, "sales/orders");
+      expect(existsSync(join(orders, OUT))).toBe(true);
+      // Not codegen's: a file of the user's with the same name stays.
+      await writeModule(modules, "sales", { [`notes/${OUT}`]: "// mine\n" });
+
+      await rm(join(orders, "typedefs/orders.gql"));
+      await writeModule(modules, "sales", {
+        "typedefs/sales.gql": "extend type Query { total: Int }"
+      });
+      await codegen(options);
+
+      expect(existsSync(join(orders, OUT))).toBe(false);
+      expect(existsSync(join(modules, "sales", OUT))).toBe(true);
+      expect(await readFile(join(modules, "sales/notes", OUT), "utf8")).toBe(
+        "// mine\n"
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("never overwrites an output at a typeDefsOutput path", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      const output = join(modules, "users", OUT);
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "**/typedefs/**/*.gql",
+          output,
+          typeDefsOutput: OUT,
+          logs: false
+        })
+      ).rejects.toThrow(
+        `${relative(dir, output)} is not a file codegen wrote; pick another typeDefsOutput name`
+      );
+      expect(await readFile(output, "utf8")).toContain(
+        "export type Application"
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.each(["../typedefs.generated.ts", "sub/typedefs.ts", "..", "."])(
+    "rejects %s as typeDefsOutput, writing nothing",
+    async (name) => {
+      const dir = await makeDir();
+      try {
+        await project(dir);
+        await expect(
+          codegen({
+            root: dir,
+            modules: "src/modules",
+            typeDefs: "**/typedefs/**/*.gql",
+            output: "src/generated.ts",
+            typeDefsOutput: name,
+            logs: false
+          })
+        ).rejects.toThrow(
+          `typeDefsOutput must be a file name, such as "typedefs.generated.ts" (got "${name}")`
+        );
+        expect(existsSync(join(dir, "src/generated.ts"))).toBe(false);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  );
+
+  test("treats a main output left at a typeDefsOutput path as not its own", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      // An earlier run wrote its main output where a typeDefsOutput file goes.
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: join(modules, "sales/orders", OUT),
+        logs: false
+      });
+      const left = await readFile(join(modules, "sales/orders", OUT), "utf8");
+      await rm(join(modules, "sales/orders/typedefs/orders.gql"));
+      await writeModule(modules, "sales", {
+        "typedefs/sales.gql": "extend type Query { total: Int }"
+      });
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      });
+      expect(await readFile(join(modules, "sales/orders", OUT), "utf8")).toBe(
+        left
+      );
+      await writeFile(join(modules, "users", OUT), left);
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "**/typedefs/**/*.gql",
+          output: "src/generated.ts",
+          typeDefsOutput: OUT,
+          logs: false
+        })
+      ).rejects.toThrow("is not a file codegen wrote");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("writes nothing next to modules without the option", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        logs: false
+      });
+      expect(await readdir(join(modules, "users"))).not.toContain(OUT);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -2,6 +2,7 @@ import { module, mw, type MiddlewareFn } from "@nxara/olio";
 import { loaders } from "@nxara/olio-tools";
 
 import { clientError } from "../../errors.js";
+import typeDefs from "./typedefs.generated.js";
 
 const load = loaders(import.meta.dirname);
 
@@ -20,7 +21,7 @@ const rateLimit = (max: number): MiddlewareFn => {
 };
 
 export const authModule = module.auth({
-  typeDefs: await load.typeDefs("typedefs/*.gql"),
+  typeDefs,
   resolvers: await load.resolvers(
     "{query,mutation}.{js,ts}",
     "resolvers/*.{js,ts}"

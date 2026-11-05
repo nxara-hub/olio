@@ -3,7 +3,11 @@ import core from "ultracite/oxlint/core";
 
 export default defineConfig({
   extends: [core],
-  ignorePatterns: [...(core.ignorePatterns || []), "**/generated.ts"],
+  ignorePatterns: [
+    ...(core.ignorePatterns || []),
+    "**/generated.ts",
+    "**/typedefs.generated.ts"
+  ],
   rules: {
     "jest/no-confusing-set-timeout": "off",
     "jest/no-untyped-mock-factory": "off",
