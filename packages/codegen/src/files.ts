@@ -7,7 +7,7 @@ import {
   rm,
   writeFile
 } from "node:fs/promises";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 import { loadGraphQLFile, matchFiles } from "@nxara/olio-core/files";
 import {
@@ -183,7 +183,8 @@ async function typeDefsModule(part: Part, root: string): Promise<string> {
       const text = /\.(gql|graphql)$/.test(file)
         ? await readFile(file, "utf8")
         : print(part.typeDefs[i] as DocumentNode);
-      const name = relative(root, file);
+      // Always "/", so the committed file is the same whoever ran codegen.
+      const name = relative(root, file).split(sep).join("/");
       return `  parse(new Source(${JSON.stringify(text)}, ${JSON.stringify(name)}))`;
     })
   );
@@ -195,6 +196,26 @@ async function typeDefsModule(part: Part, root: string): Promise<string> {
       "export default typeDefs;"
     ].join("\n\n") + "\n"
   );
+}
+
+// Every place a typeDefsOutput file can be: each module's folder and its
+// direct subfolders, where features live.
+async function typeDefsFolders(
+  modules: readonly ModuleDefinition[],
+  typeDefsOutput: string
+): Promise<string[]> {
+  const files: string[] = [];
+  for (const m of modules) {
+    const directory = m.parts[0]?.directory;
+    if (!directory) continue;
+    const subdirs = (await readdir(directory, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => join(directory, entry.name));
+    for (const dir of [directory, ...subdirs]) {
+      files.push(resolve(dir, typeDefsOutput));
+    }
+  }
+  return files;
 }
 
 // Unchanged content isn't rewritten, so watchers and builds see no change.
@@ -316,6 +337,22 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       log(row("directives", directives.map((d) => `@${d.name}`).join(" ")));
     }
 
+    const typeDefsTargets = typeDefsOutput
+      ? await typeDefsFolders(modules, typeDefsOutput)
+      : [];
+    // Both carry codegen's header, so the ownership check can't tell them
+    // apart: one would overwrite or remove the other.
+    for (const [name, path] of [
+      ["output", output],
+      ["schemaOutput", schemaOutput]
+    ] as const) {
+      if (path && typeDefsTargets.includes(resolve(path))) {
+        throw new Error(
+          `${name} and typeDefsOutput are both ${relative(at(""), path)}`
+        );
+      }
+    }
+
     const codegenModules: CodegenModule[] = modules.flatMap((m) =>
       m.parts.map((p) => ({ id: p.id, typeDefs: p.typeDefs }))
     );
@@ -348,7 +385,7 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       const current = new Set<string>();
       let changed = 0;
       for (const part of parts) {
-        const file = join(part.directory, typeDefsOutput);
+        const file = resolve(part.directory, typeDefsOutput);
         if (existsSync(file) && !(await isOwnOutput(file))) {
           throw new Error(
             `${relative(at(""), file)} is not a file codegen wrote; pick another typeDefsOutput name`
@@ -362,19 +399,11 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       // A folder that lost its last SDL file would otherwise keep serving its
       // old SDL to a module that still imports it.
       let removed = 0;
-      for (const m of modules) {
-        const directory = m.parts[0]?.directory;
-        if (!directory) continue;
-        const subdirs = (await readdir(directory, { withFileTypes: true }))
-          .filter((entry) => entry.isDirectory())
-          .map((entry) => join(directory, entry.name));
-        for (const dir of [directory, ...subdirs]) {
-          const file = join(dir, typeDefsOutput);
-          if (current.has(file) || !(await isOwnOutput(file))) continue;
-          ownWrites.add(file);
-          await rm(file);
-          removed += 1;
-        }
+      for (const file of typeDefsTargets) {
+        if (current.has(file) || !(await isOwnOutput(file))) continue;
+        ownWrites.add(file);
+        await rm(file);
+        removed += 1;
       }
       const detail = [
         count(parts.length, "folder"),

@@ -417,6 +417,29 @@ describe("typeDefsOutput", () => {
     }
   });
 
+  test("rejects an output that is also a typeDefsOutput file, writing nothing", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      const output = join(modules, "users", OUT);
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "**/typedefs/**/*.gql",
+          output,
+          typeDefsOutput: OUT,
+          logs: false
+        })
+      ).rejects.toThrow(
+        `output and typeDefsOutput are both ${relative(dir, output)}`
+      );
+      expect(existsSync(output)).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("writes nothing next to modules without the option", async () => {
     const dir = await makeDir();
     try {
