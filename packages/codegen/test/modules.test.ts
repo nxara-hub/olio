@@ -465,6 +465,50 @@ describe("typeDefsOutput", () => {
     }
   );
 
+  test("treats a main output left at a typeDefsOutput path as not its own", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = await project(dir);
+      // An earlier run wrote its main output where a typeDefsOutput file goes.
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: join(modules, "sales/orders", OUT),
+        logs: false
+      });
+      const left = await readFile(join(modules, "sales/orders", OUT), "utf8");
+      await rm(join(modules, "sales/orders/typedefs/orders.gql"));
+      await writeModule(modules, "sales", {
+        "typedefs/sales.gql": "extend type Query { total: Int }"
+      });
+      await codegen({
+        root: dir,
+        modules: "src/modules",
+        typeDefs: "**/typedefs/**/*.gql",
+        output: "src/generated.ts",
+        typeDefsOutput: OUT,
+        logs: false
+      });
+      expect(await readFile(join(modules, "sales/orders", OUT), "utf8")).toBe(
+        left
+      );
+      await writeFile(join(modules, "users", OUT), left);
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "**/typedefs/**/*.gql",
+          output: "src/generated.ts",
+          typeDefsOutput: OUT,
+          logs: false
+        })
+      ).rejects.toThrow("is not a file codegen wrote");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("writes nothing next to modules without the option", async () => {
     const dir = await makeDir();
     try {
