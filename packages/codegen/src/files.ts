@@ -356,19 +356,6 @@ export async function codegen(options: CodegenOptions): Promise<void> {
     const typeDefsTargets = typeDefsOutput
       ? await typeDefsFolders(modules, typeDefsOutput)
       : [];
-    // Both carry codegen's header, so the ownership check can't tell them
-    // apart: one would overwrite or remove the other.
-    for (const [name, path] of [
-      ["output", output],
-      ["schemaOutput", schemaOutput]
-    ] as const) {
-      if (path && typeDefsTargets.includes(resolve(path))) {
-        throw new Error(
-          `${name} and typeDefsOutput are both ${relative(at(""), path)}`
-        );
-      }
-    }
-
     const codegenModules: CodegenModule[] = modules.flatMap((m) =>
       m.parts.map((p) => ({ id: p.id, typeDefs: p.typeDefs }))
     );

@@ -417,7 +417,7 @@ describe("typeDefsOutput", () => {
     }
   });
 
-  test("rejects an output that is also a typeDefsOutput file, writing nothing", async () => {
+  test("never overwrites an output at a typeDefsOutput path", async () => {
     const dir = await makeDir();
     try {
       const modules = await project(dir);
@@ -432,9 +432,11 @@ describe("typeDefsOutput", () => {
           logs: false
         })
       ).rejects.toThrow(
-        `output and typeDefsOutput are both ${relative(dir, output)}`
+        `${relative(dir, output)} is not a file codegen wrote; pick another typeDefsOutput name`
       );
-      expect(existsSync(output)).toBe(false);
+      expect(await readFile(output, "utf8")).toContain(
+        "export type Application"
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
