@@ -101,6 +101,8 @@ Set `schemaOutput` to also write the final schema to a file, as in the example a
 `tsc` compiles TypeScript only, so a build doesn't get your `.gql` files, and `load.typeDefs("typedefs/*.gql")` then finds nothing in `dist`. Set `typeDefsOutput` to a file name, and codegen also writes that file in each module's and feature's folder, holding its own SDL:
 
 ```ts title="codegen.ts"
+import { codegen } from "@nxara/olio-codegen";
+
 await codegen({
   root: import.meta.dirname,
   modules: "src/modules",
