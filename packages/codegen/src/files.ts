@@ -64,6 +64,25 @@ async function filesIn(
   return files.sort();
 }
 
+// Only a file with codegen's header is its own: a file of the user's that
+// shares the typeDefsOutput name is SDL to read, and never overwritten.
+async function isOwnOutput(file: string): Promise<boolean> {
+  const head = await readFile(file, "utf8").catch(() => "");
+  return head.startsWith(HEADER.split("\n")[0] ?? HEADER);
+}
+
+async function withoutOwnOutput(
+  files: readonly string[],
+  generated: string | undefined
+): Promise<string[]> {
+  const kept: string[] = [];
+  for (const file of files) {
+    if (basename(file) === generated && (await isOwnOutput(file))) continue;
+    kept.push(file);
+  }
+  return kept;
+}
+
 async function discoverModules(
   modulesDir: string,
   typeDefs: string | string[],
@@ -109,8 +128,9 @@ async function discoverModules(
 
   for (const id of childDirs) {
     const directory = join(root, id);
-    const files = (await filesIn(directory, patterns)).filter(
-      (file) => basename(file) !== generated
+    const files = await withoutOwnOutput(
+      await filesIn(directory, patterns),
+      generated
     );
     if (files.length === 0) {
       throw new Error(
@@ -126,8 +146,9 @@ async function discoverModules(
       .sort();
     const features: { name: string; files: string[] }[] = [];
     for (const name of subdirs) {
-      const own = (await filesIn(join(directory, name), patterns)).filter(
-        (file) => basename(file) !== generated
+      const own = await withoutOwnOutput(
+        await filesIn(join(directory, name), patterns),
+        generated
       );
       if (own.length > 0) features.push({ name, files: own });
     }
@@ -324,6 +345,11 @@ export async function codegen(options: CodegenOptions): Promise<void> {
       let changed = 0;
       for (const part of parts) {
         const file = join(part.directory, typeDefsOutput);
+        if (existsSync(file) && !(await isOwnOutput(file))) {
+          throw new Error(
+            `${relative(at(""), file)} is not a file codegen wrote; pick another typeDefsOutput name`
+          );
+        }
         ownWrites.add(file);
         const code = await typeDefsModule(part, at(""));
         if (await writeOutput(file, code, clear)) changed += 1;

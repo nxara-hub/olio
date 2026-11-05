@@ -355,6 +355,35 @@ describe("typeDefsOutput", () => {
     }
   });
 
+  test("refuses to overwrite a file it didn't write, and reads it as SDL", async () => {
+    const dir = await makeDir();
+    try {
+      const modules = join(dir, "src/modules");
+      const mine = 'export default "type Query { mine: Int }";\n';
+      await writeModule(modules, "users", { "schema.ts": mine });
+      await expect(
+        codegen({
+          root: dir,
+          modules: "src/modules",
+          typeDefs: "*.ts",
+          output: "src/generated.ts",
+          typeDefsOutput: "schema.ts",
+          logs: false
+        })
+      ).rejects.toThrow(
+        "src/modules/users/schema.ts is not a file codegen wrote; pick another typeDefsOutput name"
+      );
+      expect(await readFile(join(modules, "users/schema.ts"), "utf8")).toBe(
+        mine
+      );
+      expect(await readFile(join(dir, "src/generated.ts"), "utf8")).toContain(
+        "mine"
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   test("writes nothing next to modules without the option", async () => {
     const dir = await makeDir();
     try {
