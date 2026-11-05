@@ -294,6 +294,19 @@ export async function codegen(options: CodegenOptions): Promise<void> {
   const output = at(options.output);
   const schemaOutput = options.schemaOutput && at(options.schemaOutput);
   const { typeDefsOutput } = options;
+  // A path would let several modules resolve to one file, or write outside them.
+  if (
+    typeDefsOutput !== undefined &&
+    (basename(typeDefsOutput) !== typeDefsOutput ||
+      typeDefsOutput.includes("\\") ||
+      typeDefsOutput === "." ||
+      typeDefsOutput === ".." ||
+      typeDefsOutput === "")
+  ) {
+    throw new Error(
+      `typeDefsOutput must be a file name, such as "typedefs.generated.ts" (got "${typeDefsOutput}")`
+    );
+  }
   // typeDefsOutput files join as they're written, so the watcher ignores every
   // write codegen makes.
   const ownWrites = new Set([output, ...(schemaOutput ? [schemaOutput] : [])]);

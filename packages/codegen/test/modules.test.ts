@@ -440,6 +440,31 @@ describe("typeDefsOutput", () => {
     }
   });
 
+  test.each(["../typedefs.generated.ts", "sub/typedefs.ts", "..", "."])(
+    "rejects %s as typeDefsOutput, writing nothing",
+    async (name) => {
+      const dir = await makeDir();
+      try {
+        await project(dir);
+        await expect(
+          codegen({
+            root: dir,
+            modules: "src/modules",
+            typeDefs: "**/typedefs/**/*.gql",
+            output: "src/generated.ts",
+            typeDefsOutput: name,
+            logs: false
+          })
+        ).rejects.toThrow(
+          `typeDefsOutput must be a file name, such as "typedefs.generated.ts" (got "${name}")`
+        );
+        expect(existsSync(join(dir, "src/generated.ts"))).toBe(false);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+  );
+
   test("writes nothing next to modules without the option", async () => {
     const dir = await makeDir();
     try {
