@@ -1,6 +1,6 @@
 {
   "name": "@nxara/olio-tools",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Load olio modules, type definitions and resolvers from files.",
   "keywords": [
     "graphql",
