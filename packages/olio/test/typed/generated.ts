@@ -22,6 +22,12 @@ export const Role = {
 } as const;
 export type Role = ResolveEnum<"Role", (typeof Role)[keyof typeof Role]>;
 
+export const Status = {
+  DRAFT: "DRAFT",
+  PUBLISHED: "PUBLISHED"
+} as const;
+export type Status = ResolveEnum<"Status", (typeof Status)[keyof typeof Status]>;
+
 /* #endregion Enums */
 
 /* #region Types */
@@ -105,6 +111,7 @@ export type Application = {
       };
     };
     Role: { type: Role; fields: never; enum: "ADMIN" | "GUEST" };
+    Status: { type: Status; fields: never; enum: "DRAFT" };
     Tag: { type: Tag; fields: "__isTypeOf" | "name" };
     Upper: { type: Scalars["Upper"]["output"]; fields: never; scalar: true };
     User: { type: User; fields: "__isTypeOf" | "id" | "name" | "role" };
@@ -119,6 +126,7 @@ export type Application = {
         articles: "audit";
       };
     };
+    Status: { type: Status; fields: never; enum: "PUBLISHED" };
     User: { type: User; fields: "articleCount" };
   };
 };

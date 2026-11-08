@@ -125,7 +125,12 @@ declare const fromEnumFiles: LoadedEnums;
 module.content({ enums: fromEnumFiles });
 // @ts-expect-error a loaded resolver map isn't enums
 module.content({ enums: fromFiles });
-// The blog feature declares no enum, so it takes none.
+// The blog feature only extends Status, which has no internal values, so it
+// takes no enums, and Status adds none to the module's.
+// @ts-expect-error Status has no internal values to give
+feature.content.blog({ enums: { Status: { PUBLISHED: "PUBLISHED" } } });
+// @ts-expect-error Status has no internal values to give
+module.content({ enums: { ...enums, Status: { DRAFT: "DRAFT" } } });
 // @ts-expect-error no enums to give
 feature.content.blog({ enums });
 

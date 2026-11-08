@@ -470,10 +470,22 @@ type OwnEnum<O extends string> = {
   [T in ModuleTypeName<O>]: Entry<O, T> extends { enum: string } ? T : never;
 }[ModuleTypeName<O>];
 
+// Each owner lists only the values it declares (`extend enum` adds some), so
+// the enum's names are every owner's together.
+type EnumNames<T> =
+  Entry<Owner, T> extends infer E
+    ? E extends { enum: infer V }
+      ? V
+      : never
+    : never;
+
 // Codegen's `type` is what CustomEnums made of the enum, so a `type` other
 // than its GraphQL names means the enum has internal values.
 type CustomEnum<O extends string> = {
-  [T in OwnEnum<O>]: Entry<O, T> extends { enum: infer V; type: infer I }
+  [T in OwnEnum<O>]: [Entry<O, T>, EnumNames<T>] extends [
+    { type: infer I },
+    infer V
+  ]
     ? [I] extends [V]
       ? [V] extends [I]
         ? never

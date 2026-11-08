@@ -39,3 +39,8 @@ type Query {
   named: [Named!]!
   usersByRole(role: Role!): [User!]! @bypass(keys: "tokenCheck")
 }
+
+# Extended by the blog feature, with no internal values: nobody owes enums.
+enum Status {
+  DRAFT
+}

@@ -12,3 +12,7 @@ extend type Query @bypass(keys: ["audit"]) {
 extend type User {
   articleCount: Int!
 }
+
+extend enum Status {
+  PUBLISHED
+}
