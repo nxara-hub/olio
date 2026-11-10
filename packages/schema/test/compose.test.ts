@@ -6,6 +6,7 @@ import {
   bypassDefinition,
   compose,
   copyDirective,
+  exclDefinition,
   type Bypass,
   type Ownership
 } from "../src/index.js";
@@ -244,6 +245,50 @@ describe("compose", () => {
     );
     expect(sdl('type T @bypass(keys: "x", why: "y") { a: Int }')).toThrow(
       '@bypass on "T" takes only keys, not "why"'
+    );
+  });
+
+  test("@excl: query and mutation fields, any module, stripped", () => {
+    const { excl, schema } = compose([
+      mod("auth", "type Query { me: String @excl }"),
+      mod(
+        "users",
+        `${exclDefinition}
+        type Mutation { login: String @excl rename: String }`
+      )
+    ]);
+    expect([...excl].sort()).toEqual(["Mutation.login", "Query.me"]);
+    expect(printSchema(schema)).not.toContain("excl");
+  });
+
+  test("@excl: roots are found by operation, so custom names work", () => {
+    const { excl } = compose([
+      mod("app", "schema { query: RootQuery, mutation: RootMutation }"),
+      mod(
+        "auth",
+        "type RootQuery { me: String } type RootMutation { logout: Boolean @excl }"
+      )
+    ]);
+    expect([...excl]).toEqual(["RootMutation.logout"]);
+  });
+
+  test("@excl: rejected anywhere but query and mutation fields", () => {
+    const sdl = (s: string) => () =>
+      compose([mod("m", `type Query { a: Int } ${s}`)]);
+    expect(sdl("type User { name: String @excl }")).toThrow(
+      'm.gql:1:48: @excl on "User.name": only query and mutation fields can be @excl'
+    );
+    expect(sdl("type Subscription { tick: Int @excl }")).toThrow(
+      '@excl on "Subscription.tick": only query and mutation'
+    );
+    expect(sdl("type Mutation @excl { a: Int }")).toThrow(
+      "@excl applies to query and mutation fields only"
+    );
+    expect(sdl("interface I { a: Int @excl }")).toThrow(
+      "@excl applies to query and mutation fields only"
+    );
+    expect(sdl("type Mutation { a: Int @excl(x: 1) }")).toThrow(
+      '@excl on "Mutation.a" takes no arguments'
     );
   });
 });

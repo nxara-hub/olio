@@ -34,6 +34,7 @@ import {
 import { didYouMean } from "graphql/jsutils/didYouMean.js";
 import { suggestionList } from "graphql/jsutils/suggestionList.js";
 
+import { markExcl } from "./excl.js";
 import type {
   FeatureConfig,
   DirectiveName,
@@ -876,7 +877,7 @@ function wrapDefaults(
 /** Middleware wraps every field its keys cover, with a resolver or without. */
 export function olio(config: OlioConfig): OlioApp {
   const all = owners(config.modules);
-  const { schema, ownership, bypass } = compose(all, config.directives);
+  const { schema, ownership, bypass, excl } = compose(all, config.directives);
   const declared = declarations(ownership);
   const appMiddleware = (config.middleware ?? {}) as MiddlewareMap;
   checkAppMiddleware(schema, appMiddleware);
@@ -892,6 +893,7 @@ export function olio(config: OlioConfig): OlioApp {
   explainMissingValues(schema, enums);
   coerceDefaults(schema);
   wrapDefaults(schema, appMiddleware, all, declared, bypass);
+  markExcl(schema, excl);
 
   return { schema, modules: config.modules };
 }

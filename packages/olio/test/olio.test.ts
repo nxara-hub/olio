@@ -6,7 +6,9 @@ import {
   GraphQLError,
   GraphQLScalarType,
   parse,
+  specifiedRules,
   subscribe,
+  validate,
   type GraphQLObjectType
 } from "graphql";
 
@@ -16,6 +18,7 @@ import {
   module,
   mw,
   olio,
+  exclRule,
   type MiddlewareFn,
   type ModuleConfig,
   type OlioFeature
@@ -1440,5 +1443,67 @@ describe("middleware can't be got around", () => {
       __typename: "Query"
     });
     expect(calls).toBe(0);
+  });
+});
+
+describe("@excl", () => {
+  const app = olio({
+    modules: [
+      createModule("auth", {
+        typeDefs: /* GraphQL */ `
+          type Query {
+            me: String
+          }
+          type Mutation {
+            login: String @excl
+            logout: Boolean @excl
+            rename: Boolean
+          }
+        `,
+        resolvers: {
+          Query: { me: () => "ada" },
+          Mutation: {
+            login: () => "token",
+            logout: () => true,
+            rename: () => true
+          }
+        }
+      })
+    ]
+  });
+  const errors = (source: string) =>
+    validate(app.schema, parse(source), [...specifiedRules, exclRule]).map(
+      (e) => e.message
+    );
+
+  test("marks the field on the schema, where any server sees it", () => {
+    const mutation = app.schema.getMutationType();
+    expect(mutation?.getFields().login?.extensions.excl).toBe(true);
+    expect(mutation?.getFields().rename?.extensions.excl).toBeUndefined();
+  });
+
+  test("exclRule: an @excl field must be the only one", () => {
+    expect(errors("mutation { login }")).toEqual([]);
+    expect(errors("mutation { login __typename }")).toEqual([]);
+    expect(errors("mutation { rename a: rename }")).toEqual([]);
+    expect(errors("mutation { login logout }")).toEqual([
+      '"login" must be the only field in its mutation (@excl)',
+      '"logout" must be the only field in its mutation (@excl)'
+    ]);
+    expect(errors("mutation { a: logout b: logout }")).toHaveLength(1);
+    expect(
+      errors("mutation { ...F rename } fragment F on Mutation { login }")
+    ).toHaveLength(1);
+    expect(
+      errors("mutation { ... on Mutation { logout } rename }")
+    ).toHaveLength(1);
+  });
+
+  test("without the rule, nothing is refused", async () => {
+    const result = await graphql({
+      schema: app.schema,
+      source: "mutation { login rename }"
+    });
+    expect(result).toEqual({ data: { login: "token", rename: true } });
   });
 });

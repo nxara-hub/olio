@@ -108,10 +108,31 @@ export const StockChangedOverSseDocument: TypedDocument<StockChangedOverSseSubsc
   transport: "sse"
 };
 
+export type LoginThenLogoutMutation = {
+  login: ({
+    __typename: "InvalidCredentials";
+  } | {
+    __typename: "Session";
+  });
+  logout: Scalar<"Boolean">;
+};
+
+export type LoginThenLogoutMutationVariables = {
+  email: Scalar<"String", "input">;
+  password: Scalar<"String", "input">;
+};
+
+export const LoginThenLogoutDocument: TypedDocument<LoginThenLogoutMutation, LoginThenLogoutMutationVariables, "mutation"> = {
+  operation: "mutation",
+  name: "LoginThenLogout",
+  query: "mutation LoginThenLogout($email: String!, $password: String!) {\n  login(email: $email, password: $password) {\n    __typename\n  }\n  logout\n}"
+};
+
 /** For createClient(operations, { url }): `client.mutation.login(variables)`. */
 export const operations = {
   mutation: {
-    login: LoginDocument
+    login: LoginDocument,
+    loginThenLogout: LoginThenLogoutDocument
   },
   query: {
     products: ProductsDocument,
