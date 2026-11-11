@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { renderNotes } from "./release-notes.ts";
+import { releaseTitle, renderNotes } from "./release-notes.ts";
 
 test("groups what reaches npm, with behaviour changes first", () => {
   expect(
@@ -74,4 +74,32 @@ test("release scope commits aren't listed, and wildcards read as code", () => {
 ## Fixes
 
 - olio: \`*.*\` and \`User.*\` cover plain fields`);
+});
+
+test("the title names the features, or the fixes when there are none", () => {
+  const commit = (subject: string) => ({ subject, body: "" });
+  expect(releaseTitle("v1.0.0", [commit("fix(olio): a bug")])).toBe(
+    "v1.0.0: A bug"
+  );
+  expect(
+    releaseTitle("v1.0.0", [
+      commit("feat(tools): loaders(root)"),
+      commit("fix(olio): a bug"),
+      commit("feat(http): an option")
+    ])
+  ).toBe("v1.0.0: loaders(root), and an option");
+  expect(
+    releaseTitle("v1.0.0", [
+      commit("feat: add one"),
+      commit("feat: add two"),
+      commit("feat: add three"),
+      commit("feat: add four")
+    ])
+  ).toBe("v1.0.0: Add one, add two, and 2 more");
+  expect(
+    releaseTitle("v1.0.0", [
+      commit("feat(website): a page"),
+      commit("docs: a typo")
+    ])
+  ).toBe("v1.0.0");
 });

@@ -7,6 +7,8 @@ import { globSync, readFileSync, writeFileSync } from "node:fs";
 
 import { $ } from "bun";
 
+import { commitsBetween, lastTag, releaseTitle } from "./release-notes.ts";
+
 const version = process.argv[2] ?? "";
 if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(version)) {
   throw new Error(
@@ -30,6 +32,14 @@ if (remoteTag.trim() || (await $`git tag --list ${tag}`.text()).trim()) {
   throw new Error(`${tag} already exists: pick a newer version`);
 }
 
+// The release's own title (release.yml), so the PR and its merge commit
+// read the same: `v0.3.0: Add X, and add Y`.
+const previous = await lastTag("HEAD");
+const title = releaseTitle(
+  tag,
+  previous ? await commitsBetween(previous, "HEAD") : []
+);
+
 const branch = `release/v${version}`;
 await $`git switch --quiet -c ${branch}`;
 for (const file of globSync("packages/*/package.json")) {
@@ -43,6 +53,7 @@ for (const file of globSync("packages/*/package.json")) {
 await $`bun install --lockfile-only`;
 await $`git commit --quiet -am ${`release: v${version}`}`;
 await $`git push --quiet -u origin ${branch}`;
-await $`gh pr create --base main --head ${branch} --title ${`release: v${version}`} --body ${`Every package to ${version}. Once this is merged, \`bun run release:tag\` publishes it.`}`;
+// The label keeps CodeRabbit off it (.coderabbit.yaml): it only bumps versions.
+await $`gh pr create --base main --head ${branch} --title ${title} --label release --body ${`Every package to ${version}. Once this is merged, \`bun run release:tag\` publishes it.`}`;
 
 console.log(`Opened the release PR. Once it's merged: bun run release:tag`);

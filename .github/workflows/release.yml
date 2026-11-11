@@ -64,4 +64,5 @@ jobs:
           [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease=--prerelease
           notes=$(mktemp)
           bun scripts/release-notes.ts "$GITHUB_REF_NAME" > "$notes"
-          gh release create "$GITHUB_REF_NAME" --notes-file "$notes" $prerelease
+          title=$(bun scripts/release-notes.ts --title "$GITHUB_REF_NAME")
+          gh release create "$GITHUB_REF_NAME" --title "$title" --notes-file "$notes" $prerelease
