@@ -43,3 +43,11 @@ subscription StockChangedOverSse($sku: String) @sse {
     onHand
   }
 }
+
+# Refused: login and logout are @excl.
+mutation LoginThenLogout($email: String!, $password: String!) {
+  login(email: $email, password: $password) {
+    __typename
+  }
+  logout
+}

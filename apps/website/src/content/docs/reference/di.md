@@ -109,6 +109,8 @@ product: (line, _args, ctx) => ctx.di.productLoader.load(line.sku); // typed, au
 
 Subscriptions work the same way: give each one a scope in its context and dispose of it when the subscription ends. With graphql-ws, that's its `context(ctx, id)` hook, which runs once per subscription, and `onComplete`. With graphql-sse, it's `context` and `onComplete`. [`@nxara/olio-http`'s docs](/reference/http/#subscriptions) shows both.
 
+An operation's services don't see a session change. The scope gets the context once, so a service created from `ctx.viewer` (like `Orders` above) keeps that viewer for the whole operation, even after a `login` or `logout` in the same operation replaced it. Mark fields like those `@excl`, so nothing else runs in their operation: see [Fields that run alone](/reference/olio/#fields-that-run-alone-excl).
+
 ## Tests
 
 In tests, swap a provider for a fake with `override`:

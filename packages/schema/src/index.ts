@@ -12,3 +12,4 @@ export type {
 } from "./compose.js";
 export { implementsDirective } from "./directives/implements.js";
 export { copyDirective } from "./directives/copy.js";
+export { exclDefinition } from "./excl.js";

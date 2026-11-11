@@ -25,8 +25,11 @@ extend type Query {
   me: Employee @bypass(keys: "auth")
 }
 
+# Both replace the session the request's context holds, so nothing may run
+# next to them in one operation (exclRule, in src/limits.ts).
 extend type Mutation {
   login(email: String!, password: String!): LoginResult!
     @bypass(keys: ["auth", "audit"])
-  logout: Boolean!
+    @excl
+  logout: Boolean! @excl
 }

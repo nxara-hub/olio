@@ -17,6 +17,7 @@ import { validateSDL } from "graphql/validation/validate.js";
 import { applyDirectives, type SchemaDirective } from "./apply-directives.js";
 import { extractBypass, type Bypass } from "./bypass.js";
 import { located, position } from "./directives/shared.js";
+import { checkExcl, extractExcl } from "./excl.js";
 
 /** Modules sharing an id are merged. */
 export interface ModuleSDL {
@@ -40,6 +41,8 @@ export interface Composed {
   ownership: Ownership;
   roots: RootTypes;
   bypass: Bypass;
+  /** The `"Type.field"`s marked `@excl`: query and mutation fields. */
+  excl: ReadonlySet<string>;
 }
 
 function schemaRoots(schema: GraphQLSchema): RootTypes {
@@ -220,9 +223,10 @@ export function compose(
 
   // Before the other directives, so a bypass stays where it's written:
   // @copy doesn't carry it to the fields it copies.
-  const { document: sdl, bypass } = extractBypass(
+  const { document: unbypassed, bypass } = extractBypass(
     concatAST(grouped.flatMap((m) => m.typeDefs))
   );
+  const { document: sdl, marked } = extractExcl(unbypassed);
   // Candidates (default names without a schema block) until the schema
   // says which exist.
   const candidates = rootTypes(sdl);
@@ -242,6 +246,7 @@ export function compose(
       roots
     ),
     roots,
-    bypass
+    bypass,
+    excl: checkExcl(marked, [roots.query, roots.mutation])
   };
 }

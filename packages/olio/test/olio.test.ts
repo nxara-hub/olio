@@ -6,7 +6,9 @@ import {
   GraphQLError,
   GraphQLScalarType,
   parse,
+  specifiedRules,
   subscribe,
+  validate,
   type GraphQLObjectType
 } from "graphql";
 
@@ -16,6 +18,7 @@ import {
   module,
   mw,
   olio,
+  exclRule,
   type MiddlewareFn,
   type ModuleConfig,
   type OlioFeature
@@ -1440,5 +1443,121 @@ describe("middleware can't be got around", () => {
       __typename: "Query"
     });
     expect(calls).toBe(0);
+  });
+});
+
+describe("@excl", () => {
+  const app = olio({
+    modules: [
+      createModule("auth", {
+        typeDefs: /* GraphQL */ `
+          type Query {
+            me: String
+            report: String @excl
+          }
+          type Mutation {
+            login: String @excl
+            logout: Boolean @excl
+            rename: Boolean
+          }
+          type Subscription {
+            tick: Int
+          }
+        `,
+        resolvers: {
+          Query: { me: () => "ada", report: () => "ok" },
+          Subscription: {
+            async *tick() {
+              yield 1;
+            }
+          },
+          Mutation: {
+            login: () => "token",
+            logout: () => true,
+            rename: () => true
+          }
+        }
+      })
+    ]
+  });
+  const errors = (source: string) =>
+    validate(app.schema, parse(source), [...specifiedRules, exclRule]).map(
+      (e) => e.message
+    );
+
+  test("marks the field on the schema, where any server sees it", () => {
+    const mutation = app.schema.getMutationType();
+    expect(mutation?.getFields().login?.extensions.excl).toBe(true);
+    expect(mutation?.getFields().rename?.extensions.excl).toBeUndefined();
+  });
+
+  test("exclRule: an @excl field must be the only one", () => {
+    expect(errors("mutation { login }")).toEqual([]);
+    expect(errors("mutation { login __typename }")).toEqual([]);
+    expect(errors("mutation { rename a: rename }")).toEqual([]);
+    expect(errors("mutation { login logout }")).toEqual([
+      '"login" must be the only field in its mutation (@excl)',
+      '"logout" must be the only field in its mutation (@excl)'
+    ]);
+    expect(errors("mutation { a: logout b: logout }")).toHaveLength(1);
+    expect(
+      errors("mutation { ...F rename } fragment F on Mutation { login }")
+    ).toHaveLength(1);
+    expect(
+      errors("mutation { ... on Mutation { logout } rename }")
+    ).toHaveLength(1);
+  });
+
+  test("exclRule: queries too, and other operations pass through", () => {
+    expect(errors("query { report }")).toEqual([]);
+    expect(errors("query { report me }")).toEqual([
+      '"report" must be the only field in its query (@excl)'
+    ]);
+    expect(errors("query { me a: me }")).toEqual([]);
+    expect(errors("subscription { tick }")).toEqual([]);
+  });
+
+  test("exclRule: counts what runs, the way graphql merges fields", () => {
+    // Same response key: graphql runs logout once.
+    expect(errors("mutation { logout logout }")).toEqual([]);
+    expect(
+      errors("mutation { ...F login } fragment F on Mutation { login }")
+    ).toEqual([]);
+    // Nested fragments are followed.
+    expect(
+      errors(
+        "mutation { ...A } fragment A on Mutation { ...B rename } fragment B on Mutation { login }"
+      )
+    ).toHaveLength(1);
+    // @skip and @include aren't evaluated: the rule runs before variables.
+    expect(errors("mutation { login rename @skip(if: true) }")).toHaveLength(1);
+  });
+
+  test("exclRule: each operation of a document is checked alone", () => {
+    expect(
+      errors("mutation A { login } mutation B { logout } query C { me }")
+    ).toEqual([]);
+    expect(errors("mutation A { login rename } mutation B { logout }")).toEqual(
+      ['"login" must be the only field in its mutation (@excl)']
+    );
+  });
+
+  test("exclRule: a fragment that spreads itself doesn't loop", () => {
+    expect(
+      errors("mutation { ...F } fragment F on Mutation { login ...F }")
+    ).toEqual(['Cannot spread fragment "F" within itself.']);
+    expect(
+      errors(
+        "mutation { ...F } fragment F on Mutation { login ...G } fragment G on Mutation { rename ...F }"
+      )
+    ).toContain('"login" must be the only field in its mutation (@excl)');
+  });
+
+  test("without the rule, nothing is refused", async () => {
+    const result = await graphql({
+      schema: app.schema,
+      source: "mutation { login rename }"
+    });
+    expect(result).toEqual({ data: { login: "token", rename: true } });
   });
 });

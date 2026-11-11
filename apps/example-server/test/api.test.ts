@@ -48,6 +48,18 @@ describe("the ERP over HTTP", () => {
     ]);
   });
 
+  test("login and logout can't share an operation with another field", async () => {
+    const both = await anonymous.mutation.loginThenLogout({
+      email: "carl@erp.test",
+      password: "demo"
+    });
+    expect(both.data).toBeNull();
+    expect(both.errors?.map((e) => e.message)).toEqual([
+      '"login" must be the only field in its mutation (@excl)',
+      '"logout" must be the only field in its mutation (@excl)'
+    ]);
+  });
+
   test("an operation over the cost limit is rejected before any resolver", async () => {
     // A page costs its size times its items' selection (src/limits.ts):
     // 600 × 2 is over 1000, so even the session check never runs.

@@ -320,6 +320,44 @@ const requireAuth =
 
 - **Nothing is dropped for you.** Other middleware, such as a logger, keeps running on a field marked `@bypass(keys: "auth")`.
 
+## Fields that run alone: `@excl`
+
+Every field of an operation shares what the request built once: `ctx`, and with [`@nxara/olio-di`](/reference/di/), the operation's scope, with its services, DataLoaders and whatever they cached. A mutation's fields run one after another, so a field that changes the request's state leaves every field after it working from the old one. Here `changePassword` runs with the session `login` just replaced, since `ctx` (or a scoped session service) still holds it:
+
+```graphql
+mutation {
+  login(email: "ada@example.com", password: "…") {
+    __typename
+  }
+  changePassword(current: "…", next: "…")
+}
+```
+
+Mark such fields `@excl` (exclusive: the field needs the operation to itself), and add `exclRule` to your validation rules. An operation that selects one of them next to any other field is then refused before anything runs:
+
+```graphql
+extend type Mutation {
+  login(email: String!, password: String!): LoginResult! @excl
+  logout: Boolean! @excl
+  changePassword(current: String!, next: String!): Boolean! @excl
+}
+```
+
+```ts
+import { exclRule } from "@nxara/olio";
+
+fetchHandler(app, { context, validationRules: [exclRule] });
+```
+
+The client gets `"login" must be the only field in its mutation (@excl)`.
+
+- **You add the rule.** olio marks the fields on `app.schema`, but nothing is enforced until `exclRule` is among your validation rules: `validationRules` in [`@nxara/olio-http`](/reference/http/#validation-rules), and `validateOperation` in your subscription servers. The [Yoga](/examples/yoga/) and [Apollo Server](/examples/apollo-server/) examples pass your rules the same way.
+- **What counts.** Every top-level field the operation runs, fragments included. graphql runs fields with the same name (or alias) once, so `logout logout` passes, while `a: logout b: logout` runs it twice and is refused. `__typename` doesn't count. A field with `@skip` or `@include` counts either way, since validation runs before variables decide.
+- **Where it goes.** On query and mutation fields, in any module or feature. A subscription already selects exactly one field, so it isn't needed there. Anywhere else is an error with its location.
+- **Out of the schema.** Like `@bypass`, it's read and removed while composing, so it isn't in `schema.gql` or introspection, and you don't need to declare it. `exclDefinition` from `@nxara/olio-schema` is its SDL, for editor tooling.
+- **The field's own result still shares the request.** The fields `login` returns resolve after it, in the same context and DI scope. They're safe when they read their parent, the session `login` returned. A resolver or middleware under them that reads the session from `ctx`, or from a scoped service that cached it, still sees the old one: resolve those from the parent, or have `login` replace what the request holds.
+- **Batches aren't covered.** The rule checks one operation at a time. `@nxara/olio-http` refuses batched requests, but on a server with batching turned on, `login` and `changePassword` in two operations of one batch both pass. Keep batching off, as Yoga and Apollo Server do by default.
+
 ## Subscriptions
 
 A subscription field is a function that returns an async iterable of the field's values. Prefer the event source's own iterator, filtered at the source:

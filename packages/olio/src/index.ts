@@ -8,6 +8,7 @@ export {
   subscription
 } from "./builders.js";
 export { createFeature, createModule, olio } from "./olio.js";
+export { exclRule } from "./excl.js";
 export type { OlioApp, OlioConfig } from "./olio.js";
 export type {
   Context,

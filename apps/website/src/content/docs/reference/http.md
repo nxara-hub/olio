@@ -187,6 +187,8 @@ fetchHandler(app, {
 
 `fieldExtensionsEstimator` reads each field's `complexity` extension, which olio sets from the resolver's `{ resolve, extensions }` (see [Field extensions](/reference/olio/#field-extensions) in olio's docs). An operation over the limit gets the rule's error, and nothing runs.
 
+olio has a rule of its own to add here: `exclRule` refuses an operation that runs an `@excl` field, such as `login`, next to other fields that would see the session it replaced. See [Fields that run alone](/reference/olio/#fields-that-run-alone-excl).
+
 Subscription servers take the same rules through `validateOperation(schema, operation, rules)` in their `onSubscribe`. It returns the errors (none when the operation is valid):
 
 ```ts

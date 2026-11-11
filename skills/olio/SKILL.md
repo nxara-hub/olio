@@ -1,6 +1,6 @@
 ---
 name: olio
-description: Builds and changes GraphQL APIs with olio (@nxara/olio), modular, type-safe, schema-first GraphQL for TypeScript. Use when a project depends on @nxara/olio or another @nxara/olio-* package, or when the user wants to add a module, feature, resolver, middleware, @bypass, codegen, an HTTP handler or a typed client to an olio app.
+description: Builds and changes GraphQL APIs with olio (@nxara/olio), modular, type-safe, schema-first GraphQL for TypeScript. Use when a project depends on @nxara/olio or another @nxara/olio-* package, or when the user wants to add a module, feature, resolver, middleware, @bypass, @excl, codegen, an HTTP handler or a typed client to an olio app.
 license: MIT
 metadata:
   docs: https://olio.nxara.dev/llms-full.txt
@@ -202,6 +202,29 @@ type Session @bypass(keys: "auth") {
 
 The middleware decides (`bypass.has("auth")`). `@bypass` applies only to the fields it marks: with auth on `"*": { "*": ... }`, the type a public field returns needs it too, as `Session` does here. It never reaches the served schema.
 
+## Fields that run alone: `@excl`
+
+A field that replaces what the request holds (`login`, `logout`, `changePassword` changing the session) leaves stale state for every field after it in the same operation: `ctx` and the operation's DI scope are built once. Mark it in the SDL and add the rule, which is opt-in (requires 0.1.10 or later):
+
+```graphql
+extend type Mutation {
+  login(email: String!, password: String!): LoginResult! @excl
+}
+```
+
+```ts
+import { exclRule } from "@nxara/olio";
+
+fetchHandler(app, { context, validationRules: [exclRule] });
+```
+
+Only query and mutation fields can be `@excl`. Watch out for:
+
+- **Nothing is enforced without the rule.** Add `exclRule` to `validationRules`, and to `validateOperation` in graphql-ws / graphql-sse servers. With Yoga or Apollo Server, add it to the rules you pass them.
+- **Nested fields still share the request.** The fields `login` returns resolve after it, with the old `ctx` and DI scope. Resolve them from their parent (what `login` returned), not from `ctx.viewer` or a scoped service that cached it, or have `login` replace what the request holds.
+- **DI operation services keep the old session.** A service created from `ctx.viewer` keeps it for the whole operation. That's why other fields mustn't run next to `@excl` ones.
+- **Batches aren't covered.** The rule checks one operation at a time. olio-http refuses batched requests. On Yoga or Apollo, keep batching off (their default).
+
 ## Errors and what they mean
 
 | Error | Meaning |
@@ -212,7 +235,9 @@ The middleware decides (`bypass.has("auth")`). `@bypass` applies only to the fie
 | `Unknown directive "@copy"` | Pass `directives: [copyDirective(), implementsDirective()]` from `@nxara/olio-schema` to both `codegen()` and `olio()` |
 | `Field "User.x" can only be defined once` | Two modules declare the same field: only one may |
 | `Unauthorized` / `UNAUTHENTICATED` on a field you expected to be public | Add `@bypass` on that field, and on the types it returns if auth is on `*.*` |
+| `"login" must be the only field in its mutation (@excl)` | `exclRule` refused it: send that field in an operation of its own |
+| `@excl on "User.name": only query and mutation fields can be @excl` | Move `@excl` to the root field, or drop it: nested fields can't be refused one by one |
 
 ## HTTP options
 
-`fetchHandler(app, { context, validationRules, onOperationEnd, introspection, suggestions, maskErrors, onUnexpectedError })`. Set `introspection: false` and `suggestions: false` in production to hide the schema. Subscriptions aren't included: run graphql-ws or graphql-sse with `app.schema`, as https://olio.nxara.dev/reference/http/ shows.
+`fetchHandler(app, { context, validationRules, onOperationEnd, introspection, suggestions, maskErrors, onUnexpectedError })`. Set `introspection: false` and `suggestions: false` in production to hide the schema. If the SDL uses `@excl`, put `exclRule` in `validationRules`. Subscriptions aren't included: run graphql-ws or graphql-sse with `app.schema`, as https://olio.nxara.dev/reference/http/ shows.
