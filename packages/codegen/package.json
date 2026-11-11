@@ -1,6 +1,6 @@
 {
   "name": "@nxara/olio-codegen",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Generate TypeScript types from GraphQL SDL.",
   "keywords": [
     "codegen",
