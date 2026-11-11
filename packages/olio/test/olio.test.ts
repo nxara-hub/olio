@@ -1453,15 +1453,24 @@ describe("@excl", () => {
         typeDefs: /* GraphQL */ `
           type Query {
             me: String
+            report: String @excl
           }
           type Mutation {
             login: String @excl
             logout: Boolean @excl
             rename: Boolean
           }
+          type Subscription {
+            tick: Int
+          }
         `,
         resolvers: {
-          Query: { me: () => "ada" },
+          Query: { me: () => "ada", report: () => "ok" },
+          Subscription: {
+            async *tick() {
+              yield 1;
+            }
+          },
           Mutation: {
             login: () => "token",
             logout: () => true,
@@ -1497,6 +1506,51 @@ describe("@excl", () => {
     expect(
       errors("mutation { ... on Mutation { logout } rename }")
     ).toHaveLength(1);
+  });
+
+  test("exclRule: queries too, and other operations pass through", () => {
+    expect(errors("query { report }")).toEqual([]);
+    expect(errors("query { report me }")).toEqual([
+      '"report" must be the only field in its query (@excl)'
+    ]);
+    expect(errors("query { me a: me }")).toEqual([]);
+    expect(errors("subscription { tick }")).toEqual([]);
+  });
+
+  test("exclRule: counts what runs, the way graphql merges fields", () => {
+    // Same response key: graphql runs logout once.
+    expect(errors("mutation { logout logout }")).toEqual([]);
+    expect(
+      errors("mutation { ...F login } fragment F on Mutation { login }")
+    ).toEqual([]);
+    // Nested fragments are followed.
+    expect(
+      errors(
+        "mutation { ...A } fragment A on Mutation { ...B rename } fragment B on Mutation { login }"
+      )
+    ).toHaveLength(1);
+    // @skip and @include aren't evaluated: the rule runs before variables.
+    expect(errors("mutation { login rename @skip(if: true) }")).toHaveLength(1);
+  });
+
+  test("exclRule: each operation of a document is checked alone", () => {
+    expect(
+      errors("mutation A { login } mutation B { logout } query C { me }")
+    ).toEqual([]);
+    expect(errors("mutation A { login rename } mutation B { logout }")).toEqual(
+      ['"login" must be the only field in its mutation (@excl)']
+    );
+  });
+
+  test("exclRule: a fragment that spreads itself doesn't loop", () => {
+    expect(
+      errors("mutation { ...F } fragment F on Mutation { login ...F }")
+    ).toEqual(['Cannot spread fragment "F" within itself.']);
+    expect(
+      errors(
+        "mutation { ...F } fragment F on Mutation { login ...G } fragment G on Mutation { rename ...F }"
+      )
+    ).toContain('"login" must be the only field in its mutation (@excl)');
   });
 
   test("without the rule, nothing is refused", async () => {
