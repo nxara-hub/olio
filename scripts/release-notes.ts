@@ -104,8 +104,8 @@ export function releaseTitle(tag: string, commits: readonly Commit[]): string {
       : more > 0
         ? `${first}, ${second}, and ${more} more`
         : `${first}, and ${second}`;
-  // A word, not code: `typeDefsOutput` and `loaders(root)` keep their case.
-  const sentence = /^[a-z]+\b(?![(.])/.test(summary)
+  // A word, not code: `typeDefsOutput`, `loaders(root)` and `graphql-ws` keep their case.
+  const sentence = /^[a-z]+\b(?![(.-])/.test(summary)
     ? `${summary.charAt(0).toUpperCase()}${summary.slice(1)}`
     : summary;
   return `${tag}: ${sentence}`;

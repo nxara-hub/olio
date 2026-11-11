@@ -96,6 +96,9 @@ test("the title names the features, or the fixes when there are none", () => {
       commit("feat: add four")
     ])
   ).toBe("v1.0.0: Add one, add two, and 2 more");
+  expect(releaseTitle("v1.0.0", [commit("fix: graphql-ws is optional")])).toBe(
+    "v1.0.0: graphql-ws is optional"
+  );
   expect(
     releaseTitle("v1.0.0", [
       commit("feat(website): a page"),
