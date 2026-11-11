@@ -11,6 +11,10 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
+    # Release PRs (bun run release) only bump versions, and need just check
+    # and zizmor to merge, so they'd only use up the hourly review limit.
+    ignore_title_keywords:
+      - "release: v"
   pre_merge_checks:
     # The repo keeps doc comments to what a signature can't say (CLAUDE.md),
     # so a coverage threshold would ask for the comments it rules out, and its
