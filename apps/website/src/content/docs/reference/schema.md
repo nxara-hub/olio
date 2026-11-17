@@ -16,10 +16,10 @@ Compose module SDL into one validated GraphQL schema.
 ## Install
 
 ```sh
-bun add @nxara/olio-schema graphql@16
+bun add @nxara/olio-schema graphql@17
 ```
 
-`graphql` 16 is a peer dependency.
+`graphql` 17 is a peer dependency.
 
 ## compose
 

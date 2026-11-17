@@ -16,7 +16,7 @@
   "dependencies": {
     "@apollo/server": "^5",
     "@as-integrations/express5": "^1.1.2",
-    "@hono/node-server": "^2.1.5",
+    "@hono/node-server": "^2.1.8",
     "@nxara/olio": "workspace:*",
     "@nxara/olio-client": "workspace:*",
     "@nxara/olio-codegen": "workspace:*",
@@ -24,17 +24,17 @@
     "@nxara/olio-http": "workspace:*",
     "@nxara/olio-schema": "workspace:*",
     "@nxara/olio-tools": "workspace:*",
-    "@whatwg-node/server": "^0.13.2",
+    "@whatwg-node/server": "^0.13.3",
     "dataloader": "^2.2.3",
     "express": "^5.3.0",
-    "graphql": "^16.14.2",
+    "graphql": "^17.1.0",
     "graphql-query-complexity": "^2.0.0",
     "graphql-scalars": "^2.0.1",
     "graphql-sse": "2.6.3",
-    "graphql-ws": "^6.4.1",
+    "graphql-ws": "^6.4.2",
     "graphql-yoga": "^6",
-    "hono": "^4.13.14",
-    "ws": "^8.22.0"
+    "hono": "^4.13.19",
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

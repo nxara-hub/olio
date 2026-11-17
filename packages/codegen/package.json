@@ -38,10 +38,10 @@
     "@nxara/olio-schema": "workspace:*"
   },
   "devDependencies": {
-    "graphql": "^16.14.2"
+    "graphql": "^17.1.0"
   },
   "peerDependencies": {
-    "graphql": "^16.13.0"
+    "graphql": "^17.1.0"
   },
   "engines": {
     "node": ">=22"

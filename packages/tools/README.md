@@ -3,7 +3,7 @@
 Load modules and features, and a module's type definitions, resolvers and enum values, from files.
 
 ```sh
-bun add @nxara/olio-tools graphql@16
+bun add @nxara/olio-tools graphql@17
 ```
 
 **[Read the docs](https://olio.nxara.dev/reference/tools/)**

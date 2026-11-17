@@ -41,13 +41,13 @@
     "@nxara/olio": "workspace:*",
     "@nxara/olio-codegen": "workspace:*",
     "@nxara/olio-http": "workspace:*",
-    "graphql": "^16.14.2",
+    "graphql": "^17.1.0",
     "graphql-sse": "2.6.3",
-    "graphql-ws": "^6.4.1",
+    "graphql-ws": "^6.4.2",
     "ky": "^2.2.0"
   },
   "peerDependencies": {
-    "graphql": "^16.13.0",
+    "graphql": "^17.1.0",
     "graphql-sse": "^2.6.3",
     "graphql-ws": "^6.4.1"
   },

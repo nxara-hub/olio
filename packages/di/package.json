@@ -35,6 +35,6 @@
     "check-types": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "awilix": "^13.0.5"
+    "awilix": "^13.0.7"
   }
 }

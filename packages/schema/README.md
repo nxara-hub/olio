@@ -3,7 +3,7 @@
 Compose module SDL into one validated GraphQL schema, with field ownership and the `@implements` / `@copy` directives. Codegen and olio both compose through it.
 
 ```sh
-bun add @nxara/olio-schema graphql@16
+bun add @nxara/olio-schema graphql@17
 ```
 
 **[Read the docs](https://olio.nxara.dev/reference/schema/)**

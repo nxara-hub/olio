@@ -11,10 +11,10 @@ Load modules and features, and a module's type definitions, resolvers and enum v
 ## Install
 
 ```sh
-bun add @nxara/olio-tools graphql@16
+bun add @nxara/olio-tools graphql@17
 ```
 
-`graphql` 16 is a peer dependency.
+`graphql` 17 is a peer dependency.
 
 Instead of importing every file by hand, a module's `index.ts` points at its folders, and the app's at its modules. The package is optional: olio takes plain imports just as well.
 
