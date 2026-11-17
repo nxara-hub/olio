@@ -19,7 +19,7 @@ Compose module SDL into one validated GraphQL schema.
 bun add @nxara/olio-schema graphql@17
 ```
 
-`graphql` 17 is a peer dependency.
+`graphql` 17.1 or later is a peer dependency.
 
 ## compose
 
