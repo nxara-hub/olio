@@ -16,11 +16,11 @@ import {
   parse,
   Source,
   GraphQLError,
+  GraphQLScalarType,
   type GraphQLEnumType,
   type GraphQLFieldResolver,
   type GraphQLNamedType,
   type DocumentNode,
-  type GraphQLScalarType,
   type GraphQLSchema
 } from "graphql";
 // ponytail: deep imports, like compose's validateSDL; graphql's own
@@ -375,9 +375,16 @@ const SCALAR_METHODS = [
   "parseLiteral"
 ] as const;
 
+// A plain object goes through graphql's constructor, which fills each
+// method from its other name (`{ serialize }` also sets coerceOutputValue).
 function applyScalar(type: GraphQLScalarType, value: object): void {
   const target = type as unknown as Record<string, unknown>;
-  const source = value as Record<string, unknown>;
+  const source = (value instanceof GraphQLScalarType
+    ? value
+    : new GraphQLScalarType({
+        ...value,
+        name: type.name
+      })) as unknown as Record<string, unknown>;
   for (const method of SCALAR_METHODS) {
     if (typeof source[method] === "function") target[method] = source[method];
   }
