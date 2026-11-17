@@ -8,25 +8,19 @@ import {
 } from "@nxara/olio-schema";
 import {
   defaultFieldResolver,
-  getNamedType,
   isEnumType,
-  isInputObjectType,
   isInterfaceType,
   isObjectType,
   isScalarType,
   isUnionType,
   parse,
   Source,
-  valueFromAST,
   GraphQLError,
-  type GraphQLArgument,
+  GraphQLScalarType,
   type GraphQLEnumType,
-  type GraphQLInputField,
-  type GraphQLInputObjectType,
   type GraphQLFieldResolver,
   type GraphQLNamedType,
   type DocumentNode,
-  type GraphQLScalarType,
   type GraphQLSchema
 } from "graphql";
 // ponytail: deep imports, like compose's validateSDL; graphql's own
@@ -369,11 +363,28 @@ function claim({ owner: self, declared }: Attach, key: string): void {
   }
 }
 
-const SCALAR_METHODS = ["serialize", "parseValue", "parseLiteral"] as const;
+// The v16 names stay too: graphql still falls back to parseLiteral, and other
+// libraries call serialize.
+const SCALAR_METHODS = [
+  "coerceOutputValue",
+  "coerceInputValue",
+  "coerceInputLiteral",
+  "valueToLiteral",
+  "serialize",
+  "parseValue",
+  "parseLiteral"
+] as const;
 
+// A plain object goes through graphql's constructor, which fills each
+// method from its other name (`{ serialize }` also sets coerceOutputValue).
 function applyScalar(type: GraphQLScalarType, value: object): void {
   const target = type as unknown as Record<string, unknown>;
-  const source = value as Record<string, unknown>;
+  const source = (value instanceof GraphQLScalarType
+    ? value
+    : new GraphQLScalarType({
+        ...value,
+        name: type.name
+      })) as unknown as Record<string, unknown>;
   for (const method of SCALAR_METHODS) {
     if (typeof source[method] === "function") target[method] = source[method];
   }
@@ -546,7 +557,8 @@ function applyEnum(
 }
 
 // Setting `value` after the schema is built is safe: graphql builds its
-// internal-value lookup lazily. Defaults are another matter (`coerceDefaults`).
+// internal-value lookup lazily, and coerces defaults from their SDL literals
+// when an operation runs.
 function applyEnums(attach: Attach): void {
   for (const [name, values] of Object.entries(attach.owner.enums)) {
     blameFile(attach.owner.enums, name, () =>
@@ -590,10 +602,10 @@ function explainMissingValues(
     if (!isEnumType(type) || supplied.has(type) || type.name.startsWith("__")) {
       continue;
     }
-    const serialize = type.serialize.bind(type);
-    type.serialize = (value) => {
+    const coerce = type.coerceOutputValue.bind(type);
+    type.coerceOutputValue = (value) => {
       try {
-        return serialize(value);
+        return coerce(value);
       } catch (error) {
         throw new GraphQLError(
           `${(error as Error).message}. No module gave "${type.name}" internal values: pass them as { enums: { ${type.name}: { ... } } }`
@@ -615,38 +627,6 @@ function checkEnums(enums: ReadonlySet<GraphQLEnumType>): void {
       }
       seen.set(value.value, value.name);
     }
-  }
-}
-
-// graphql coerced every default when the schema was built, before enums had
-// internal values and scalars their implementations: `role: Role = ADMIN`
-// would reach resolvers as "ADMIN", not the internal value. Coerce them again
-// from their SDL literals. Input types first, since an input default (`= {}`)
-// fills in its fields' defaults.
-function coerceDefaults(schema: GraphQLSchema): void {
-  const done = new Set<GraphQLInputObjectType>();
-  const recoerce = (input: GraphQLArgument | GraphQLInputField): void => {
-    const named = getNamedType(input.type);
-    if (isInputObjectType(named)) coerceInputType(named);
-    const literal = input.astNode?.defaultValue;
-    if (!literal) return;
-    const value = valueFromAST(literal, input.type);
-    if (value !== undefined) input.defaultValue = value;
-  };
-  const coerceInputType = (type: GraphQLInputObjectType): void => {
-    if (done.has(type)) return;
-    done.add(type);
-    for (const field of Object.values(type.getFields())) recoerce(field);
-  };
-  for (const type of Object.values(schema.getTypeMap())) {
-    if (isInputObjectType(type)) coerceInputType(type);
-    if (!isObjectType(type) && !isInterfaceType(type)) continue;
-    for (const field of Object.values(type.getFields())) {
-      for (const arg of field.args) recoerce(arg);
-    }
-  }
-  for (const directive of schema.getDirectives()) {
-    for (const arg of directive.args) recoerce(arg);
   }
 }
 
@@ -891,7 +871,6 @@ export function olio(config: OlioConfig): OlioApp {
   }
   checkEnums(enums);
   explainMissingValues(schema, enums);
-  coerceDefaults(schema);
   wrapDefaults(schema, appMiddleware, all, declared, bypass);
   markExcl(schema, excl);
 

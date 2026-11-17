@@ -3,7 +3,7 @@
 Serve an olio app over HTTP, from any framework, on graphql-http: Fetch and Node adapters with `context`, error masking and per-operation cleanup.
 
 ```sh
-bun add @nxara/olio-http graphql@16
+bun add @nxara/olio-http graphql@17
 ```
 
 **[Read the docs](https://olio.nxara.dev/reference/http/)**

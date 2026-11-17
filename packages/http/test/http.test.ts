@@ -596,3 +596,88 @@ describe("hiding the schema", () => {
     ).toBe('Value "ADMN".');
   });
 });
+
+describe("a client that disconnects aborts the operation", () => {
+  const hang = () => {
+    const started = Promise.withResolvers<true>();
+    const aborted = Promise.withResolvers<true>();
+    const ended = Promise.withResolvers<true>();
+    const order: string[] = [];
+    const reported: unknown[] = [];
+    const slow = olio({
+      modules: [
+        createModule("slow", {
+          typeDefs: "type Query { slow: String }",
+          resolvers: {
+            Query: {
+              // Hears the abort, but finishes anyway, as uncancellable work does.
+              slow: (_root, _args, _ctx, info) =>
+                new Promise((done) => {
+                  info.getAbortSignal()?.addEventListener("abort", () => {
+                    aborted.resolve(true);
+                    setTimeout(() => {
+                      order.push("resolved");
+                      done("done");
+                    }, 100);
+                  });
+                  started.resolve(true);
+                })
+            }
+          }
+        })
+      ]
+    });
+    const options = {
+      context: () => ({}),
+      onOperationEnd: () => {
+        order.push("ended");
+        ended.resolve(true);
+      },
+      onUnexpectedError: (error: unknown) => void reported.push(error)
+    };
+    return { slow, options, started, aborted, ended, order, reported };
+  };
+  const leave = async (port: number, started: Promise<true>) => {
+    const client = new AbortController();
+    const request = fetch(`http://localhost:${port}/graphql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "{ slow }" }),
+      signal: client.signal
+    }).catch(() => undefined);
+    await started;
+    client.abort();
+    await request;
+  };
+  const within = (promise: Promise<true>) =>
+    Promise.race([
+      promise.then(() => "settled"),
+      Bun.sleep(1000).then(() => "still waiting")
+    ]);
+  const expectCleanEnd = async (hung: ReturnType<typeof hang>) => {
+    expect(await within(hung.aborted.promise)).toBe("settled");
+    expect(await within(hung.ended.promise)).toBe("settled");
+    expect(hung.order).toEqual(["resolved", "ended"]);
+    expect(hung.reported).toEqual([]);
+  };
+
+  test("fetch", async () => {
+    const hung = hang();
+    const server = Bun.serve({
+      port: 0,
+      fetch: fetchHandler(hung.slow, hung.options)
+    });
+    await leave(Number(server.port), hung.started.promise);
+    await expectCleanEnd(hung);
+    server.stop(true);
+  });
+
+  test("node", async () => {
+    const hung = hang();
+    const port = await listen(
+      createServer(nodeHandler(hung.slow, hung.options))
+    );
+    await leave(port, hung.started.promise);
+    await expectCleanEnd(hung);
+  });
+});

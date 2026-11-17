@@ -11,11 +11,11 @@ The olio runtime: modular, type-safe GraphQL applications. You split an API into
 ## Install
 
 ```sh
-bun add @nxara/olio @nxara/olio-tools graphql@16
+bun add @nxara/olio @nxara/olio-tools graphql@17
 bun add -d @nxara/olio-codegen
 ```
 
-`graphql` 16 is a peer dependency. [`@nxara/olio-tools`](/reference/tools/) loads modules and files from globs. The samples below use it, but it's optional (see [Without codegen or tools](#without-codegen-or-tools)).
+`graphql` 17.1 or later is a peer dependency. [`@nxara/olio-tools`](/reference/tools/) loads modules and files from globs. The samples below use it, but it's optional (see [Without codegen or tools](#without-codegen-or-tools)).
 
 ## Register your app
 

@@ -24,8 +24,9 @@ const server = new ApolloServer<Context>({
   schema: app.schema,
   includeStacktraceInErrorResponses: false,
   formatError: (formatted, error) => {
-    if (unwrapResolverError(error) instanceof GraphQLError) return formatted;
-    console.error(error);
+    const thrown = unwrapResolverError(error);
+    if (thrown instanceof GraphQLError) return formatted;
+    console.error(thrown);
     return { message: "Unexpected error." };
   }
 });

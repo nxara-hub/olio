@@ -11,10 +11,10 @@ Serve an olio app over HTTP, from any framework. It runs [graphql-http](https://
 ## Install
 
 ```sh
-bun add @nxara/olio-http graphql@16
+bun add @nxara/olio-http graphql@17
 ```
 
-`graphql` 16 is a peer dependency. graphql-http is its only third-party dependency.
+`graphql` 17.1 or later is a peer dependency. graphql-http is its only third-party dependency.
 
 This package is optional. `app.schema` also runs on other GraphQL servers: see [GraphQL Yoga](/examples/yoga/) and [Apollo Server](/examples/apollo-server/).
 
@@ -224,6 +224,25 @@ fetchHandler(app, {
 Subscription servers take the same: pass `{ introspection, suggestions }` as the last argument of `validateOperation`, and `suggestions` to `errorMasker`.
 
 Neither one is access control. A client can still call a field it guesses correctly, so protect fields with [middleware](/reference/olio/#middleware).
+
+## When the client leaves
+
+Both adapters abort an operation when its client disconnects. A resolver reaches that signal through `info.getAbortSignal()`, and passes it on to work that can stop early:
+
+```ts
+export const Query = query.reports({
+  report: async (root, { id }, ctx, info) => {
+    const response = await fetch(`https://reports.internal/${id}`, {
+      signal: info.getAbortSignal()
+    });
+    return response.json();
+  }
+});
+```
+
+graphql ends the operation as soon as the client is gone. A resolver that's still running finishes unless it stops on the signal. Nobody reads the result, so the abort doesn't reach `onUnexpectedError`. `onOperationEnd` still runs, once the resolvers still running have finished, so it never disposes what they use.
+
+Subscription servers are yours: graphql-ws and graphql-sse end a subscription when its client leaves.
 
 ## Errors
 

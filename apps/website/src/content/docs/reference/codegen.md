@@ -16,10 +16,10 @@ It's deliberately small: SDL in, types out. Schema composition belongs to [`@nxa
 
 ```sh
 bun add -d @nxara/olio-codegen
-bun add graphql@16
+bun add graphql@17
 ```
 
-`graphql` 16 is a peer dependency. `codegen`'s output imports types from `@nxara/olio-codegen`, so keep it installed (a dev dependency is enough).
+`graphql` 17.1 or later is a peer dependency. `codegen`'s output imports types from `@nxara/olio-codegen`, so keep it installed (a dev dependency is enough).
 
 ## Usage
 

@@ -326,7 +326,8 @@ function emitInputs(ctx: Context): string[] {
   for (let pending = [...ctx.inputs]; pending.length;) {
     for (const type of pending) {
       const fields = Object.values(type.getFields()).map((f) => {
-        const optional = !isNonNullType(f.type) || f.defaultValue !== undefined;
+        const optional =
+          !isNonNullType(f.type) || (f.default ?? f.defaultValue) !== undefined;
         return `  ${f.name}${optional ? "?" : ""}: ${inputType(ctx, f.type)};`;
       });
       emitted.set(

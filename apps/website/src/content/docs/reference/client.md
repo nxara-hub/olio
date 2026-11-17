@@ -15,10 +15,10 @@ const { data } = await client.mutation.login({ email, password }, { headers });
 ## Install
 
 ```sh
-bun add @nxara/olio-client graphql@16
+bun add @nxara/olio-client graphql@17
 ```
 
-`graphql` 16 is a peer dependency. For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws), [graphql-sse](https://github.com/enisdenjo/graphql-sse), or both: the client uses your own clients of them.
+`graphql` 17.1 or later is a peer dependency. For subscriptions, add [graphql-ws](https://github.com/enisdenjo/graphql-ws), [graphql-sse](https://github.com/enisdenjo/graphql-sse), or both: the client uses your own clients of them.
 
 ## Operations
 

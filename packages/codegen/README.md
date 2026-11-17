@@ -4,7 +4,7 @@ Generate TypeScript types from GraphQL SDL: the schema's types and the `Applicat
 
 ```sh
 bun add -d @nxara/olio-codegen
-bun add graphql@16
+bun add graphql@17
 ```
 
 **[Read the docs](https://olio.nxara.dev/reference/codegen/)**

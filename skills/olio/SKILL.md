@@ -8,7 +8,7 @@ metadata:
 
 # olio
 
-olio splits a GraphQL API into **modules**. Each module owns its SDL, resolvers and middleware, and `olio()` composes them into one `graphql` 16 `GraphQLSchema`. Codegen turns the SDL into types, so resolvers, arguments and middleware keys are checked at compile time.
+olio splits a GraphQL API into **modules**. Each module owns its SDL, resolvers and middleware, and `olio()` composes them into one `graphql` 17 `GraphQLSchema`. Codegen turns the SDL into types, so resolvers, arguments and middleware keys are checked at compile time.
 
 The full documentation, as one file: https://olio.nxara.dev/llms-full.txt. Read it when something here isn't enough.
 

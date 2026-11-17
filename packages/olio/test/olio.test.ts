@@ -492,6 +492,34 @@ describe("olio", () => {
     ).toEqual({ shape: { side: 2 }, shout: "HEY" });
   });
 
+  test("a plain scalar object with graphql 16's method names still applies", async () => {
+    const echo = createModule("echo", {
+      typeDefs: /* GraphQL */ `
+        scalar Upper
+        extend type Query {
+          echo(v: Upper!): Upper!
+        }
+      `,
+      resolvers: {
+        Query: { echo: (_root, args) => (args as { v: string }).v },
+        Upper: {
+          serialize: (v: unknown) => String(v).toUpperCase(),
+          parseValue: (v: unknown) => `in:${String(v)}`
+        }
+      }
+    });
+    const app = olio({ modules: [root, echo] });
+    const variable = await graphql({
+      schema: app.schema,
+      source: "query ($v: Upper!) { echo(v: $v) }",
+      variableValues: { v: "hey" }
+    });
+    expect(variable.data).toEqual({ echo: "IN:HEY" });
+    expect((await run(app, `{ echo(v: "hey") }`)).data).toEqual({
+      echo: "IN:HEY"
+    });
+  });
+
   test("subscriptions yield field values; middleware runs once", async () => {
     const log: string[] = [];
     const feed = createModule("feed", {

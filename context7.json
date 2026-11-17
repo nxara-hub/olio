@@ -3,11 +3,11 @@
   "url": "https://context7.com/nxara-hub/olio",
   "public_key": "pk_2RRVHCAKBvS0j2VoBCvDo",
   "projectTitle": "olio",
-  "description": "Modular, type-safe GraphQL for TypeScript. Each module owns its SDL, resolvers and middleware, olio() composes them into one graphql 16 schema, and codegen types every builder.",
+  "description": "Modular, type-safe GraphQL for TypeScript. Each module owns its SDL, resolvers and middleware, olio() composes them into one graphql 17 schema, and codegen types every builder.",
   "folders": ["apps/website/src/content/docs", "skills"],
   "excludeFiles": ["CLAUDE.md", "TODO.md"],
   "rules": [
-    "Use graphql 16, never 17: it is a peer dependency.",
+    "Use graphql 17 (17.1 or later): it is a peer dependency.",
     "A module resolves only the fields its own SDL declares; extend another module's type in your module's SDL to add fields to it.",
     "Write resolvers with the builders (query.<id>, mutation.<id>, resolvers.<id>.<Type>) or inline in module.<id>({ resolvers }), so they are type-checked.",
     "Rerun codegen after every SDL change and never edit generated.ts by hand.",
