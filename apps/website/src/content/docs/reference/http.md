@@ -240,7 +240,7 @@ export const Query = query.reports({
 });
 ```
 
-graphql ends the operation as soon as the client is gone. A resolver that's still running finishes unless it stops on the signal. Nobody reads the result, so the abort doesn't reach `onUnexpectedError`. `onOperationEnd` still runs.
+graphql ends the operation as soon as the client is gone. A resolver that's still running finishes unless it stops on the signal. Nobody reads the result, so the abort doesn't reach `onUnexpectedError`. `onOperationEnd` still runs, once the resolvers still running have finished, so it never disposes what they use.
 
 Subscription servers are yours: graphql-ws and graphql-sse end a subscription when its client leaves.
 

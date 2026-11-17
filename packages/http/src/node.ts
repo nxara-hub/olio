@@ -24,6 +24,8 @@ type Passed = GraphQLHttpOptions<HandlerOptions<OperationContext>>;
 // late when it finished.
 const closed = (res: ServerResponse): AbortSignal => {
   const controller = new AbortController();
+  // The client may have left while the `context` hook ran.
+  if (res.destroyed) controller.abort();
   res.once("close", () => controller.abort());
   return controller.signal;
 };

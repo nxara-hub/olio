@@ -1,5 +1,6 @@
 import type { Context } from "@nxara/olio-core";
 import {
+  AbortedGraphQLExecutionError,
   execute,
   GraphQLError,
   NoSchemaIntrospectionCustomRule,
@@ -23,8 +24,10 @@ export interface Servable {
  * Aborts an operation's resolvers when its client leaves. graphql-http calls
  * `execute` without a signal, but copies the args its `schema` hook gets into
  * the ones it executes (the http tests fail if an update stops that). graphql
- * then rejects, which graphql-http would report as an internal error, so the
- * abort becomes a result nobody reads.
+ * then rejects at once, which graphql-http would report as an internal error,
+ * so the abort becomes a result nobody reads. That result waits for resolvers
+ * still running (ones that ignore the signal), so `onOperationEnd` can't dispose
+ * what they use.
  */
 export function abortOnLeave<Req>(
   schema: GraphQLSchema,
@@ -44,6 +47,9 @@ export function abortOnLeave<Req>(
         return await run(args);
       } catch (error) {
         if (!args.abortSignal?.aborted) throw error;
+        if (error instanceof AbortedGraphQLExecutionError) {
+          await Promise.resolve(error.abortedResult).catch(() => undefined);
+        }
         return { errors: [new GraphQLError("The client left.")] };
       }
     }
