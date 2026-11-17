@@ -7,6 +7,7 @@ import {
   masking,
   operationEnd,
   handlerFormatError,
+  abortOnLeave,
   handlerRules,
   type ErrorInfo,
   type GraphQLHttpOptions,
@@ -32,7 +33,7 @@ export function fetchHandler(
   const contexts = new WeakMap<Request, Context>();
   const http = createHandler({
     ...options,
-    schema: app.schema,
+    ...abortOnLeave(app.schema, (req) => req.raw.signal, options.execute),
     context: context
       ? async (req) => {
           try {
