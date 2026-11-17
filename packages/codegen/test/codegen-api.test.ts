@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 
 import { copyDirective, implementsDirective } from "@nxara/olio-schema";
 
@@ -398,7 +399,7 @@ describe("codegen", () => {
       const lines: string[] = [];
       const original = console.log;
       console.log = (...args: unknown[]) =>
-        lines.push(args.map(String).join(" "));
+        lines.push(stripVTControlCharacters(args.map(String).join(" ")));
       try {
         const { modules, output } = await scaffold(dir);
         const schema = join(dir, "schema.graphql");
