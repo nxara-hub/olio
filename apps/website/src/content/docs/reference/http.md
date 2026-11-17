@@ -225,6 +225,25 @@ Subscription servers take the same: pass `{ introspection, suggestions }` as the
 
 Neither one is access control. A client can still call a field it guesses correctly, so protect fields with [middleware](/reference/olio/#middleware).
 
+## When the client leaves
+
+Both adapters abort an operation when its client disconnects. A resolver reaches that signal through `info.getAbortSignal()`, and passes it on to work that can stop early:
+
+```ts
+export const Query = query.reports({
+  report: async (root, { id }, ctx, info) => {
+    const response = await fetch(`https://reports.internal/${id}`, {
+      signal: info.getAbortSignal()
+    });
+    return response.json();
+  }
+});
+```
+
+graphql ends the operation as soon as the client is gone. A resolver that's still running finishes unless it stops on the signal. Nobody reads the result, so the abort doesn't reach `onUnexpectedError`. `onOperationEnd` still runs.
+
+Subscription servers are yours: graphql-ws and graphql-sse end a subscription when its client leaves.
+
 ## Errors
 
 Only `GraphQLError`s reach clients. Anything else that's thrown, such as a failing database or a bug, is replaced by `"Unexpected error."` and passed to `onUnexpectedError` (default: `console.error`), so it isn't lost.

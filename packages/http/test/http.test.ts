@@ -596,3 +596,77 @@ describe("hiding the schema", () => {
     ).toBe('Value "ADMN".');
   });
 });
+
+describe("a client that disconnects aborts the operation", () => {
+  const hang = () => {
+    const aborted = Promise.withResolvers<true>();
+    const ended = Promise.withResolvers<true>();
+    const reported: unknown[] = [];
+    const slow = olio({
+      modules: [
+        createModule("slow", {
+          typeDefs: "type Query { slow: String }",
+          resolvers: {
+            Query: {
+              slow: (_root, _args, _ctx, info) =>
+                new Promise((done) => {
+                  const signal = info.getAbortSignal();
+                  signal?.addEventListener("abort", () =>
+                    aborted.resolve(true)
+                  );
+                  setTimeout(() => done("done"), 2000);
+                })
+            }
+          }
+        })
+      ]
+    });
+    const options = {
+      context: () => ({}),
+      onOperationEnd: () => ended.resolve(true),
+      onUnexpectedError: (error: unknown) => void reported.push(error)
+    };
+    return {
+      slow,
+      options,
+      aborted: aborted.promise,
+      ended: ended.promise,
+      reported
+    };
+  };
+  const leave = (port: number) => {
+    const client = new AbortController();
+    const request = fetch(`http://localhost:${port}/graphql`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "{ slow }" }),
+      signal: client.signal
+    }).catch(() => {});
+    setTimeout(() => client.abort(), 50);
+    return request;
+  };
+  const within = (promise: Promise<true>) =>
+    Promise.race([
+      promise.then(() => "settled"),
+      Bun.sleep(1000).then(() => "still waiting")
+    ]);
+
+  test("fetch", async () => {
+    const { slow, options, aborted, ended, reported } = hang();
+    const server = Bun.serve({ port: 0, fetch: fetchHandler(slow, options) });
+    await leave(Number(server.port));
+    expect(await within(aborted)).toBe("settled");
+    expect(await within(ended)).toBe("settled");
+    expect(reported).toEqual([]);
+    server.stop(true);
+  });
+
+  test("node", async () => {
+    const { slow, options, aborted, ended, reported } = hang();
+    const port = await listen(createServer(nodeHandler(slow, options)));
+    await leave(port);
+    expect(await within(aborted)).toBe("settled");
+    expect(await within(ended)).toBe("settled");
+    expect(reported).toEqual([]);
+  });
+});

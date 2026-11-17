@@ -9,6 +9,7 @@ import {
   masking,
   operationEnd,
   handlerFormatError,
+  abortOnLeave,
   handlerRules,
   type ErrorInfo,
   type GraphQLHttpOptions,
@@ -18,6 +19,14 @@ import {
 } from "./core.js";
 
 type Passed = GraphQLHttpOptions<HandlerOptions<OperationContext>>;
+
+// Aborted once the response closes: early when the client leaves, harmlessly
+// late when it finished.
+const closed = (res: ServerResponse): AbortSignal => {
+  const controller = new AbortController();
+  res.once("close", () => controller.abort());
+  return controller.signal;
+};
 
 const readBody = (req: IncomingMessage): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -53,7 +62,11 @@ export function nodeHandler(
   const http = createHandler<IncomingMessage, RequestContext, OperationContext>(
     {
       ...options,
-      schema: app.schema,
+      ...abortOnLeave(
+        app.schema,
+        (req) => closed(req.context.res),
+        options.execute
+      ),
       context: context
         ? async (req) => {
             try {

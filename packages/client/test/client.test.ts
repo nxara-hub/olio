@@ -356,6 +356,16 @@ describe("subscriptions", () => {
     expect(subscriptionsEnded.sort()).toEqual(["sse", "ws"]);
   });
 
+  test("an aborted signal ends a subscription that would stay open", async () => {
+    const leave = new AbortController();
+    const events = client.subscription.viewer(undefined, {
+      signal: leave.signal
+    });
+    expect((await events.next()).value?.data).toEqual({ viewer: "ada" });
+    leave.abort();
+    expect((await events.next()).done).toBe(true);
+  });
+
   test("testClient needs the app's server for each transport the operations use", () => {
     // @ts-expect-error these operations subscribe over ws and sse
     expect(() => testClient(operations, handler)).toThrow(
@@ -496,6 +506,23 @@ describe("custom fetch", () => {
     await spy.query.recent({ after });
     expect(variables).toEqual({ after });
     expect((variables as { after: unknown }).after).toBe(after);
+  });
+
+  test("the call's signal goes to fetch, so aborting cancels the request", async () => {
+    const server = Bun.serve({ port: 0, fetch: handler });
+    try {
+      const live = createClient(queries, {
+        url: `http://localhost:${server.port}/graphql`
+      });
+      const call = live.query.whoami(undefined, {
+        signal: AbortSignal.abort()
+      });
+      await expect(call).rejects.toThrow(
+        expect.objectContaining({ name: "AbortError" })
+      );
+    } finally {
+      await server.stop();
+    }
   });
 });
 

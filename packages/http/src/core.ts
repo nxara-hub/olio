@@ -1,10 +1,12 @@
 import type { Context } from "@nxara/olio-core";
 import {
+  execute,
   GraphQLError,
   NoSchemaIntrospectionCustomRule,
   parse,
   specifiedRules,
   validate,
+  type ExecutionArgs,
   type GraphQLSchema,
   type ValidationRule
 } from "graphql";
@@ -15,6 +17,37 @@ type MaybePromise<T> = T | Promise<T>;
 /** An olio app, or anything with a schema. */
 export interface Servable {
   readonly schema: GraphQLSchema;
+}
+
+/**
+ * Aborts an operation's resolvers when its client leaves. graphql-http calls
+ * `execute` without a signal, but copies the args its `schema` hook gets into
+ * the ones it executes (the http tests fail if an update stops that). graphql
+ * then rejects, which graphql-http would report as an internal error, so the
+ * abort becomes a result nobody reads.
+ */
+export function abortOnLeave<Req>(
+  schema: GraphQLSchema,
+  signalOf: (req: Req) => AbortSignal,
+  run: typeof execute = execute
+): {
+  schema: (req: Req, args: Omit<ExecutionArgs, "schema">) => GraphQLSchema;
+  execute: typeof execute;
+} {
+  return {
+    schema: (req, args) => {
+      args.abortSignal = signalOf(req);
+      return schema;
+    },
+    execute: async (args) => {
+      try {
+        return await run(args);
+      } catch (error) {
+        if (!args.abortSignal?.aborted) throw error;
+        return { errors: [new GraphQLError("The client left.")] };
+      }
+    }
+  };
 }
 
 /** What a hidden error happened in, for tying it to a request in your logs. */
