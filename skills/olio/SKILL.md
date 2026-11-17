@@ -24,7 +24,7 @@ The full documentation, as one file: https://olio.nxara.dev/llms-full.txt. Read 
 | `@nxara/olio-di` | Typed dependency injection, `ctx.di` |
 | `@nxara/olio-schema` | `@copy` / `@implements` schema directives |
 
-ESM only. `graphql` must be version **16**, never 17. Bun, or Node 24+.
+ESM only. `graphql` must be **17.1** or later, never 16. Bun, or Node 24+.
 
 ## Layout
 
@@ -241,3 +241,5 @@ Only query and mutation fields can be `@excl`. Watch out for:
 ## HTTP options
 
 `fetchHandler(app, { context, validationRules, onOperationEnd, introspection, suggestions, maskErrors, onUnexpectedError })`. Set `introspection: false` and `suggestions: false` in production to hide the schema. If the SDL uses `@excl`, put `exclRule` in `validationRules`. Subscriptions aren't included: run graphql-ws or graphql-sse with `app.schema`, as https://olio.nxara.dev/reference/http/ shows.
+
+A client that disconnects aborts its operation. A resolver doing slow work passes `info.getAbortSignal()` on, for example to `fetch(url, { signal: info.getAbortSignal() })`, so the work stops too.
